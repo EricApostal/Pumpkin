@@ -34,12 +34,23 @@ use crate::{
     net::Client,
     world::World,
 };
+use std::path::{Path, PathBuf};
 
 mod connection_cache;
 mod key_store;
 pub mod ticker;
 
 pub const CURRENT_MC_VERSION: &str = "1.21.4";
+
+#[cfg(target_os = "android")]
+fn get_default_world_path() -> PathBuf {
+    Path::new("/storage/emulated/0/Documents/world").to_path_buf()
+}
+
+#[cfg(not(target_os = "android"))]
+fn get_default_world_path() -> PathBuf {
+    Path::new("world").to_path_buf()
+}
 
 /// Represents a Minecraft server instance.
 pub struct Server {
@@ -90,7 +101,7 @@ impl Server {
         let world = World::load(
             Dimension::OverWorld.into_level(
                 // TODO: load form config
-                "./world".parse().unwrap(),
+                get_default_world_path(),
             ),
             DimensionType::Overworld,
         );

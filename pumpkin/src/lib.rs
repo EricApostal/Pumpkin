@@ -284,6 +284,14 @@ impl PumpkinServer {
         let _ = self.shutdown_signal.send(());
         Ok(())
     }
+
+    pub async fn send_command(&self, command: String) -> io::Result<()> {
+        let dispatcher = self.server.command_dispatcher.read().await;
+        dispatcher
+            .handle_command(&mut command::CommandSender::Console, &self.server, &command)
+            .await;
+        Ok(())
+    }
 }
 
 async fn handle_client(client: Arc<Client>, server: Arc<Server>, id: u16) {
