@@ -116,7 +116,7 @@ const GIT_VERSION: &str = env!("GIT_VERSION");
 // runtime with a channel! See `Level::fetch_chunks` as an example!
 #[tokio::main]
 #[expect(clippy::too_many_lines)]
-async fn main() {
+pub async fn run_server() {
     let time = Instant::now();
     init_logger();
 
