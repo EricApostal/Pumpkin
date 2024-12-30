@@ -37,7 +37,7 @@ mod server_links;
 use proxy::ProxyConfig;
 use resource_pack::ResourcePackConfig;
 
-const CONFIG_ROOT_FOLDER: &str = "config/";
+const CONFIG_ROOT_FOLDER: &str = "/storage/emulated/0/Documents/config/";
 
 pub static ADVANCED_CONFIG: LazyLock<AdvancedConfiguration> =
     LazyLock::new(AdvancedConfiguration::load);

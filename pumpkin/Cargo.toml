@@ -67,6 +67,7 @@ png = "0.17.15"
 # logging
 simple_logger = { version = "5.0.0", features = ["threads"] }
 time = "0.3.37"
+android_logger = "0.14.1"
 
 futures = "0.3.31"
 chrono = "0.4.39"
