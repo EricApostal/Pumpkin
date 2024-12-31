@@ -51,7 +51,26 @@ use pumpkin_config::{ADVANCED_CONFIG, BASIC_CONFIG};
 use pumpkin_core::text::{color::NamedColor, TextComponent};
 use pumpkin_protocol::CURRENT_MC_PROTOCOL;
 use std::time::Instant;
-// Setup some tokens to allow us to identify which event is for which socket.
+
+#[repr(C)]
+pub enum PumpkinError {
+    Success = 0,
+    LoggerInitializationError = 1,
+    NetworkBindError = 2,
+    SignalHandlerError = 3,
+    RuntimeError = 4,
+    ConfigError = 5,
+}
+
+fn to_pumpkin_error(error: &str) -> PumpkinError {
+    match error {
+        e if e.contains("logger") => PumpkinError::LoggerInitializationError,
+        e if e.contains("bind") => PumpkinError::NetworkBindError,
+        e if e.contains("signal") => PumpkinError::SignalHandlerError,
+        e if e.contains("config") => PumpkinError::ConfigError,
+        _ => PumpkinError::RuntimeError,
+    }
+}
 
 pub mod block;
 pub mod command;
@@ -73,8 +92,7 @@ fn scrub_address(ip: &str) -> String {
     }
 }
 
-fn init_logger() {
-    use pumpkin_config::ADVANCED_CONFIG;
+fn init_logger() -> Result<(), Box<dyn std::error::Error>> {
     if ADVANCED_CONFIG.logging.enabled {
         let mut logger = simple_logger::SimpleLogger::new();
         logger = logger.with_timestamp_format(time::macros::format_description!(
@@ -93,8 +111,9 @@ fn init_logger() {
 
         logger = logger.with_colors(ADVANCED_CONFIG.logging.color);
         logger = logger.with_threads(ADVANCED_CONFIG.logging.threads);
-        logger.init().unwrap();
+        logger.init()?;
     }
+    Ok(())
 }
 
 const fn convert_logger_filter(level: pumpkin_config::logging::LevelFilter) -> LevelFilter {
@@ -111,23 +130,12 @@ const fn convert_logger_filter(level: pumpkin_config::logging::LevelFilter) -> L
 const CARGO_PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
 const GIT_VERSION: &str = env!("GIT_VERSION");
 
-// WARNING: All rayon calls from the tokio runtime must be non-blocking! This includes things
-// like `par_iter`. These should be spawned in the the rayon pool and then passed to the tokio
-// runtime with a channel! See `Level::fetch_chunks` as an example!
-#[tokio::main]
-#[expect(clippy::too_many_lines)]
-async fn main() {
+async fn async_main() -> Result<(), Box<dyn std::error::Error>> {
     let time = Instant::now();
-    init_logger();
 
-    let default_panic = std::panic::take_hook();
-    std::panic::set_hook(Box::new(move |info| {
-        default_panic(info);
-        // TODO: Gracefully exit?
-        std::process::exit(1);
-    }));
+    init_logger()?;
 
-    log::info!("Starting Pumpkin {CARGO_PKG_VERSION} ({GIT_VERSION}) for Minecraft {CURRENT_MC_VERSION} (Protocol {CURRENT_MC_PROTOCOL})",);
+    log::info!("Starting Pumpkin {CARGO_PKG_VERSION} ({GIT_VERSION}) for Minecraft {CURRENT_MC_VERSION} (Protocol {CURRENT_MC_PROTOCOL})");
 
     log::debug!(
         "Build info: FAMILY: \"{}\", OS: \"{}\", ARCH: \"{}\", BUILD: \"{}\"",
@@ -142,23 +150,23 @@ async fn main() {
     );
 
     log::warn!("Pumpkin is currently under heavy development!");
-    log::info!("Report Issues on https://github.com/Pumpkin-MC/Pumpkin/issues");
+    log::info!("Report Issues on https://github.com/Snowiiii/Pumpkin/issues");
     log::info!("Join our Discord for community support https://discord.com/invite/wT8XjrjKkf");
 
     tokio::spawn(async {
         setup_sighandler()
             .await
-            .expect("Unable to setup signal handlers");
+            .map_err(|e| log::error!("Signal handler setup failed: {}", e))
+            .ok();
     });
 
-    // Setup the TCP server socket.
     let listener = tokio::net::TcpListener::bind(BASIC_CONFIG.server_address)
         .await
-        .expect("Failed to start TcpListener");
-    // In the event the user puts 0 for their port, this will allow us to know what port it is running on
+        .map_err(|e| format!("Failed to bind TCP listener: {}", e))?;
+
     let addr = listener
         .local_addr()
-        .expect("Unable to get the address of server!");
+        .map_err(|e| format!("Unable to get server address: {}", e))?;
 
     let use_console = ADVANCED_CONFIG.commands.use_console;
     let rcon = ADVANCED_CONFIG.rcon.clone();
@@ -172,10 +180,13 @@ async fn main() {
     if use_console {
         setup_console(server.clone());
     }
+
     if rcon.enabled {
         let server = server.clone();
         tokio::spawn(async move {
-            RCONServer::new(&rcon, server).await.unwrap();
+            if let Err(e) = RCONServer::new(&rcon, server).await {
+                log::error!("RCON server error: {}", e);
+            }
         });
     }
 
@@ -198,62 +209,114 @@ async fn main() {
 
     let mut master_client_id: u16 = 0;
     loop {
-        // Asynchronously wait for an inbound socket.
-        let (connection, address) = listener.accept().await.unwrap();
-
-        if let Err(e) = connection.set_nodelay(true) {
-            log::warn!("failed to set TCP_NODELAY {e}");
-        }
-
-        let id = master_client_id;
-        master_client_id = master_client_id.wrapping_add(1);
-
-        log::info!(
-            "Accepted connection from: {} (id {})",
-            scrub_address(&format!("{address}")),
-            id
-        );
-
-        let client = Arc::new(Client::new(connection, addr, id));
-
-        let server = server.clone();
-        tokio::spawn(async move {
-            while !client.closed.load(std::sync::atomic::Ordering::Relaxed)
-                && !client
-                    .make_player
-                    .load(std::sync::atomic::Ordering::Relaxed)
-            {
-                let open = client.poll().await;
-                if open {
-                    client.process_packets(&server).await;
-                };
-            }
-            if client
-                .make_player
-                .load(std::sync::atomic::Ordering::Relaxed)
-            {
-                let (player, world) = server.add_player(client).await;
-                world
-                    .spawn_player(&BASIC_CONFIG, player.clone(), &server)
-                    .await;
-
-                // poll Player
-                while !player
-                    .client
-                    .closed
-                    .load(core::sync::atomic::Ordering::Relaxed)
-                {
-                    let open = player.client.poll().await;
-                    if open {
-                        player.process_packets(&server).await;
-                    };
+        match listener.accept().await {
+            Ok((connection, address)) => {
+                if let Err(e) = connection.set_nodelay(true) {
+                    log::warn!("Failed to set TCP_NODELAY: {}", e);
                 }
-                log::debug!("Cleaning up player for id {}", id);
-                player.remove().await;
-                server.remove_player().await;
+
+                let id = master_client_id;
+                master_client_id = master_client_id.wrapping_add(1);
+
+                log::info!(
+                    "Accepted connection from: {} (id {})",
+                    scrub_address(&format!("{address}")),
+                    id
+                );
+
+                let client = Arc::new(Client::new(connection, addr, id));
+
+                let server = server.clone();
+                tokio::spawn(async move {
+                    while !client.closed.load(std::sync::atomic::Ordering::Relaxed)
+                        && !client
+                            .make_player
+                            .load(std::sync::atomic::Ordering::Relaxed)
+                    {
+                        let open = client.poll().await;
+                        if open {
+                            client.process_packets(&server).await;
+                        };
+                    }
+                    if client
+                        .make_player
+                        .load(std::sync::atomic::Ordering::Relaxed)
+                    {
+                        let (player, world) = server.add_player(client).await;
+                        world
+                            .spawn_player(&BASIC_CONFIG, player.clone(), &server)
+                            .await;
+
+                        while !player
+                            .client
+                            .closed
+                            .load(core::sync::atomic::Ordering::Relaxed)
+                        {
+                            let open = player.client.poll().await;
+                            if open {
+                                player.process_packets(&server).await;
+                            };
+                        }
+                        log::debug!("Cleaning up player for id {}", id);
+                        player.remove().await;
+                        server.remove_player().await;
+                    }
+                });
             }
-        });
+            Err(e) => {
+                log::error!("Error accepting connection: {}", e);
+                continue;
+            }
+        }
     }
+}
+
+#[no_mangle]
+pub extern "C" fn run_pumpkin() -> PumpkinError {
+    let default_panic = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        default_panic(info);
+        if let Some(location) = info.location() {
+            log::error!(
+                "Panic occurred in file '{}' at line {}",
+                location.file(),
+                location.line()
+            );
+        }
+        if let Some(payload) = info.payload().downcast_ref::<&str>() {
+            log::error!("Panic message: {}", payload);
+        }
+    }));
+
+    match std::panic::catch_unwind(|| {
+        match tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+        {
+            Ok(runtime) => match runtime.block_on(async_main()) {
+                Ok(_) => PumpkinError::Success,
+                Err(e) => {
+                    log::error!("Runtime error: {}", e);
+                    to_pumpkin_error(&e.to_string())
+                }
+            },
+            Err(e) => {
+                eprintln!("Failed to create Tokio runtime: {}", e);
+                PumpkinError::RuntimeError
+            }
+        }
+    }) {
+        Ok(result) => result,
+        Err(_) => {
+            log::error!("Panic occurred in Pumpkin server");
+            PumpkinError::RuntimeError
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn cleanup_pumpkin() -> PumpkinError {
+    PumpkinError::Success
 }
 
 fn handle_interrupt() {
@@ -266,17 +329,14 @@ fn handle_interrupt() {
     std::process::exit(0);
 }
 
-// Non-UNIX Ctrl-C handling
 #[cfg(not(unix))]
 async fn setup_sighandler() -> io::Result<()> {
     if ctrl_c().await.is_ok() {
         handle_interrupt();
     }
-
     Ok(())
 }
 
-// Unix signal handling
 #[cfg(unix)]
 async fn setup_sighandler() -> io::Result<()> {
     if signal(SignalKind::interrupt())?.recv().await.is_some() {

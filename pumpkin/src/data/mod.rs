@@ -1,8 +1,16 @@
-use std::{env, fs, path::Path};
+use std::{env, fs, path::Path, path::PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-const DATA_FOLDER: &str = "data/";
+#[cfg(target_os = "android")]
+fn get_default_data_path() -> PathBuf {
+    Path::new("/storage/emulated/0/Documents/data").to_path_buf()
+}
+
+#[cfg(not(target_os = "android"))]
+fn get_default_data_path() -> PathBuf {
+    Path::new("data").to_path_buf()
+}
 
 pub mod op_data;
 
@@ -13,7 +21,7 @@ pub trait LoadJSONConfiguration {
         Self: Sized + Default + Serialize + for<'de> Deserialize<'de>,
     {
         let exe_dir = env::current_dir().unwrap();
-        let data_dir = exe_dir.join(DATA_FOLDER);
+        let data_dir = exe_dir.join(get_default_data_path());
         if !data_dir.exists() {
             log::debug!("creating new data root folder");
             fs::create_dir(&data_dir).expect("Failed to create data root folder");
@@ -34,7 +42,7 @@ pub trait LoadJSONConfiguration {
 
             if let Err(err) = fs::write(&path, serde_json::to_string_pretty(&content).unwrap()) {
                 log::error!(
-                    "Couldn't write default data config to {path:?}. Reason: {err}. This is probably caused by a config update. Just delete the old data config and restart.", 
+                    "Couldn't write default data config to {path:?}. Reason: {err}. This is probably caused by a config update. Just delete the old data config and restart.",
                 );
             }
 
@@ -58,7 +66,7 @@ pub trait SaveJSONConfiguration: LoadJSONConfiguration {
         Self: Sized + Default + Serialize + for<'de> Deserialize<'de>,
     {
         let exe_dir = env::current_dir().unwrap();
-        let data_dir = exe_dir.join(DATA_FOLDER);
+        let data_dir = exe_dir.join(get_default_data_path());
         if !data_dir.exists() {
             log::debug!("creating new data root folder");
             fs::create_dir(&data_dir).expect("Failed to create data root folder");

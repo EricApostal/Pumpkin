@@ -46,7 +46,7 @@ pub const fn ceil_log2(value: u32) -> u8 {
         smallest_encompassing_power_of_two(value)
     };
 
-    MULTIPLY_DE_BRUIJN_BIT_POSITION[(((value as usize) * 125613361) >> 27) & 31]
+    MULTIPLY_DE_BRUIJN_BIT_POSITION[(((value as usize).wrapping_mul(125613361)) >> 27) & 31]
 }
 
 /// Maximum return value: 30
