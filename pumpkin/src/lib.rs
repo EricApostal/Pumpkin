@@ -33,11 +33,15 @@
 #[cfg(target_os = "wasi")]
 compile_error!("Compiling for WASI targets is not supported!");
 
-use log::LevelFilter;
+use log::{Level, LevelFilter, Log, Metadata, Record};
+use std::ffi::CString;
+use std::io;
+use std::os::raw::c_char;
+use std::sync::atomic::{AtomicPtr, Ordering};
+use std::sync::Once;
 
 use net::{lan_broadcast, query, rcon::RCONServer, Client};
 use server::{ticker::Ticker, Server};
-use std::io::{self};
 use tokio::io::{AsyncBufReadExt, BufReader};
 #[cfg(not(unix))]
 use tokio::signal::ctrl_c;
@@ -51,6 +55,21 @@ use pumpkin_config::{ADVANCED_CONFIG, BASIC_CONFIG};
 use pumpkin_core::text::{color::NamedColor, TextComponent};
 use pumpkin_protocol::CURRENT_MC_PROTOCOL;
 use std::time::Instant;
+use time::macros::format_description;
+use time::OffsetDateTime;
+
+static GLOBAL_LOGGER_INIT: Once = Once::new();
+
+type LogCallback = unsafe extern "C" fn(level: i32, message: *const c_char);
+
+static LOG_CALLBACK: AtomicPtr<()> = AtomicPtr::new(std::ptr::null_mut());
+
+#[repr(C)]
+pub struct PumpkinErrorDetails {
+    code: i32,
+    message: [u8; 256],
+    trace: [u8; 1024],
+}
 
 #[repr(C)]
 pub enum PumpkinError {
@@ -60,6 +79,141 @@ pub enum PumpkinError {
     SignalHandlerError = 3,
     RuntimeError = 4,
     ConfigError = 5,
+}
+
+struct FFILogger {
+    inner_logger: Option<simple_logger::SimpleLogger>,
+}
+
+impl FFILogger {
+    fn new() -> Self {
+        let mut inner_logger = None;
+
+        if ADVANCED_CONFIG.logging.enabled {
+            let mut logger = simple_logger::SimpleLogger::new();
+            logger = logger.with_timestamp_format(format_description!(
+                "[year]-[month]-[day] [hour]:[minute]:[second]"
+            ));
+
+            if !ADVANCED_CONFIG.logging.timestamp {
+                logger = logger.without_timestamps();
+            }
+
+            if ADVANCED_CONFIG.logging.env {
+                logger = logger.env();
+            }
+
+            logger = logger.with_level(convert_logger_filter(ADVANCED_CONFIG.logging.level));
+            logger = logger.with_colors(ADVANCED_CONFIG.logging.color);
+            logger = logger.with_threads(ADVANCED_CONFIG.logging.threads);
+
+            inner_logger = Some(logger);
+        }
+
+        Self { inner_logger }
+    }
+}
+
+impl Log for FFILogger {
+    fn enabled(&self, metadata: &Metadata) -> bool {
+        true
+    }
+
+    fn log(&self, record: &Record) {
+        if !self.enabled(record.metadata()) {
+            return;
+        }
+
+        let level = match record.level() {
+            Level::Error => 0,
+            Level::Warn => 1,
+            Level::Info => 2,
+            Level::Debug => 3,
+            Level::Trace => 4,
+        };
+
+        let message = format!("{}", record.args());
+        let c_message = match CString::new(message.clone()) {
+            Ok(c_str) => c_str,
+            Err(_) => return,
+        };
+
+        let callback_ptr = LOG_CALLBACK.load(Ordering::Acquire);
+        if !callback_ptr.is_null() {
+            unsafe {
+                let callback: LogCallback = std::mem::transmute(callback_ptr);
+                callback(level, c_message.as_ptr());
+            }
+        }
+
+        if let Some(ref inner_logger) = self.inner_logger {
+            let formatted = if ADVANCED_CONFIG.logging.timestamp {
+                let now = OffsetDateTime::now_local().unwrap_or(OffsetDateTime::now_utc());
+                let format = format_description!("[year]-[month]-[day] [hour]:[minute]:[second]");
+                let timestamp = now
+                    .format(&format)
+                    .unwrap_or_else(|_| "Time error".to_string());
+                format!("{} - {}", timestamp, message)
+            } else {
+                message
+            };
+
+            if ADVANCED_CONFIG.logging.color {
+                match record.level() {
+                    Level::Error => eprintln!("\x1b[31m{}\x1b[0m", formatted),
+                    Level::Warn => eprintln!("\x1b[33m{}\x1b[0m", formatted),
+                    Level::Info => println!("\x1b[32m{}\x1b[0m", formatted),
+                    Level::Debug => println!("\x1b[36m{}\x1b[0m", formatted),
+                    Level::Trace => println!("\x1b[90m{}\x1b[0m", formatted),
+                }
+            } else {
+                match record.level() {
+                    Level::Error | Level::Warn => eprintln!("{}", formatted),
+                    _ => println!("{}", formatted),
+                }
+            }
+        }
+    }
+
+    fn flush(&self) {}
+}
+
+fn initialize_global_logger() -> Result<(), Box<dyn std::error::Error>> {
+    std::thread_local! {
+        static INIT_ERROR: std::cell::RefCell<Option<Box<dyn std::error::Error>>> =
+            std::cell::RefCell::new(None);
+    }
+
+    GLOBAL_LOGGER_INIT.call_once(|| {
+        if ADVANCED_CONFIG.logging.enabled {
+            let logger = FFILogger::new();
+            match log::set_boxed_logger(Box::new(logger)) {
+                Ok(()) => {
+                    log::set_max_level(LevelFilter::Trace);
+                }
+                Err(e) => {
+                    INIT_ERROR.with(|error| {
+                        *error.borrow_mut() = Some(Box::new(e));
+                    });
+                }
+            }
+        }
+    });
+
+    let error = INIT_ERROR.with(|error| error.borrow_mut().take());
+    if let Some(e) = error {
+        Err(e)
+    } else {
+        Ok(())
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn set_log_callback(callback: LogCallback) {
+    LOG_CALLBACK.store(callback as *mut (), Ordering::Release);
+    if let Err(e) = initialize_global_logger() {
+        eprintln!("Failed to initialize logger: {}", e);
+    }
 }
 
 fn to_pumpkin_error(error: &str) -> PumpkinError {
@@ -92,28 +246,9 @@ fn scrub_address(ip: &str) -> String {
     }
 }
 
+// Updated to use the consolidated logger initialization
 fn init_logger() -> Result<(), Box<dyn std::error::Error>> {
-    if ADVANCED_CONFIG.logging.enabled {
-        let mut logger = simple_logger::SimpleLogger::new();
-        logger = logger.with_timestamp_format(time::macros::format_description!(
-            "[year]-[month]-[day] [hour]:[minute]:[second]"
-        ));
-
-        if !ADVANCED_CONFIG.logging.timestamp {
-            logger = logger.without_timestamps();
-        }
-
-        if ADVANCED_CONFIG.logging.env {
-            logger = logger.env();
-        }
-
-        logger = logger.with_level(convert_logger_filter(ADVANCED_CONFIG.logging.level));
-
-        logger = logger.with_colors(ADVANCED_CONFIG.logging.color);
-        logger = logger.with_threads(ADVANCED_CONFIG.logging.threads);
-        logger.init()?;
-    }
-    Ok(())
+    initialize_global_logger()
 }
 
 const fn convert_logger_filter(level: pumpkin_config::logging::LevelFilter) -> LevelFilter {
@@ -272,46 +407,46 @@ async fn async_main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 #[no_mangle]
-pub extern "C" fn run_pumpkin() -> PumpkinError {
-    let default_panic = std::panic::take_hook();
-    std::panic::set_hook(Box::new(move |info| {
-        default_panic(info);
-        if let Some(location) = info.location() {
-            log::error!(
-                "Panic occurred in file '{}' at line {}",
-                location.file(),
-                location.line()
-            );
-        }
-        if let Some(payload) = info.payload().downcast_ref::<&str>() {
-            log::error!("Panic message: {}", payload);
-        }
-    }));
-
-    match std::panic::catch_unwind(|| {
-        match tokio::runtime::Builder::new_multi_thread()
+pub extern "C" fn run_pumpkin() -> PumpkinErrorDetails {
+    let mut error_details = PumpkinErrorDetails {
+        code: PumpkinError::Success as i32,
+        message: [0; 256],
+        trace: [0; 1024],
+    };
+    let runtime_result = std::panic::catch_unwind(|| {
+        tokio::runtime::Builder::new_multi_thread()
             .enable_all()
             .build()
-        {
-            Ok(runtime) => match runtime.block_on(async_main()) {
-                Ok(_) => PumpkinError::Success,
-                Err(e) => {
-                    log::error!("Runtime error: {}", e);
-                    to_pumpkin_error(&e.to_string())
-                }
-            },
-            Err(e) => {
-                eprintln!("Failed to create Tokio runtime: {}", e);
-                PumpkinError::RuntimeError
+            .map_err(|e| format!("Failed to create Tokio runtime: {}", e))
+            .and_then(|runtime| runtime.block_on(async_main()).map_err(|e| e.to_string()))
+    });
+
+    match runtime_result {
+        Ok(Ok(_)) => {
+            // Success - everything worked
+            error_details.code = PumpkinError::Success as i32;
+        }
+        Ok(Err(error_msg)) => {
+            // Runtime error occurred
+            log::error!("Runtime error: {}", error_msg);
+            let error = to_pumpkin_error(&error_msg);
+            error_details.code = error as i32;
+            if let Some(msg_bytes) = error_msg.as_bytes().get(..255) {
+                error_details.message[..msg_bytes.len()].copy_from_slice(msg_bytes);
             }
         }
-    }) {
-        Ok(result) => result,
         Err(_) => {
-            log::error!("Panic occurred in Pumpkin server");
-            PumpkinError::RuntimeError
+            // Panic occurred
+            let error_msg = "Panic occurred in Pumpkin server";
+            log::error!("{}", error_msg);
+            error_details.code = PumpkinError::RuntimeError as i32;
+            if let Some(msg_bytes) = error_msg.as_bytes().get(..255) {
+                error_details.message[..msg_bytes.len()].copy_from_slice(msg_bytes);
+            }
         }
     }
+
+    error_details
 }
 
 #[no_mangle]
