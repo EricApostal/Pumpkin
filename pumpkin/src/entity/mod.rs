@@ -19,6 +19,7 @@ use pumpkin_protocol::{
 use crate::world::World;
 
 pub mod ai;
+pub mod boat;
 pub mod mob;
 
 pub mod living;

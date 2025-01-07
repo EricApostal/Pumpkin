@@ -2,7 +2,7 @@ use std::num::NonZeroU8;
 use std::sync::Arc;
 
 use crate::block::block_manager::BlockActionResult;
-use crate::entity::mob;
+use crate::entity::{boat, mob, Entity};
 use crate::net::PlayerConfig;
 use crate::{
     command::CommandSender,
@@ -12,7 +12,9 @@ use crate::{
     world::player_chunker,
 };
 use pumpkin_config::ADVANCED_CONFIG;
-use pumpkin_core::math::{boundingbox::BoundingBox, position::WorldPosition};
+use pumpkin_core::math::{
+    boundingbox::BoundingBox, boundingbox::BoundingBoxSize, position::WorldPosition,
+};
 use pumpkin_core::{
     math::{vector3::Vector3, wrap_degrees},
     text::TextComponent,
@@ -810,6 +812,7 @@ impl Player {
         use_item_on: SUseItemOn,
         server: &Arc<Server>,
     ) -> Result<(), Box<dyn PumpkinError>> {
+        log::info!("Player {} used item", self.gameprofile.name);
         let location = use_item_on.location;
         let mut should_try_decrement = false;
 
@@ -828,34 +831,51 @@ impl Player {
             let item_slot = inventory.held_item_mut();
 
             if let Some(item_stack) = item_slot {
-                // check if block is interactive
-                if let Some(item) = get_item_by_id(item_stack.item_id) {
-                    if let Ok(block) = world.get_block(location).await {
-                        let result = server
-                            .block_manager
-                            .on_use_with_item(block, self, location, item, server)
-                            .await;
-                        match result {
-                            BlockActionResult::Continue => {}
-                            BlockActionResult::Consume => {
-                                return Ok(());
+                let world_pos = WorldPosition(location.0 + face.to_offset());
+                let pos = Vector3::new(
+                    f64::from(world_pos.0.x) + f64::from(cursor_pos.x),
+                    f64::from(world_pos.0.y),
+                    f64::from(world_pos.0.z) + f64::from(cursor_pos.z),
+                );
+                let yaw = self.living_entity.entity.yaw.load();
+
+                // First check for boat placement
+                log::info!("Boat has id {}", item_stack.item_id);
+                if let Some(should_decrement) = self
+                    .try_place_boat(server, item_stack.item_id.into(), pos, yaw.into())
+                    .await
+                {
+                    should_try_decrement = should_decrement;
+                } else {
+                    // check if block is interactive
+                    if let Some(item) = get_item_by_id(item_stack.item_id) {
+                        if let Ok(block) = world.get_block(location).await {
+                            let result = server
+                                .block_manager
+                                .on_use_with_item(block, self, location, item, server)
+                                .await;
+                            match result {
+                                BlockActionResult::Continue => {}
+                                BlockActionResult::Consume => {
+                                    return Ok(());
+                                }
                             }
                         }
                     }
-                }
 
-                // check if item is a block, Because Not every item can be placed :D
-                if let Some(block) = get_block_by_item(item_stack.item_id) {
-                    should_try_decrement = self
-                        .run_is_block_place(block.clone(), server, use_item_on, location, &face)
-                        .await?;
+                    // check if item is a block
+                    if let Some(block) = get_block_by_item(item_stack.item_id) {
+                        should_try_decrement = self
+                            .run_is_block_place(block.clone(), server, use_item_on, location, &face)
+                            .await?;
+                    }
+                    // check if item is a spawn egg
+                    if let Some(item_t) = get_spawn_egg(item_stack.item_id) {
+                        should_try_decrement = self
+                            .run_is_spawn_egg(item_t, server, location, cursor_pos, &face)
+                            .await?;
+                    };
                 }
-                // check if item is a spawn egg
-                if let Some(item_t) = get_spawn_egg(item_stack.item_id) {
-                    should_try_decrement = self
-                        .run_is_spawn_egg(item_t, server, location, cursor_pos, &face)
-                        .await?;
-                };
 
                 if should_try_decrement {
                     // TODO: Config
@@ -1099,5 +1119,57 @@ impl Player {
             .send_packet(&CAcknowledgeBlockChange::new(use_item_on.sequence))
             .await;
         Ok(true)
+    }
+
+    async fn try_place_boat(
+        &self,
+        server: &Arc<Server>,
+        item_id: i32,
+        pos: Vector3<f64>,
+        yaw: f64,
+    ) -> Option<bool> {
+        log::info!("Trying to place boat with item id {}", item_id);
+        let boat_type = boat::BoatType::from_item_id(item_id)?;
+        let entity_type = boat_type.to_entity_type();
+
+        log::info!("Boat type: {:?}", boat_type);
+        let boat = Entity::new(
+            server.new_entity_id(),
+            uuid::Uuid::new_v4(),
+            self.world().clone(),
+            pos,
+            entity_type.clone(),
+            0.0,
+            BoundingBox::new(
+                Vector3::new(1.375, 0.5625, 1.375),
+                Vector3::new(0.0, 0.0, 0.0),
+            )
+            .into(),
+            BoundingBoxSize {
+                width: 10.0,
+                height: 10.0,
+            }
+            .into(),
+        );
+        log::info!("Adding boat of type {:?}", boat_type);
+        server
+            .broadcast_packet_all(&CSpawnEntity::new(
+                VarInt(boat.entity_id),
+                boat.entity_uuid,
+                VarInt(entity_type as i32),
+                pos.x,
+                pos.y,
+                pos.z,
+                0.0,
+                yaw as f32,
+                yaw as f32,
+                0.into(),
+                0.0,
+                0.0,
+                0.0,
+            ))
+            .await;
+
+        Some(true)
     }
 }
