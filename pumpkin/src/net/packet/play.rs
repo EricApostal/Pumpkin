@@ -8,6 +8,7 @@ use crate::net::PlayerConfig;
 use crate::plugin::player::player_chat::PlayerChatEvent;
 use crate::plugin::player::player_command_send::PlayerCommandSendEvent;
 use crate::plugin::player::player_move::PlayerMoveEvent;
+use crate::world::BlockFlags;
 use crate::{
     command::CommandSender,
     entity::player::{ChatMode, Hand, Player},
@@ -237,7 +238,7 @@ impl Player {
             }
 
             'cancelled: {
-                self.client.send_packet(&CPlayerPosition::new(
+                self.client.enqueue_packet(&CPlayerPosition::new(
                     self.teleport_id_count.load(std::sync::atomic::Ordering::Relaxed).into(),
                     self.living_entity.entity.pos.load(),
                     Vector3::new(0.0, 0.0, 0.0),
@@ -376,7 +377,7 @@ impl Player {
             + 1;
         *self.awaiting_teleport.lock().await = Some((teleport_id.into(), position));
         self.client
-            .send_packet(&CPlayerPosition::new(
+            .enqueue_packet(&CPlayerPosition::new(
                 teleport_id.into(),
                 self.living_entity.entity.pos.load(),
                 Vector3::new(0.0, 0.0, 0.0),
@@ -444,7 +445,7 @@ impl Player {
                 let command_clone = command.clone();
                 // Some commands can take a long time to execute. If they do, they block packet processing for the player.
                 // That's why we will spawn a task instead.
-                tokio::spawn(async move {
+                server.spawn_task(async move {
                     let dispatcher = server_clone.command_dispatcher.read().await;
                     dispatcher
                         .handle_command(
@@ -490,7 +491,7 @@ impl Player {
                 slot as i16,
                 &slot_data,
             );
-            self.client.send_packet(&dest_packet).await;
+            self.client.enqueue_packet(&dest_packet).await;
         }
     }
 
@@ -571,7 +572,7 @@ impl Player {
         let equipment = &[(EquipmentSlot::MainHand, stack.clone())];
         self.living_entity.send_equipment_changes(equipment).await;
         self.client
-            .send_packet(&CSetHeldItem::new(dest_slot as i8))
+            .enqueue_packet(&CSetHeldItem::new(dest_slot as i8))
             .await;
     }
 
@@ -692,12 +693,13 @@ impl Player {
                         .broadcast_packet_all(&CPlayerChatMessage::new(
                             gameprofile.id,
                             1.into(),
-                            chat_message.signature.as_deref(),
-                            &event.message,
+                            chat_message.signature,
+                            event.message.clone(),
                             chat_message.timestamp,
                             chat_message.salt,
-                            &[],
-                            Some(TextComponent::text(event.message.clone())),
+                            // TODO: Previous messages
+                            Box::new([]),
+                            Some(TextComponent::text(event.message)),
                             FilterType::PassThrough,
                             (CHAT + 1).into(),
                             TextComponent::text(gameprofile.name.clone()),
@@ -705,23 +707,24 @@ impl Player {
                         ))
                         .await;
                 } else {
+                    let packet =
+                        CPlayerChatMessage::new(
+                            gameprofile.id,
+                            1.into(),
+                            chat_message.signature,
+                            event.message.clone(),
+                            chat_message.timestamp,
+                            chat_message.salt,
+                            Box::new([]),
+                            Some(TextComponent::text(event.message)),
+                            FilterType::PassThrough,
+                            (CHAT + 1).into(),
+                            TextComponent::text(gameprofile.name.clone()),
+                            None,
+                        );
+
                     for recipient in event.recipients {
-                        recipient.client.send_packet(
-                            &CPlayerChatMessage::new(
-                                gameprofile.id,
-                                1.into(),
-                                chat_message.signature.as_deref(),
-                                &event.message,
-                                chat_message.timestamp,
-                                chat_message.salt,
-                                &[],
-                                Some(TextComponent::text(event.message.clone())),
-                                FilterType::PassThrough,
-                                (CHAT + 1).into(),
-                                TextComponent::text(gameprofile.name.clone()),
-                                None,
-                            ),
-                        ).await;
+                        recipient.client.enqueue_packet(&packet).await;
                     }
                 }
             }
@@ -943,8 +946,8 @@ impl Player {
                     if let Some(held) = self.inventory.lock().await.held_item() {
                         if !server.item_registry.can_mine(&held.item, self) {
                             self.client
-                                .send_packet(&CBlockUpdate::new(
-                                    &location,
+                                .enqueue_packet(&CBlockUpdate::new(
+                                    location,
                                     VarInt(i32::from(state.id)),
                                 ))
                                 .await;
@@ -960,7 +963,11 @@ impl Player {
 
                         let broken_state = world.get_block_state(&location).await.unwrap();
                         world
-                            .break_block(&location, Some(self.clone()), false, None)
+                            .break_block(
+                                &location,
+                                Some(self.clone()),
+                                BlockFlags::NOTIFY_NEIGHBORS | BlockFlags::SKIP_DROPS,
+                            )
                             .await;
                         server
                             .block_registry
@@ -985,7 +992,11 @@ impl Player {
                         if speed >= 1.0 {
                             let broken_state = world.get_block_state(&location).await.unwrap();
                             world
-                                .break_block(&location, Some(self.clone()), true, None)
+                                .break_block(
+                                    &location,
+                                    Some(self.clone()),
+                                    BlockFlags::NOTIFY_NEIGHBORS,
+                                )
                                 .await;
                             server
                                 .block_registry
@@ -1053,7 +1064,15 @@ impl Player {
                             let drop = self.gamemode.load() != GameMode::Creative
                                 && self.can_harvest(&state, block.name).await;
                             world
-                                .break_block(&location, Some(self.clone()), drop, None)
+                                .break_block(
+                                    &location,
+                                    Some(self.clone()),
+                                    if drop {
+                                        BlockFlags::NOTIFY_NEIGHBORS
+                                    } else {
+                                        BlockFlags::SKIP_DROPS | BlockFlags::NOTIFY_NEIGHBORS
+                                    },
+                                )
                                 .await;
                         }
                         server
@@ -1125,7 +1144,7 @@ impl Player {
 
     pub async fn handle_play_ping_request(&self, request: SPlayPingRequest) {
         self.client
-            .send_packet(&CPingResponse::new(request.payload))
+            .enqueue_packet(&CPingResponse::new(request.payload))
             .await;
     }
 
@@ -1177,6 +1196,11 @@ impl Player {
             return Ok(());
         };
         if !sneaking {
+            server
+                .item_registry
+                .use_on_block(&stack.item, self, location, &face, &block, server)
+                .await;
+
             let action_result = server
                 .block_registry
                 .use_with_item(&block, self, location, &stack.item, server, world)
@@ -1367,16 +1391,15 @@ impl Player {
             suggestions,
         );
 
-        self.client.send_packet(&response).await;
+        self.client.enqueue_packet(&response).await;
     }
 
     pub fn handle_cookie_response(&self, packet: &SPCookieResponse) {
         // TODO: allow plugins to access this
         log::debug!(
-            "Received cookie_response[play]: key: \"{}\", has_payload: \"{}\", payload_length: \"{}\"",
+            "Received cookie_response[play]: key: \"{}\", payload_length: \"{:?}\"",
             packet.key.to_string(),
-            packet.has_payload,
-            packet.payload_length.unwrap_or(VarInt::from(0)).0
+            packet.payload.as_ref().map(|p| p.len())
         );
     }
 
@@ -1514,20 +1537,11 @@ impl Player {
         if !intersects
             && server
                 .block_registry
-                .can_place(
-                    server,
-                    world,
-                    &block,
-                    face,
-                    &final_block_pos,
-                    &self.get_player_direction(),
-                )
+                .can_place_at(world, &block, &final_block_pos)
                 .await
         {
-            let _replaced_id = world.set_block_state(&final_block_pos, new_state).await;
-            server
-                .block_registry
-                .on_placed(world, &block, self, final_block_pos, server)
+            let _replaced_id = world
+                .set_block_state(&final_block_pos, new_state, BlockFlags::NOTIFY_ALL)
                 .await;
 
             self.send_sign_packet(block, final_block_pos, face).await;
@@ -1550,7 +1564,7 @@ impl Player {
                 || state.get_state().block_entity_type == Some(block_entity!("hanging_sign"))
         }) {
             self.client
-                .send_packet(&COpenSignEditor::new(
+                .enqueue_packet(&COpenSignEditor::new(
                     block_position,
                     selected_face.to_offset().z == 1,
                 ))

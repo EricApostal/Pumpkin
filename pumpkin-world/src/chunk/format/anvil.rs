@@ -24,7 +24,9 @@ use crate::chunk::{
     io::{ChunkSerializer, LoadedData},
 };
 
-use super::{ChunkNbt, ChunkSection, ChunkSectionBlockStates, PaletteEntry};
+use super::{
+    ChunkNbt, ChunkSection, ChunkSectionBlockStates, PaletteEntry, SerializedScheduledTick,
+};
 
 /// The side size of a region in chunks (one region is 32x32 chunks)
 pub const REGION_SIZE: usize = 32;
@@ -768,9 +770,6 @@ impl ChunkSerializer for AnvilChunkFile {
         chunks: &[Vector2<i32>],
         stream: tokio::sync::mpsc::Sender<LoadedData<ChunkData, ChunkReadingError>>,
     ) {
-        // Create an unbounded buffer so we don't block the rayon thread pool
-        let (bridge_send, mut bridge_recv) = tokio::sync::mpsc::unbounded_channel();
-
         // Don't par iter here so we can prevent backpressure with the await in the async
         // runtime
         for chunk in chunks.iter().cloned() {
@@ -781,31 +780,18 @@ impl ChunkSerializer for AnvilChunkFile {
                     .await
                     .expect("Failed to send chunk"),
                 Some(chunk_metadata) => {
-                    let send = bridge_send.clone();
-                    let chunk_data = chunk_metadata.serialized_data.clone();
-                    rayon::spawn(move || {
-                        let result = match chunk_data.to_chunk(chunk) {
-                            Ok(chunk) => LoadedData::Loaded(chunk),
-                            Err(err) => LoadedData::Error((chunk, err)),
-                        };
+                    let chunk_data = &chunk_metadata.serialized_data;
+                    let result = match chunk_data.to_chunk(chunk) {
+                        Ok(chunk) => LoadedData::Loaded(chunk),
+                        Err(err) => LoadedData::Error((chunk, err)),
+                    };
 
-                        send.send(result)
-                            .expect("Failed to send anvil chunks from rayon thread");
-                    });
+                    stream
+                        .send(result)
+                        .await
+                        .expect("Failed to read the chunk to the stream");
                 }
             }
-        }
-        // Drop the original so streams clean-up
-        drop(bridge_send);
-
-        // We don't want to waste work, so recv unbounded from the rayon thread pool, then re-send
-        // to the channel
-
-        while let Some(data) = bridge_recv.recv().await {
-            stream
-                .send(data)
-                .await
-                .expect("Failed to send anvil chunks from bridge");
         }
     }
 }
@@ -900,6 +886,40 @@ pub fn chunk_to_bytes(chunk_data: &ChunkData) -> Result<Vec<u8>, ChunkSerializin
         status: ChunkStatus::Full,
         heightmaps: chunk_data.heightmap.clone(),
         sections,
+        block_ticks: {
+            chunk_data
+                .block_ticks
+                .iter()
+                .map(|tick| SerializedScheduledTick {
+                    x: tick.block_pos.0.x,
+                    y: tick.block_pos.0.y,
+                    z: tick.block_pos.0.z,
+                    delay: tick.delay as i32,
+                    priority: tick.priority as i32,
+                    target_block: format!(
+                        "minecraft:{}",
+                        Block::from_id(tick.target_block_id).unwrap().name
+                    ),
+                })
+                .collect()
+        },
+        fluid_ticks: {
+            chunk_data
+                .fluid_ticks
+                .iter()
+                .map(|tick| SerializedScheduledTick {
+                    x: tick.block_pos.0.x,
+                    y: tick.block_pos.0.y,
+                    z: tick.block_pos.0.z,
+                    delay: tick.delay as i32,
+                    priority: tick.priority as i32,
+                    target_block: format!(
+                        "minecraft:{}",
+                        Block::from_id(tick.target_block_id).unwrap().name
+                    ),
+                })
+                .collect()
+        },
     };
 
     let mut result = Vec::new();
