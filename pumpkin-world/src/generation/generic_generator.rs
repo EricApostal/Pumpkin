@@ -66,14 +66,14 @@ impl<B: BiomeGenerator, T: PerlinTerrainGenerator> WorldGenerator for GenericGen
                         coordinates.with_chunk_coordinates(at),
                         &mut blocks,
                         chunk_height,
-                        biome,
+                        &biome,
                     );
                 }
             }
         }
 
         ChunkData {
-            blocks,
+            sections: blocks,
             heightmap: Default::default(),
             position: at,
             // This chunk was just created! We want to say its been changed

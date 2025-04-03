@@ -2,14 +2,14 @@ use core::error;
 use std::{
     fs::File,
     io::{Cursor, Read},
-    num::NonZeroU32,
     path::Path,
 };
 
 use base64::{Engine as _, engine::general_purpose};
 use pumpkin_config::{BASIC_CONFIG, BasicConfiguration};
+use pumpkin_data::packet::CURRENT_MC_PROTOCOL;
 use pumpkin_protocol::{
-    CURRENT_MC_PROTOCOL, Players, StatusResponse, Version,
+    Players, StatusResponse, Version,
     client::{config::CPluginMessage, status::CStatusResponse},
     codec::{Codec, var_int::VarInt},
 };
@@ -113,30 +113,26 @@ impl CachedStatus {
     pub fn build_response(config: &BasicConfiguration) -> StatusResponse {
         let favicon = if config.use_favicon {
             let icon_path = &config.favicon_path;
-            log::debug!("Loading server favicon from '{}'", icon_path);
+            log::debug!("Loading server favicon from '{icon_path}'");
             match load_icon_from_file(icon_path).or_else(|err| {
                 if let Some(io_err) = err.downcast_ref::<std::io::Error>() {
                     if io_err.kind() == std::io::ErrorKind::NotFound {
-                        log::info!("Favicon '{}' not found; using default icon.", icon_path);
+                        log::info!("Favicon '{icon_path}' not found; using default icon.");
                     } else {
                         log::error!(
-                            "Unable to load favicon at '{}': I/O error - {}; using default icon.",
-                            icon_path,
-                            io_err
+                            "Unable to load favicon at '{icon_path}': I/O error - {io_err}; using default icon.",
                         );
                     }
                 } else {
                     log::error!(
-                        "Unable to load favicon at '{}': other error - {}; using default icon.",
-                        icon_path,
-                        err
+                        "Unable to load favicon at '{icon_path}': other error - {err}; using default icon.",
                     );
                 }
                 load_icon_from_bytes(DEFAULT_ICON)
             }) {
                 Ok(result) => Some(result),
                 Err(err) => {
-                    log::warn!("Failed to load default icon: {}", err);
+                    log::warn!("Failed to load default icon: {err}");
                     None
                 }
             }
@@ -148,7 +144,7 @@ impl CachedStatus {
         StatusResponse {
             version: Some(Version {
                 name: CURRENT_MC_VERSION.into(),
-                protocol: NonZeroU32::from(CURRENT_MC_PROTOCOL).get(),
+                protocol: CURRENT_MC_PROTOCOL,
             }),
             players: Some(Players {
                 max: config.max_players,
@@ -157,7 +153,9 @@ impl CachedStatus {
             }),
             description: config.motd.clone(),
             favicon,
-            enforce_secure_chat: false,
+            // This should stay true even when reports are disabled.
+            // It prevents the annoying popup when joining the server.
+            enforce_secure_chat: true,
         }
     }
 }

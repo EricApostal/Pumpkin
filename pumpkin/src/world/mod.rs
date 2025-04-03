@@ -30,15 +30,17 @@ use pumpkin_data::{
     entity::{EntityStatus, EntityType},
     particle::Particle,
     sound::{Sound, SoundCategory},
-    world::WorldEvent,
+    world::{RAW, WorldEvent},
 };
 use pumpkin_macros::send_cancellable;
 use pumpkin_protocol::{
     ClientPacket, IdOr, SoundEvent,
     client::play::{
-        CEntityStatus, CGameEvent, CLogin, CMultiBlockUpdate, CPlayerInfoUpdate, CRemoveEntities,
-        CRemovePlayerInfo, CSoundEffect, CSpawnEntity, GameEvent, PlayerAction,
+        CEntityStatus, CGameEvent, CLogin, CMultiBlockUpdate, CPlayerChatMessage,
+        CPlayerInfoUpdate, CRemoveEntities, CRemovePlayerInfo, CSoundEffect, CSpawnEntity,
+        FilterType, GameEvent, InitChat, PlayerAction, PreviousMessage,
     },
+    server::play::SChatMessage,
 };
 use pumpkin_protocol::{client::play::CLevelEvent, codec::identifier::Identifier};
 use pumpkin_protocol::{
@@ -52,7 +54,7 @@ use pumpkin_registry::DimensionType;
 use pumpkin_util::math::{position::BlockPos, vector3::Vector3};
 use pumpkin_util::math::{position::chunk_section_from_pos, vector2::Vector2};
 use pumpkin_util::text::{TextComponent, color::NamedColor};
-use pumpkin_world::level::SyncChunk;
+use pumpkin_world::{GENERATION_SETTINGS, GeneratorSetting, biome, level::SyncChunk};
 use pumpkin_world::{block::BlockDirection, chunk::ChunkData};
 use pumpkin_world::{
     block::registry::{
@@ -145,6 +147,7 @@ pub struct World {
     pub level_time: Mutex<LevelTime>,
     /// The type of dimension the world is in.
     pub dimension_type: DimensionType,
+    pub sea_level: i32,
     /// The world's weather, including rain and thunder levels.
     pub weather: Mutex<Weather>,
     /// Block Behaviour
@@ -152,6 +155,9 @@ pub struct World {
     /// A map of unsent block changes, keyed by block position.
     unsent_block_changes: Mutex<HashMap<BlockPos, u16>>,
     // TODO: entities
+    /// A log of the last 20 chat messages (or attempted chat messages) from players.
+    /// Used for previous message acknowledgement.
+    pub chat_log: Mutex<Box<[PreviousMessage]>>,
 }
 
 impl World {
@@ -161,6 +167,10 @@ impl World {
         dimension_type: DimensionType,
         block_registry: Arc<BlockRegistry>,
     ) -> Self {
+        // TODO
+        let generation_settings = GENERATION_SETTINGS
+            .get(&GeneratorSetting::Overworld)
+            .unwrap();
         Self {
             level: Arc::new(level),
             players: Arc::new(RwLock::new(HashMap::new())),
@@ -171,7 +181,9 @@ impl World {
             dimension_type,
             weather: Mutex::new(Weather::new()),
             block_registry,
+            sea_level: generation_settings.sea_level,
             unsent_block_changes: Mutex::new(HashMap::new()),
+            chat_log: Mutex::new(Box::new([])),
         }
     }
 
@@ -211,6 +223,113 @@ impl World {
             target_name,
         ))
         .await;
+    }
+
+    pub async fn broadcast_secure_player_chat(
+        &self,
+        sender: &Arc<Player>,
+        chat_message: &SChatMessage,
+        decorated_message: &TextComponent,
+    ) {
+        // Todo: Proper ACK handling, handle signature chain de-sync
+
+        // Don't leave this locked in case sender is also recipient
+        let sender_messages_sent = {
+            let sender_chat_session = sender.chat_session.lock().await;
+            sender_chat_session.messages_sent
+        };
+
+        let current_players = self.players.read().await;
+
+        for (_, recipient) in current_players.iter() {
+            let mut recipient_chat_session = recipient.chat_session.lock().await;
+            let filtered_chat_log = self
+                .get_filtered_chat_log(
+                    chat_message.acknowledged.clone(),
+                    recipient_chat_session.messages_received == 0,
+                )
+                .await;
+
+            let packet = &CPlayerChatMessage::new(
+                VarInt(recipient_chat_session.messages_received),
+                sender.gameprofile.id,
+                VarInt(sender_messages_sent),
+                chat_message.signature.clone(),
+                chat_message.message.clone(),
+                chat_message.timestamp,
+                chat_message.salt,
+                filtered_chat_log.clone(),
+                Some(decorated_message.clone()),
+                FilterType::PassThrough,
+                (RAW + 1).into(), // Custom registry chat_type with no sender name
+                TextComponent::text(""), // Not needed since we're injecting the name in the message for custom formatting
+                None,
+            );
+
+            recipient.client.enqueue_packet(packet).await;
+
+            recipient_chat_session.messages_received += 1;
+        }
+
+        sender.chat_session.lock().await.messages_sent += 1;
+
+        self.append_to_chat_log(chat_message.signature.clone())
+            .await;
+    }
+
+    /// Adds a message to the chat log and updates ids in the chat log
+    /// id 1 is most recent, id 20 is oldest
+    pub async fn append_to_chat_log(&self, signature: Option<Box<[u8]>>) {
+        let new_message = PreviousMessage {
+            id: VarInt(1),
+            signature,
+        };
+
+        let mut messages = Vec::from(self.chat_log.lock().await.as_ref());
+        messages.push(new_message);
+        if messages.len() > 20 {
+            messages.remove(0);
+        }
+        let messages_len = messages.len();
+
+        for (i, message) in messages.iter_mut().enumerate() {
+            message.id = VarInt((messages_len - i) as i32);
+        }
+
+        *self.chat_log.lock().await = messages.into_boxed_slice();
+    }
+
+    /// Returns a log of the last 20 messages, filtered by ACK bitset
+    /// Message ID should only be 0 if signatures are being sent
+    /// Signatures should only be sent in the first chat to each player
+    pub async fn get_filtered_chat_log(
+        &self,
+        acknowledged: Box<[u8]>,
+        first_message: bool,
+    ) -> Box<[PreviousMessage]> {
+        let bitset = format!(
+            "{:04b}{:08b}{:08b}",
+            acknowledged[2], acknowledged[1], acknowledged[0]
+        );
+
+        let filtered_log: Vec<PreviousMessage> = self
+            .chat_log
+            .lock()
+            .await
+            .iter()
+            .filter(|v| bitset.chars().nth(v.id.0 as usize - 1).unwrap_or('0') == '1') // Filter based on bitset
+            .map(|message| {
+                let mut message = message.clone();
+                if first_message {
+                    message.id = VarInt(0);
+                } else {
+                    message.signature = None;
+                }
+                message
+            }) // Clone the messages
+            .collect();
+
+        filtered_log.into_boxed_slice()
     }
 
     /// Broadcasts a packet to all connected players within the world, excluding the specified players.
@@ -310,7 +429,7 @@ impl World {
         .await;
     }
 
-    pub async fn tick(&self, server: &Server) {
+    pub async fn tick(self: &Arc<Self>, server: &Server) {
         self.flush_block_updates().await;
 
         // world ticks
@@ -391,7 +510,7 @@ impl World {
         }
     }
 
-    pub async fn tick_scheduled_block_ticks(&self) {
+    pub async fn tick_scheduled_block_ticks(self: &Arc<Self>) {
         let blocks_to_tick = self.level.get_and_tick_block_ticks().await;
 
         for scheduled_tick in blocks_to_tick {
@@ -456,15 +575,17 @@ impl World {
                 false,
                 (self.dimension_type as u8).into(),
                 self.dimension_type.name(),
-                0, // seed
+                biome::hash_seed(self.level.seed.0), // seed
                 gamemode as u8,
                 base_config.default_gamemode as i8,
                 false,
                 false,
                 None,
                 0.into(),
-                0.into(),
-                false,
+                self.sea_level.into(),
+                // This should stay true even when reports are disabled.
+                // It prevents the annoying popup when joining the server.
+                true,
             ))
             .await;
         // Permissions, i.e. the commands a player may use.
@@ -473,16 +594,28 @@ impl World {
             let command_dispatcher = server.command_dispatcher.read().await;
             client_suggestions::send_c_commands_packet(&player, &command_dispatcher).await;
         };
-        // Teleport
-        let info = &self.level.level_info;
-        let mut position = Vector3::new(f64::from(info.spawn_x), 120.0, f64::from(info.spawn_z));
-        let yaw = info.spawn_angle;
-        let pitch = 10.0;
 
-        let top = self
-            .get_top_block(Vector2::new(position.x as i32, position.z as i32))
-            .await;
-        position.y = f64::from(top + 1);
+        // Teleport
+        let (position, yaw, pitch) = if player.has_played_before.load(Ordering::Relaxed) {
+            let position = player.position();
+            let yaw = player.living_entity.entity.yaw.load(); //info.spawn_angle;
+            let pitch = player.living_entity.entity.pitch.load();
+
+            (position, yaw, pitch)
+        } else {
+            let info = &self.level.level_info;
+            let position = Vector3::new(
+                f64::from(info.spawn_x),
+                f64::from(info.spawn_y) + 1.0,
+                f64::from(info.spawn_z),
+            );
+            let yaw = info.spawn_angle;
+            let pitch = 0.0;
+
+            (position, yaw, pitch)
+        };
+
+        let velocity = player.living_entity.entity.velocity.load();
 
         log::debug!("Sending player teleport to {}", player.gameprofile.name);
         player.request_teleport(position, yaw, pitch).await;
@@ -495,7 +628,7 @@ impl World {
         log::debug!("Broadcasting player info for {}", player.gameprofile.name);
         self.broadcast_packet_all(&CPlayerInfoUpdate::new(
             // TODO: Remove magic numbers
-            0x01 | 0x04 | 0x08,
+            0x01 | 0x04,
             &[pumpkin_protocol::client::play::Player {
                 uuid: gameprofile.id,
                 actions: &[
@@ -503,7 +636,6 @@ impl World {
                         name: &gameprofile.name,
                         properties: &gameprofile.properties,
                     },
-                    PlayerAction::UpdateListed(true),
                     PlayerAction::UpdateGameMode(VarInt(gamemode as i32)),
                 ],
             }],
@@ -514,22 +646,36 @@ impl World {
         {
             let current_players = self.players.read().await;
 
-            let current_player_data = current_players
+            let mut current_player_data = Vec::new();
+
+            for (_, player) in current_players
                 .iter()
                 .filter(|(c, _)| **c != player.gameprofile.id)
-                .map(|(_, player)| {
-                    (
-                        &player.gameprofile.id,
-                        [
-                            PlayerAction::AddPlayer {
-                                name: &player.gameprofile.name,
-                                properties: &player.gameprofile.properties,
-                            },
-                            PlayerAction::UpdateListed(true),
-                        ],
-                    )
-                })
-                .collect::<Vec<_>>();
+            {
+                let chat_session = player.chat_session.lock().await;
+
+                let mut player_actions = vec![PlayerAction::AddPlayer {
+                    name: &player.gameprofile.name,
+                    properties: &player.gameprofile.properties,
+                }];
+
+                if base_config.allow_chat_reports {
+                    player_actions.push(PlayerAction::InitializeChat(Some(InitChat {
+                        session_id: chat_session.session_id,
+                        expires_at: chat_session.expires_at,
+                        public_key: chat_session.public_key.clone(),
+                        signature: chat_session.signature.clone(),
+                    })));
+                }
+
+                current_player_data.push((&player.gameprofile.id, player_actions));
+            }
+
+            // TODO: Remove magic numbers
+            let mut action_flags = 0x01;
+            if base_config.allow_chat_reports {
+                action_flags |= 0x02;
+            }
 
             let entries = current_player_data
                 .iter()
@@ -542,7 +688,7 @@ impl World {
             log::debug!("Sending player info to {}", player.gameprofile.name);
             player
                 .client
-                .enqueue_packet(&CPlayerInfoUpdate::new(0x01 | 0x08, &entries))
+                .enqueue_packet(&CPlayerInfoUpdate::new(action_flags, &entries))
                 .await;
         };
 
@@ -552,7 +698,6 @@ impl World {
         // Spawn the player for every client.
         self.broadcast_packet_except(
             &[player.gameprofile.id],
-            // TODO: add velo
             &CSpawnEntity::new(
                 entity_id.into(),
                 gameprofile.id,
@@ -562,7 +707,7 @@ impl World {
                 yaw,
                 yaw,
                 0.into(),
-                Vector3::new(0.0, 0.0, 0.0),
+                velocity,
             ),
         )
         .await;
@@ -574,6 +719,7 @@ impl World {
             let pos = entity.pos.load();
             let gameprofile = &existing_player.gameprofile;
             log::debug!("Sending player entities to {}", player.gameprofile.name);
+
             player
                 .client
                 .enqueue_packet(&CSpawnEntity::new(
@@ -585,14 +731,27 @@ impl World {
                     entity.pitch.load(),
                     entity.head_yaw.load(),
                     0.into(),
-                    Vector3::new(0.0, 0.0, 0.0),
+                    entity.velocity.load(),
                 ))
                 .await;
         }
 
-        // Entity meta data
-        // Set skin parts
-        player.send_client_information().await;
+        // Set skin parts and tablist
+        for player in self.players.read().await.values() {
+            //Set / Update skin part for every player
+            player.send_client_information().await;
+
+            //Update tablist
+            //For the tablist to update, the player (who is not on the tablist) needs to send the packet and the tablist will be updated for every player
+            self.broadcast_packet_all(&CPlayerInfoUpdate::new(
+                0x08,
+                &[pumpkin_protocol::client::play::Player {
+                    uuid: player.gameprofile.id,
+                    actions: &[PlayerAction::UpdateListed(true)],
+                }],
+            ))
+            .await;
+        }
 
         // Start waiting for level chunks. Sets the "Loading Terrain" screen
         log::debug!("Sending waiting chunks to {}", player.gameprofile.name);
@@ -644,7 +803,9 @@ impl World {
         //     }
         // }
 
+        player.has_played_before.store(true, Ordering::Relaxed);
         player.send_mobs(self).await;
+        player.send_inventory().await;
     }
 
     pub async fn send_world_info(
@@ -736,14 +897,14 @@ impl World {
             .enqueue_packet(&CRespawn::new(
                 (self.dimension_type as u8).into(),
                 self.dimension_type.name(),
-                0, // seed
+                biome::hash_seed(self.level.seed.0), // seed
                 player.gamemode.load() as u8,
                 player.gamemode.load() as i8,
                 false,
                 false,
                 Some((death_dimension, death_location)),
                 0.into(),
-                0.into(),
+                self.sea_level.into(),
                 data_kept,
             ))
             .await;
@@ -755,9 +916,13 @@ impl World {
 
         // Teleport
         let info = &self.level.level_info;
-        let mut position = Vector3::new(f64::from(info.spawn_x), 120.0, f64::from(info.spawn_z));
+        let mut position = Vector3::new(
+            f64::from(info.spawn_x),
+            f64::from(info.spawn_y),
+            f64::from(info.spawn_z),
+        );
         let yaw = info.spawn_angle;
-        let pitch = 10.0;
+        let pitch = 0.0;
 
         let top = self
             .get_top_block(Vector2::new(position.x as i32, position.z as i32))
@@ -1153,7 +1318,7 @@ impl World {
 
     /// Sets a block
     pub async fn set_block_state(
-        &self,
+        self: &Arc<Self>,
         position: &BlockPos,
         block_state_id: u16,
         flags: BlockFlags,
@@ -1163,7 +1328,7 @@ impl World {
         let relative = ChunkRelativeBlockCoordinates::from(relative);
         let mut chunk = chunk.write().await;
         let replaced_block_state_id = chunk
-            .blocks
+            .sections
             .get_block(relative)
             .unwrap_or(Block::AIR.default_state_id);
         if replaced_block_state_id == block_state_id {
@@ -1171,7 +1336,7 @@ impl World {
         }
         chunk.dirty = true;
 
-        chunk.blocks.set_block(relative, block_state_id);
+        chunk.sections.set_block(relative, block_state_id);
         self.unsent_block_changes
             .lock()
             .await
@@ -1366,7 +1531,7 @@ impl World {
 
         let chunk: tokio::sync::RwLockReadGuard<ChunkData> = chunk.read().await;
 
-        let Some(id) = chunk.blocks.get_block(relative) else {
+        let Some(id) = chunk.sections.get_block(relative) else {
             return Err(GetBlockError::BlockOutOfWorldBounds);
         };
 
@@ -1408,7 +1573,11 @@ impl World {
     }
 
     /// Updates neighboring blocks of a block
-    pub async fn update_neighbors(&self, block_pos: &BlockPos, except: Option<&BlockDirection>) {
+    pub async fn update_neighbors(
+        self: &Arc<Self>,
+        block_pos: &BlockPos,
+        except: Option<&BlockDirection>,
+    ) {
         let source_block = self.get_block(block_pos).await.unwrap();
         for direction in BlockDirection::update_order() {
             if Some(&direction) == except {
@@ -1434,7 +1603,11 @@ impl World {
         }
     }
 
-    pub async fn update_neighbor(&self, neighbor_block_pos: &BlockPos, source_block: &Block) {
+    pub async fn update_neighbor(
+        self: &Arc<Self>,
+        neighbor_block_pos: &BlockPos,
+        source_block: &Block,
+    ) {
         let neighbor_block = self.get_block(neighbor_block_pos).await.unwrap();
 
         if let Some(neighbor_pumpkin_block) = self.block_registry.get_pumpkin_block(&neighbor_block)
@@ -1452,7 +1625,7 @@ impl World {
     }
 
     pub async fn replace_with_state_for_neighbor_update(
-        &self,
+        self: &Arc<Self>,
         block_pos: &BlockPos,
         direction: &BlockDirection,
         flags: BlockFlags,
