@@ -42,6 +42,41 @@ pub mod world;
 
 const GIT_VERSION: &str = env!("GIT_VERSION");
 
+/// Type alias for the log callback function
+/// The callback receives the log level, target, and formatted message
+pub type LogCallback = dyn Fn(&str, &str, &str) + Send + Sync + 'static;
+
+/// Global static to hold the optional log callback
+pub static LOG_CALLBACK: LazyLock<std::sync::Mutex<Option<Arc<LogCallback>>>> =
+    LazyLock::new(|| std::sync::Mutex::new(None));
+
+/// Register a callback function that will be called for each log entry
+///
+/// # Arguments
+/// * `callback` - A function that takes (level, target, message) as parameters
+///
+/// # Example
+/// ```
+/// pumpkin::register_log_callback(|level, target, message| {
+///     println!("LOG [{}] {}: {}", level, target, message);
+/// });
+/// ```
+pub fn register_log_callback<F>(callback: F)
+where
+    F: Fn(&str, &str, &str) + Send + Sync + 'static,
+{
+    if let Ok(mut guard) = LOG_CALLBACK.lock() {
+        *guard = Some(Arc::new(callback));
+    }
+}
+
+/// Unregister the log callback
+pub fn unregister_log_callback() {
+    if let Ok(mut guard) = LOG_CALLBACK.lock() {
+        *guard = None;
+    }
+}
+
 #[cfg(feature = "dhat-heap")]
 pub static HEAP_PROFILER: LazyLock<Mutex<Option<dhat::Profiler>>> =
     LazyLock::new(|| Mutex::new(None));
@@ -99,6 +134,16 @@ impl ReadlineLogWrapper {
 // Writing to `stdout` is expensive anyway, so I don't think having a `Mutex` here is a big deal.
 impl Log for ReadlineLogWrapper {
     fn log(&self, record: &log::Record) {
+        // Call the external callback if one is registered
+        if let Ok(guard) = LOG_CALLBACK.lock() {
+            if let Some(callback) = guard.as_ref() {
+                let level = record.level().to_string();
+                let target = record.target();
+                let message = record.args().to_string();
+                callback(&level, target, &message);
+            }
+        }
+
         self.internal.log(record);
         if let Ok(mut lock) = self.readline.lock() {
             if let Some(rl) = lock.as_mut() {
