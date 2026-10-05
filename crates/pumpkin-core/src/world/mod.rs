@@ -997,24 +997,32 @@ impl World {
         recipients_by_version: BTreeMap<JavaMinecraftVersion, Vec<&JavaClient>>,
     ) {
         for (version, recipients) in recipients_by_version {
-            let packet_data = match JavaClient::serialize_packet_for_version(packet, version) {
-                Ok(packet_data) => packet_data,
-                Err(pumpkin_protocol::ser::WritingError::UnsupportedVersion(_)) => {
-                    continue;
-                }
-                Err(err) => {
-                    error!(
-                        "Failed to serialize packet {} for version {:?}: {}",
-                        std::any::type_name::<P>(),
-                        version,
-                        err
-                    );
-                    continue;
-                }
-            };
-
+            // One serialization per flavour of the recipients, nearly always only the vanilla one.
+            let mut encoded: Vec<(pumpkin_protocol::ConnectionFlavour, bytes::Bytes)> =
+                Vec::with_capacity(1);
             for recipient in recipients {
-                recipient.try_enqueue_packet(packet_data.clone());
+                let flavour = recipient.flavour.load();
+                if let Some((_, packet_data)) = encoded.iter().find(|(known, _)| *known == flavour)
+                {
+                    recipient.try_enqueue_packet(packet_data.clone());
+                    continue;
+                }
+                match JavaClient::serialize_packet_for_flavour(packet, version, flavour) {
+                    Ok(packet_data) => {
+                        recipient.try_enqueue_packet(packet_data.clone());
+                        encoded.push((flavour, packet_data));
+                    }
+                    Err(pumpkin_protocol::ser::WritingError::UnsupportedVersion(_)) => break,
+                    Err(err) => {
+                        error!(
+                            "Failed to serialize packet {} for version {:?}: {}",
+                            std::any::type_name::<P>(),
+                            version,
+                            err
+                        );
+                        break;
+                    }
+                }
             }
         }
     }

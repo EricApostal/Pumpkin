@@ -1,4 +1,6 @@
+pub mod configuration;
 pub mod list_ping;
+pub mod login;
 pub mod map_initialize;
 pub mod packet;
 pub mod plugin_disable;
@@ -12,7 +14,9 @@ pub mod service_register;
 pub mod service_unregister;
 pub mod tab_complete;
 
+pub use configuration::*;
 pub use list_ping::*;
+pub use login::*;
 pub use map_initialize::*;
 pub use packet::*;
 pub use plugin_disable::*;

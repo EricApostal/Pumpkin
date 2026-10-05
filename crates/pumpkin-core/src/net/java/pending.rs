@@ -9,7 +9,7 @@ use crossbeam::atomic::AtomicCell;
 use pumpkin_config::networking::compression::CompressionInfo;
 use pumpkin_data::packet::CURRENT_MC_VERSION;
 use pumpkin_protocol::{
-    ClientPacket, ConnectionState, PacketDecodeError, RawPacket, ServerPacket,
+    ClientPacket, ConnectionFlavour, ConnectionState, PacketDecodeError, RawPacket, ServerPacket,
     codec::var_int::VarInt,
     java::{
         client::config::CConfigDisconnect,
@@ -46,7 +46,10 @@ use crate::{
     server::Server,
 };
 
-use super::JavaClient;
+use super::{
+    JavaClient,
+    plugin_session::{ConnectionSession, sleep_until_deadline},
+};
 
 const BRAND_CHANNEL_PREFIX: &str = "minecraft:brand";
 
@@ -57,8 +60,9 @@ const BRAND_CHANNEL_PREFIX: &str = "minecraft:brand";
 /// accepted sockets have no TCP keep-alive either, so a peer that stops talking
 /// without closing would otherwise hold its descriptor for the lifetime of the
 /// server. The timer covers silence rather than the whole handshake: it is reset
-/// on every packet, so a slow but progressing login is never cut off.
-const HANDSHAKE_IDLE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
+/// on every packet, so a slow but progressing login is never cut off. It is not
+/// applied while a plugin holds the configuration, the hold timeout takes over.
+pub(super) const HANDSHAKE_IDLE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
 
 pub struct PendingConnection {
     pub id: u64,
@@ -68,10 +72,15 @@ pub struct PendingConnection {
     pub connection_state: AtomicCell<ConnectionState>,
     pub close_token: CancellationToken,
     pub network_writer: TCPNetworkEncoder<BufWriter<OwnedWriteHalf>>,
-    pub network_reader: TCPNetworkDecoder<BufReader<OwnedReadHalf>>,
+    /// Only absent while [`Self::get_packet`] reads a packet.
+    pub network_reader: Option<TCPNetworkDecoder<BufReader<OwnedReadHalf>>>,
     pub gameprofile: Option<GameProfile>,
     pub config: Option<PlayerConfig>,
     pub brand: Option<String>,
+    /// How the play phase of this connection is encoded, set by a plugin through
+    /// [`ConnectionHandle::set_flavour`](super::plugin_session::ConnectionHandle::set_flavour)
+    /// and read from the session when it ends (see `end_plugin_session`).
+    pub flavour: ConnectionFlavour,
     pub packet_limiter: PacketRateLimiter,
     pub verify_token: Option<[u8; 4]>,
     pub vine_challenge: Option<[u8; 16]>,
@@ -81,8 +90,10 @@ pub struct PendingConnection {
     /// Whether `CLoginSuccess` has been sent, mirroring vanilla's
     /// `State::PROTOCOL_SWITCHING`. Login acknowledgement is only valid after it.
     pub login_success_sent: bool,
+    /// Present while plugins may take part in the login and configuration phases.
+    pub(super) session: Option<ConnectionSession>,
     /// For the connection packet events.
-    server: Weak<Server>,
+    pub(super) server: Weak<Server>,
 }
 
 impl PendingConnection {
@@ -103,15 +114,17 @@ impl PendingConnection {
             connection_state: AtomicCell::new(ConnectionState::HandShake),
             close_token: CancellationToken::new(),
             network_writer: TCPNetworkEncoder::new(BufWriter::new(write)),
-            network_reader: TCPNetworkDecoder::new(BufReader::new(read)),
+            network_reader: Some(TCPNetworkDecoder::new(BufReader::new(read))),
             gameprofile: None,
             config: None,
             brand: None,
+            flavour: ConnectionFlavour::Vanilla,
             packet_limiter,
             login_started: false,
             login_success_sent: false,
             verify_token: None,
             vine_challenge: None,
+            session: None,
             server,
         }
     }
@@ -132,9 +145,11 @@ impl PendingConnection {
         let crypt_key: [u8; 16] = shared_secret
             .try_into()
             .map_err(|_| EncryptionError::SharedWrongLength)?;
-        self.network_reader
-            .set_encryption(&crypt_key)
-            .map_err(|_| EncryptionError::AlreadyEncrypted)?;
+        if let Some(reader) = &mut self.network_reader {
+            reader
+                .set_encryption(&crypt_key)
+                .map_err(|_| EncryptionError::AlreadyEncrypted)?;
+        }
         self.network_writer
             .set_encryption(&crypt_key)
             .map_err(|_| EncryptionError::AlreadyEncrypted)?;
@@ -146,32 +161,64 @@ impl PendingConnection {
             error!("Invalid compression level! Clients will not be able to read this!");
         }
 
-        self.network_reader
-            .set_compression(compression.threshold as usize);
+        if let Some(reader) = &mut self.network_reader {
+            reader.set_compression(compression.threshold as usize);
+        }
 
         self.network_writer
             .set_compression((compression.threshold as usize, compression.level));
     }
 
+    /// The next packet of the client. `None` when the connection is done.
+    ///
+    /// Meanwhile plugin commands are run. They need `&mut self`, so the
+    /// reader is moved out: `get_raw_packet` is not cancellation safe and has to keep running
+    /// when a command arrives in the middle of a packet.
     pub async fn get_packet(&mut self) -> Option<RawPacket> {
         let close_token = self.close_token.clone();
-        let packet_result = tokio::select! {
-            () = close_token.cancelled() => {
-                debug!("Canceling pending connection packet processing");
-                return None;
-            },
-            () = tokio::time::sleep(HANDSHAKE_IDLE_TIMEOUT) => {
-                debug!(
-                    "Client {} sent nothing for {}s before finishing login, dropping it",
-                    self.id,
-                    HANDSHAKE_IDLE_TIMEOUT.as_secs()
-                );
-                return None;
-            },
-            res = self.network_reader.get_raw_packet() => res,
-        };
+        let mut reader = self.network_reader.take()?;
+        let idle = tokio::time::sleep(HANDSHAKE_IDLE_TIMEOUT);
+        tokio::pin!(idle);
 
-        match packet_result {
+        let packet_result = {
+            let read = reader.get_raw_packet();
+            tokio::pin!(read);
+            loop {
+                // A held client may be silent while the plugin works, the hold timeout limits it.
+                let hold_deadline = self.hold_deadline();
+                tokio::select! {
+                    () = close_token.cancelled() => {
+                        debug!("Canceling pending connection packet processing");
+                        break None;
+                    },
+                    () = &mut idle, if hold_deadline.is_none() => {
+                        debug!(
+                            "Client {} sent nothing for {}s before finishing login, dropping it",
+                            self.id,
+                            HANDSHAKE_IDLE_TIMEOUT.as_secs()
+                        );
+                        break None;
+                    },
+                    () = sleep_until_deadline(hold_deadline) => {
+                        self.kick_hold_expired().await;
+                        break None;
+                    },
+                    res = &mut read => break Some(res),
+                    Some(command) = self.next_plugin_command() => {
+                        let was_held = self.is_held();
+                        if !self.handle_plugin_command(command).await {
+                            break None;
+                        }
+                        if was_held && !self.is_held() {
+                            idle.as_mut().reset(tokio::time::Instant::now() + HANDSHAKE_IDLE_TIMEOUT);
+                        }
+                    },
+                }
+            }
+        };
+        self.network_reader = Some(reader);
+
+        match packet_result? {
             Ok(packet) => Some(packet),
             Err(err) => {
                 if !matches!(err, PacketDecodeError::ConnectionClosed) {
@@ -203,7 +250,23 @@ impl PendingConnection {
             error!("Failed to write packet: {err:?}");
             return;
         }
-        let Some(payload) = self.translate_outgoing(Bytes::from(packet_buf)).await else {
+        self.send_encoded_packet_now(Bytes::from(packet_buf)).await;
+    }
+
+    /// A packet with the given 26.3 id and body, sent like [`Self::send_packet_now`].
+    pub async fn send_raw_packet_now(&mut self, packet_id: i32, body: &[u8]) {
+        let mut packet_buf = Vec::with_capacity(body.len() + 5);
+        if let Err(err) = packet_buf.write_var_int(&VarInt(packet_id)) {
+            error!("Failed to write packet id: {err:?}");
+            return;
+        }
+        packet_buf.extend_from_slice(body);
+        self.send_encoded_packet_now(Bytes::from(packet_buf)).await;
+    }
+
+    /// `packet_data` is the 26.3 packet id and body.
+    async fn send_encoded_packet_now(&mut self, packet_data: Bytes) {
+        let Some(payload) = self.translate_outgoing(packet_data).await else {
             return;
         };
         if let Err(err) = self.network_writer.write_packet(payload).await {
@@ -300,6 +363,12 @@ impl PendingConnection {
     }
 
     pub async fn handle_login_sequence(&mut self, server: &Arc<Server>) -> PacketHandlerResult {
+        let result = self.run_login_sequence(server).await;
+        self.end_plugin_session(server).await;
+        result
+    }
+
+    async fn run_login_sequence(&mut self, server: &Arc<Server>) -> PacketHandlerResult {
         while let Some(packet) = self.get_packet().await {
             if !self.packet_limiter.check_packet() {
                 warn!(
@@ -354,7 +423,21 @@ impl PendingConnection {
             ConnectionState::Login | ConnectionState::Transfer => {
                 self.handle_login_packet(server, packet).await
             }
-            ConnectionState::Config => self.handle_config_packet(server, packet).await,
+            ConnectionState::Config => {
+                let Some(packet) = self
+                    .configuration_packet_received(
+                        server,
+                        RawPacket {
+                            id: packet.id,
+                            payload: packet.payload.clone(),
+                        },
+                    )
+                    .await
+                else {
+                    return Ok(None);
+                };
+                self.handle_config_packet(server, &packet).await
+            }
             ConnectionState::Play => Ok(None),
         }
     }
@@ -515,6 +598,7 @@ impl PendingConnection {
                 let Some(profile) = self.gameprofile.clone() else {
                     return Ok(Some(PacketHandlerResult::Stop));
                 };
+                self.mark_configuration_finished();
                 let config = self.config.clone().unwrap_or_default();
                 self.connection_state.store(ConnectionState::Play);
                 if let Some(reason) = can_not_join(&profile, &self.address, server).await {
@@ -600,6 +684,9 @@ impl PendingConnection {
                 Ok(brand) => self.brand = Some(brand.to_string()),
                 Err(e) => self.kick(TextComponent::text(e.to_string())).await,
             }
+        } else {
+            self.fire_configuration_payload(plugin_message.channel, plugin_message.data)
+                .await;
         }
     }
 

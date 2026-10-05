@@ -2,7 +2,7 @@
 use super::*;
 
 impl PendingConnection {
-    pub async fn handle_known_packs(&mut self, server: &Server) {
+    pub async fn handle_known_packs(&mut self, server: &Arc<Server>) {
         let version = CURRENT_MC_VERSION;
         let registry = pumpkin_data::registry::Registry::get_synced(version);
         for reg in &registry {
@@ -29,6 +29,9 @@ impl PendingConnection {
             }
         }
         self.send_packet_now(&CUpdateTags::new(&tags)).await;
-        self.send_packet_now(&CFinishConfig).await;
+        if self.begin_configuration_finish_hook(server).await {
+            return;
+        }
+        self.send_finish_configuration().await;
     }
 }

@@ -27,7 +27,7 @@ use pumpkin_protocol::java::server::play::{
 };
 use pumpkin_protocol::packet::MultiVersionJavaPacket;
 use pumpkin_protocol::{
-    ClientPacket, ConnectionState, PacketDecodeError, RawPacket, ServerPacket,
+    ClientPacket, ConnectionFlavour, ConnectionState, PacketDecodeError, RawPacket, ServerPacket,
     codec::var_int::VarInt,
     java::{
         client::{config::CConfigDisconnect, login::CLoginDisconnect},
@@ -57,6 +57,7 @@ pub mod login;
 mod outgoing;
 pub mod pending;
 pub mod play;
+pub mod plugin_session;
 pub mod recipe_helper;
 pub mod status;
 
@@ -94,6 +95,10 @@ pub struct JavaClient {
     pub address: SocketAddr,
     /// The client's brand or modpack information. Lock-free `ArcSwap`.
     pub brand: ArcSwap<Option<String>>,
+    /// How packets for this client are encoded beyond vanilla, chosen by a plugin during the
+    /// configuration phase. Packets serialized through [`Self::serialize_packet`] and the world
+    /// broadcasts are written in this flavour.
+    pub flavour: AtomicCell<ConnectionFlavour>,
     /// Associated player reference. Lock-free `ArcSwap`.
     pub player: ArcSwap<Option<Arc<Player>>>,
     /// A collection of tasks associated with this client. The tasks await completion when removing the client.
@@ -159,8 +164,9 @@ impl JavaClient {
             pending_bytes: Arc::new(AtomicUsize::new(0)),
             version: pending.version,
             network_writer: std::sync::Mutex::new(Some(pending.network_writer)),
-            network_reader: std::sync::Mutex::new(Some(pending.network_reader)),
+            network_reader: std::sync::Mutex::new(pending.network_reader),
             brand: ArcSwap::from_pointee(pending.brand),
+            flavour: AtomicCell::new(pending.flavour),
             player: ArcSwap::from_pointee(None),
             wait_for_keep_alive: AtomicBool::new(false),
             received_movement_this_tick: AtomicBool::new(false),
@@ -633,8 +639,18 @@ impl JavaClient {
         pumpkin_protocol::java::packet_encoder::serialize_packet(packet, &version)
     }
 
+    /// Like [`Self::serialize_packet_for_version`], written in the given flavour.
+    pub fn serialize_packet_for_flavour<P: ClientPacket>(
+        packet: &P,
+        version: JavaMinecraftVersion,
+        flavour: ConnectionFlavour,
+    ) -> Result<Bytes, WritingError> {
+        flavour.scope(|| Self::serialize_packet_for_version(packet, version))
+    }
+
+    /// The packet as this client reads it: 26.3 encoding in the flavour of the connection.
     pub fn serialize_packet<P: ClientPacket>(&self, packet: &P) -> Result<Bytes, WritingError> {
-        Self::serialize_packet_for_version(packet, CURRENT_MC_VERSION)
+        Self::serialize_packet_for_flavour(packet, CURRENT_MC_VERSION, self.flavour.load())
     }
 
     pub fn try_send_packet<P: ClientPacket>(&self, packet: &P) {
@@ -660,7 +676,9 @@ impl JavaClient {
         packet: &P,
         write: impl Write,
     ) -> Result<(), WritingError> {
-        Self::write_packet_for_version(packet, CURRENT_MC_VERSION, write)
+        self.flavour
+            .load()
+            .scope(|| Self::write_packet_for_version(packet, CURRENT_MC_VERSION, write))
     }
 
     /// Handles an incoming packet, routing it to the appropriate handler based on the current connection state.

@@ -155,16 +155,10 @@ impl PendingConnection {
             return Some(PacketHandlerResult::Stop);
         }
 
-        let props = profile.properties.load();
-        let packet = CLoginSuccess::new(
-            &profile.id,
-            &profile.name,
-            &props,
-            false,
-            uuid::Uuid::new_v4(),
-        );
-        self.send_packet_now(&packet).await;
-        self.login_success_sent = true;
+        if self.begin_login_hook(server).await {
+            return None;
+        }
+        self.send_login_success().await;
         None
     }
 

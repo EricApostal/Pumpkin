@@ -6,6 +6,7 @@ use crate::data::player_server::ServerPlayerData;
 use crate::entity::NBTStorage;
 use crate::item::registry::ItemRegistry;
 use crate::net::authentication::fetch_mojang_public_keys;
+use crate::net::java::plugin_session::{ConnectionCommand, ConnectionHandle, ConnectionPhase};
 use crate::net::{ClientPlatform, DisconnectReason, EncryptionError, GameProfile, PlayerConfig};
 use crate::plugin::PluginManager;
 use crate::plugin::loader::PluginLoader;
@@ -20,6 +21,7 @@ use crate::{
 };
 use arc_swap::ArcSwap;
 use connection_cache::{CachedBranding, CachedStatus};
+use dashmap::DashMap;
 use key_store::KeyStore;
 use pumpkin_config::{AdvancedConfiguration, BasicConfiguration, TelemetryConfig};
 use pumpkin_data::dimension::Dimension;
@@ -76,6 +78,9 @@ pub struct Server {
 
     /// Plugin manager
     pub plugin_manager: Arc<PluginManager>,
+
+    /// Command queues of the Java connections in the login or configuration phase, for plugins.
+    pub plugin_connections: DashMap<u64, ConnectionHandle>,
 
     /// Permission manager for the server.
     pub permission_manager: Arc<PermissionManager>,
@@ -282,6 +287,7 @@ impl Server {
             telemetry_config,
             data: vanilla_data,
             plugin_manager: Arc::new(PluginManager::new(plugin_loaders)),
+            plugin_connections: DashMap::new(),
             permission_manager,
             container_id: 0.into(),
             recipe_manager: Arc::new(recipe::RecipeManager::new()),
@@ -1063,6 +1069,47 @@ impl Server {
             new_level_info
         });
         id
+    }
+
+    /// The command queue of a Java connection that is logging in or configuring.
+    fn plugin_connection(&self, connection_id: u64) -> Result<ConnectionHandle, String> {
+        // Clone out of the map, the guard must not outlive this statement.
+        self.plugin_connections
+            .get(&connection_id)
+            .map(|entry| entry.clone())
+            .ok_or_else(|| format!("no connection {connection_id} is logging in or configuring"))
+    }
+
+    /// Queues a command for a Java connection, which has to be in `phase`.
+    pub fn send_connection_command(
+        &self,
+        connection_id: u64,
+        phase: ConnectionPhase,
+        command: ConnectionCommand,
+    ) -> Result<(), String> {
+        self.plugin_connection(connection_id)?.send(phase, command)
+    }
+
+    /// Chooses how the play phase of a Java connection that is logging in or configuring is
+    /// encoded. The client takes the value over when the configuration ends.
+    pub fn set_connection_flavour(
+        &self,
+        connection_id: u64,
+        flavour: pumpkin_protocol::ConnectionFlavour,
+    ) -> Result<(), String> {
+        self.plugin_connection(connection_id)?.set_flavour(flavour)
+    }
+
+    /// Queues a login query for a Java connection in the login phase.
+    pub fn send_login_query(
+        &self,
+        connection_id: u64,
+        query_id: i32,
+        channel: String,
+        data: Vec<u8>,
+    ) -> Result<(), String> {
+        self.plugin_connection(connection_id)?
+            .send_login_query(query_id, channel, data)
     }
 
     pub const fn get_branding(&self) -> CPluginMessage<'_> {

@@ -8,6 +8,16 @@ impl PendingConnection {
         plugin_response: SLoginPluginResponse,
     ) -> Option<PacketHandlerResult> {
         debug!("Handling plugin");
+        if self
+            .handle_plugin_query_answer(
+                server,
+                plugin_response.message_id.0,
+                plugin_response.data.as_deref().map(<[u8]>::to_vec),
+            )
+            .await
+        {
+            return None;
+        }
         let proxy_config = &server.advanced_config.networking.proxy;
         if proxy_config.vine.enabled {
             let expected_challenge = self.vine_challenge.take();

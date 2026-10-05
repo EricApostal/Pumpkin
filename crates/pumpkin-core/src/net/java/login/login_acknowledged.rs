@@ -4,7 +4,7 @@ use super::*;
 impl PendingConnection {
     pub async fn handle_login_acknowledged(
         &mut self,
-        server: &Server,
+        server: &Arc<Server>,
     ) -> Option<PacketHandlerResult> {
         debug!("Handling login acknowledgement");
         // Only valid once `CLoginSuccess` went out. Without this the claimed
@@ -16,8 +16,23 @@ impl PendingConnection {
             return Some(PacketHandlerResult::Stop);
         }
         self.connection_state.store(ConnectionState::Config);
-        self.send_packet_now(&server.get_branding()).await;
 
+        // A plugin may speak before the brand (a NeoForge client classifies the connection when
+        // it sees the brand), the brand then goes out on release.
+        if self.begin_pre_brand_hook(server).await {
+            debug!(
+                "Configuration of client {} is held by a plugin before the brand",
+                self.id
+            );
+            return None;
+        }
+        self.send_brand_and_continue_configuration(server).await;
+        debug!("login acknowledged");
+        None
+    }
+
+    /// Everything the server sends in the configuration phase after its brand, unless held by a plugin.
+    pub async fn continue_configuration(&mut self, server: &Server) {
         if server.advanced_config.server_links.enabled {
             let mut links: Vec<Link> = Vec::new();
 
@@ -98,8 +113,6 @@ impl PendingConnection {
         } else {
             self.send_known_packs(server).await;
         }
-        debug!("login acknowledged");
-        None
     }
 
     pub async fn send_known_packs(&mut self, server: &Server) {
