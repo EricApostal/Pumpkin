@@ -1,0 +1,93 @@
+/// Block entities owned by plugins: a block entity type, and data a plugin keeps at a position.
+///
+/// A block entity of a plugin type holds two compound tags the server never interprets:
+///
+/// * the **save data**, written to the chunk with the entity and given back when the chunk loads.
+///   It never reaches clients.
+/// * the optional **client data** (the "update tag" of a vanilla block entity), sent to every
+///   player that watches the chunk, in the chunk itself and whenever the entity changes
+///   (`set-block-entity-data`, `sync-block-entity`). Block entities without client data are not
+///   sent, a client creates the block entity of a block that has one on its own.
+///
+/// # Types
+///
+/// Block entity types are a registry (`minecraft:block_entity_type`) that clients can synchronise.
+/// The type registered as the n-th gets the id `get-vanilla-block-entity-type-count() + n` (0 for
+/// the first type registered by any plugin), which is the id used in the chunk packet and in
+/// `ClientboundBlockEntityData`, and the server never reuses or changes an id while it runs.
+/// Plugins that register types must load in a stable order if clients depend on the ids.
+/// Registration is only possible until the server starts accepting connections (plugin load and
+/// `server-load-event`), and needs the `registry.block-entities` permission.
+///
+/// # Lifecycle
+///
+/// The entity is stored per chunk and saved in the chunk's `block_entities` list with its full key
+/// as `id`, its position, and the data. When a chunk loads whose entity has a type that is no longer
+/// registered (the plugin is gone) the entity is skipped with a warning and its data stays in the
+/// chunk untouched. The server removes the entity when its block is broken or replaced by another
+/// block (not when only the block state changes) and fires `block-entity-unload-event` with
+/// `removed` true. `block-entity-load-event` and `block-entity-unload-event` tell the plugin when
+/// chunks bring entities in and out, so it can rebuild what it keeps in memory.
+///
+/// Placing a block does not create its entity: the plugin calls `set-block-entity-data` once the
+/// block is in the world.
+interface plugin-block-entity {
+    use common.{block-pos, nbt-tree};
+    use %world.{%world};
+
+    /// A block entity type and its network id.
+    record block-entity-type-entry {
+        /// The full resource location, `namespace:path`.
+        key: string,
+        id: u32,
+        /// The keys of the blocks the type belongs to.
+        valid-blocks: list<string>,
+    }
+
+    /// The data of a block entity of a plugin type.
+    record plugin-block-entity-data {
+        /// The key of the type.
+        type-key: string,
+        /// Saved with the chunk, never sent to clients. A compound tag.
+        save-data: nbt-tree,
+        /// Sent to the players watching the chunk. A compound tag.
+        client-data: option<nbt-tree>,
+    }
+
+    /// Registers a block entity type and returns its id. `key` is a full resource location,
+    /// `namespace:path`, lowercase, `a-z 0-9 _ - .` (and `/` in the path); the `minecraft`
+    /// namespace is reserved. `valid-block-keys` names the blocks the type is for (`minecraft:` is
+    /// optional for vanilla blocks), the server uses it to warn when data is set at a block that is
+    /// not listed. Registering the same definition again returns the same id (a reloaded plugin), a
+    /// different definition for a known key fails. Fails for an invalid key, or when registration is
+    /// closed.
+    register-block-entity-type: func(key: string, valid-block-keys: list<string>) -> result<u32, string>;
+
+    /// Returns the id of a plugin block entity type by key.
+    get-block-entity-type-id: func(key: string) -> option<u32>;
+
+    /// Returns the number of vanilla block entity types. This is also the id of the first plugin
+    /// type.
+    get-vanilla-block-entity-type-count: func() -> u32;
+
+    /// Returns all plugin block entity types in id order.
+    get-registered-block-entity-types: func() -> list<block-entity-type-entry>;
+
+    /// Returns the data of the plugin block entity at a position, none if there is none (also when
+    /// the chunk is not loaded).
+    get-block-entity-data: func(target-world: borrow<%world>, pos: block-pos) -> option<plugin-block-entity-data>;
+
+    /// Creates the block entity at a position, or replaces the data of the one that is there (its
+    /// type has to be the same), and sends the client data to the players watching the chunk. Fails
+    /// if the type is not registered, the chunk is not loaded, a tree is not a compound tag, or the
+    /// position holds a block entity of another type.
+    set-block-entity-data: func(target-world: borrow<%world>, pos: block-pos, type-key: string, save-data: nbt-tree, client-data: option<nbt-tree>) -> result<_, string>;
+
+    /// Sends the client data of the plugin block entity at a position to the players watching the
+    /// chunk again, and marks the chunk as changed. Fails if there is no such entity.
+    sync-block-entity: func(target-world: borrow<%world>, pos: block-pos) -> result<_, string>;
+
+    /// Removes the plugin block entity at a position, with its saved data. Returns whether there
+    /// was one. Fires `block-entity-unload-event` with `removed` true.
+    remove-block-entity: func(target-world: borrow<%world>, pos: block-pos) -> bool;
+}

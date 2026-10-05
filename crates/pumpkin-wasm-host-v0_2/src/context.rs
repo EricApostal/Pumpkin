@@ -1329,6 +1329,45 @@ fn register_dialog_event(
     }
 }
 
+fn register_host_feature_event(
+    resource: &Context,
+    handler: &Arc<WasmPluginEventHandler>,
+    priority: pumpkin_core::plugin::EventPriority,
+    blocking: bool,
+    event_type: EventType,
+) {
+    use pumpkin_core::plugin::block::{BlockEntityLoadEvent, BlockEntityUnloadEvent};
+    use pumpkin_core::plugin::player::{
+        MenuClickEvent, MenuClosedEvent, PlayerUseBlockEvent, PlayerUseItemEvent,
+    };
+
+    match event_type {
+        EventType::PlayerUseItemEvent => {
+            register_typed_event::<PlayerUseItemEvent>(resource, handler, priority, blocking);
+        }
+        EventType::PlayerUseBlockEvent => {
+            register_typed_event::<PlayerUseBlockEvent>(resource, handler, priority, blocking);
+        }
+        EventType::MenuClickEvent => {
+            register_typed_event::<MenuClickEvent>(resource, handler, priority, blocking);
+        }
+        EventType::MenuClosedEvent => {
+            register_typed_event::<MenuClosedEvent>(resource, handler, priority, blocking);
+        }
+        EventType::BlockEntityLoadEvent => {
+            register_typed_event::<BlockEntityLoadEvent>(resource, handler, priority, blocking);
+        }
+        EventType::BlockEntityUnloadEvent => {
+            register_typed_event::<BlockEntityUnloadEvent>(resource, handler, priority, blocking);
+        }
+        _ => {
+            tracing::error!(
+                "non-host-feature event should not be routed to register_host_feature_event"
+            );
+        }
+    }
+}
+
 fn register_server_event(
     resource: &Context,
     handler: &Arc<WasmPluginEventHandler>,
@@ -1700,6 +1739,14 @@ impl pumpkin::plugin::context::HostContext for PluginHostState {
             | EventType::DialogShowEvent
             | EventType::DialogClearEvent) => {
                 register_dialog_event(ctx, &handler, priority, blocking, event_type);
+            }
+            event_type @ (EventType::PlayerUseItemEvent
+            | EventType::PlayerUseBlockEvent
+            | EventType::MenuClickEvent
+            | EventType::MenuClosedEvent
+            | EventType::BlockEntityLoadEvent
+            | EventType::BlockEntityUnloadEvent) => {
+                register_host_feature_event(ctx, &handler, priority, blocking, event_type);
             }
             event_type => {
                 register_player_event(ctx, &handler, priority, blocking, event_type);

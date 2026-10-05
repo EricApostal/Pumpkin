@@ -1,0 +1,106 @@
+/// Menus (containers, "screens") of plugin defined types.
+///
+/// Clients that carry a mod can synchronise the `minecraft:menu` registry and open screens of the
+/// mod's menu types. A menu type registered as the n-th gets the id `get-vanilla-menu-type-count()
+/// + n` (0 for the first type registered by any plugin), the id used in the open screen packet, and
+/// the server never reuses or changes an id while it runs. Plugins that register types must load in
+/// a stable order if clients depend on the ids. Registration is only possible until the server
+/// starts accepting connections (plugin load and `server-load-event`), and needs the
+/// `registry.menus` permission.
+///
+/// # Windows
+///
+/// A player has at most one screen open. `open-menu` takes the next container id from the server's
+/// counter (the same one vanilla screens use), closes the screen the player has open (like opening
+/// a chest does), and opens the menu. The server then tracks the menu like any other window: a
+/// close from the client, or `close-menu`, or another screen opening fires `menu-closed-event`
+/// (and `inventory-close-event`).
+///
+/// A menu has no behaviour of its own. Clicks in it are sent to the plugin as `menu-click-event`
+/// and are not applied by the server, the plugin decides what a click does and updates the slots
+/// with `set-menu-slot`. A menu with zero slots (a terminal, a custom GUI that only talks through
+/// payloads) sends no slot data at all.
+///
+/// # Extra data
+///
+/// Menus of a mod usually come with a payload (the data the client's menu factory reads when it
+/// builds the menu). With `extra-data` set, the server does not send the vanilla open screen packet
+/// but the NeoForge payload `neoforge:advanced_open_screen`, whose body it builds from what it
+/// knows:
+///
+/// ```text
+/// VarInt    container id
+/// VarInt    menu type id
+/// Component title (network NBT)
+/// byte[]    extra data (VarInt length, then the bytes)
+/// ```
+///
+/// The plugin passes the bytes of the extra data, in whatever encoding the mod's menu factory reads.
+/// The connection has to be a NeoForge one that registered that payload during the handshake. The
+/// server does not check it, a client that did not register the payload disconnects when it gets it,
+/// so a plugin that also serves other clients decides per player. Without `extra-data` the vanilla
+/// open screen packet is sent, which a client can open only for a menu type it knows.
+interface menus {
+    use player.{player};
+    use text.{text-component};
+    use item-stack.{item-stack};
+
+    /// A menu type and its network id.
+    record menu-type-entry {
+        /// The full resource location, `namespace:path`.
+        key: string,
+        id: u32,
+    }
+
+    /// The menu a player has open.
+    record open-menu-info {
+        container-id: u32,
+        /// The key of the menu type.
+        menu-type: string,
+        /// The number of slots the server tracks for the menu.
+        slot-count: u32,
+    }
+
+    /// Registers a menu type and returns its id. `key` is a full resource location,
+    /// `namespace:path`, lowercase, `a-z 0-9 _ - .` (and `/` in the path); the `minecraft`
+    /// namespace is reserved. Registering the same key again returns the same id (a reloaded
+    /// plugin). Fails for an invalid key, or when registration is closed.
+    register-menu-type: func(key: string) -> result<u32, string>;
+
+    /// Returns the id of a plugin menu type by key.
+    get-menu-type-id: func(key: string) -> option<u32>;
+
+    /// Returns the number of vanilla menu types. This is also the id of the first plugin type.
+    get-vanilla-menu-type-count: func() -> u32;
+
+    /// Returns all plugin menu types in id order.
+    get-registered-menu-types: func() -> list<menu-type-entry>;
+
+    /// Opens a menu with no slots for a Java player and returns its container id. See the
+    /// interface documentation for `extra-data`. Fails for a Bedrock player or an unknown type.
+    open-menu: func(player: borrow<player>, menu-type-key: string, title: text-component, extra-data: option<list<u8>>) -> result<u32, string>;
+
+    /// Like `open-menu`, for a menu that has `slot-count` slots the server tracks (at most 256).
+    /// The slots start empty, fill them with `set-menu-slot`. Their contents are sent to the client
+    /// right after the open packet.
+    open-menu-with-slots: func(player: borrow<player>, menu-type-key: string, title: text-component, extra-data: option<list<u8>>, slot-count: u32) -> result<u32, string>;
+
+    /// Closes the menu the player has open, if it is a plugin menu. Returns whether it was. The
+    /// client is told to close it and `menu-closed-event` fires.
+    close-menu: func(player: borrow<player>) -> bool;
+
+    /// Returns the plugin menu the player has open, none if the open screen is not one.
+    get-open-menu: func(player: borrow<player>) -> option<open-menu-info>;
+
+    /// Puts a copy of a stack into a slot of the player's open plugin menu and sends it to the
+    /// client. Fails if the player has no plugin menu open or the slot does not exist.
+    set-menu-slot: func(player: borrow<player>, slot: u32, stack: borrow<item-stack>) -> result<_, string>;
+
+    /// Empties a slot of the player's open plugin menu.
+    clear-menu-slot: func(player: borrow<player>, slot: u32) -> result<_, string>;
+
+    /// Sets a data slot (a number the client's menu shows, like furnace progress) of the player's
+    /// open plugin menu and sends it to the client with `ClientboundContainerSetData`. Data slots
+    /// are not tracked by the server, the plugin sends every change.
+    set-menu-data: func(player: borrow<player>, id: u32, value: s16) -> result<_, string>;
+}

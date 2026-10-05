@@ -655,6 +655,11 @@ impl HostItemStackWithStore<PluginHostState> for HasSelf<PluginHostState> {
         let stack = stack.lock().await;
         let mut components = Vec::new();
         for (id, data) in &stack.patch {
+            // Components of plugin registered types have no entry in the component enum, they are
+            // read with `get-custom-component`.
+            if id.plugin_slot().is_some() {
+                continue;
+            }
             if let Some(data) = data {
                 let mut buf = Vec::new();
                 if serialize(*id, data.as_ref(), &mut buf).is_ok() {

@@ -715,5 +715,25 @@ pub fn cleanup_event(event: &Event, state: &mut PluginHostState) {
         Event::RaidStopEvent(_) => {}
         Event::RaidTriggerEvent(_) => {}
         Event::LightningStrikeEvent(_) => {}
+        Event::PlayerUseItemEvent(data) => {
+            cleanup_player(state, &data.player);
+            cleanup_item_stack(state, &data.item);
+        }
+        Event::PlayerUseBlockEvent(data) => {
+            cleanup_player(state, &data.player);
+            cleanup_item_stack(state, &data.item);
+        }
+        Event::MenuClickEvent(data) => {
+            cleanup_player(state, &data.player);
+        }
+        Event::MenuClosedEvent(data) => {
+            cleanup_player(state, &data.player);
+        }
+        Event::BlockEntityLoadEvent(data) => {
+            cleanup_world(state, &data.target_world);
+        }
+        Event::BlockEntityUnloadEvent(data) => {
+            cleanup_world(state, &data.target_world);
+        }
     }
 }

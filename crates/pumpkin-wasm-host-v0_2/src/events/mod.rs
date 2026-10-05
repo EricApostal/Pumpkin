@@ -24,6 +24,7 @@ pub mod dialog;
 pub mod enchantment;
 pub mod entity;
 pub mod hanging;
+pub mod host_features;
 pub mod inventory;
 pub mod player;
 pub mod raid;

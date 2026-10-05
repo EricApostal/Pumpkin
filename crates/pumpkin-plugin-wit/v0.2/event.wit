@@ -1,12 +1,12 @@
 interface event {
-    use common.{block-pos, game-mode, hand, position, click-type};
+    use common.{block-pos, game-mode, hand, position, click-type, nbt-tree};
     use item-stack.{item-stack};
     use enchantments.{enchantment};
     use damage-types.{damage-type};
     use screens.{screen};
     use player.{player};
     use text.{text-component};
-    use %world.{%world};
+    use %world.{%world, block-direction};
     use java-packets.{serverbound-packet as java-serverbound-packet, clientbound-packet as java-clientbound-packet};
     use bedrock-packets.{serverbound-packet as bedrock-serverbound-packet, clientbound-packet as bedrock-clientbound-packet};
     use uuid.{uuid};
@@ -1996,6 +1996,101 @@ interface event {
         cancelled: bool
     }
 
+    /// A player used an item: a right click with an item in hand, in the air or on a block. Fired
+    /// before the server uses the item, so cancelling it stops the use (and a block from being
+    /// placed). A click on a block fires `player-use-block-event` first, then this event (with
+    /// `clicked-pos` set) if that was not cancelled and the block did not handle the click itself.
+    /// A client also sends a use in the air after a click on a block that did not handle it, which
+    /// fires this event again with no `clicked-pos`.
+    record player-use-item-event-data {
+        player: player,
+        hand: hand,
+        /// A copy of the item in hand. Changing it has no effect.
+        item: item-stack,
+        /// The block that was clicked, none for a use in the air.
+        clicked-pos: option<block-pos>,
+        /// The face of the block that was clicked, none for a use in the air.
+        face: option<block-direction>,
+        cancelled: bool
+    }
+
+    /// A player right clicked a block, with whatever is in the given hand (possibly nothing).
+    /// Fired before the block handles the click and before the held item is used or placed, so
+    /// cancelling it stops all of that. The server resends the clicked block and the block next to
+    /// it, so the client does not keep a block it predicted.
+    record player-use-block-event-data {
+        player: player,
+        hand: hand,
+        /// A copy of the item in hand (an empty stack for an empty hand). Changing it has no effect.
+        item: item-stack,
+        block-pos: block-pos,
+        /// Key of the clicked block, `minecraft:` prefixed for vanilla blocks.
+        block: string,
+        /// The face that was clicked.
+        face: block-direction,
+        /// Where on the block the click hit, `0..1` on each axis from the block's minimum corner.
+        cursor: tuple<f32, f32, f32>,
+        sneaking: bool,
+        cancelled: bool
+    }
+
+    /// A slot the client changed in a click, as it reports it: the server only gets a hash of the
+    /// stack.
+    record menu-changed-slot {
+        slot: s16,
+        /// The item id of the stack the client has in the slot, none for an empty slot.
+        item-id: option<u32>,
+        count: u32
+    }
+
+    /// A player clicked in a menu of a type registered with `menus.register-menu-type`. The server
+    /// does not apply the click, the menu belongs to the plugin. It resends the menu's slots after
+    /// the event, so the client's prediction is reverted unless the plugin changed the slots.
+    record menu-click-event-data {
+        player: player,
+        container-id: u32,
+        /// Key of the menu type.
+        menu-type: string,
+        /// The slot that was clicked, `-1` for the cursor and `-999` for outside of the window.
+        slot: s16,
+        button: s8,
+        click-type: click-type,
+        changed-slots: list<menu-changed-slot>,
+        /// The item id of the stack on the cursor, none if the cursor is empty.
+        carried-item-id: option<u32>,
+        carried-count: u32
+    }
+
+    /// A player's menu of a plugin menu type closed: the player closed it, the plugin called
+    /// `menus.close-menu`, or another screen opened.
+    record menu-closed-event-data {
+        player: player,
+        container-id: u32,
+        menu-type: string
+    }
+
+    /// A block entity of a plugin type became active in a loaded chunk: its chunk was loaded, so the
+    /// plugin can rebuild whatever it keeps in memory for it. Not fired for entities the plugin
+    /// creates with `plugin-block-entity.set-block-entity-data`.
+    record block-entity-load-event-data {
+        target-world: %world,
+        pos: block-pos,
+        type-key: string,
+        save-data: nbt-tree,
+        client-data: option<nbt-tree>
+    }
+
+    /// A block entity of a plugin type goes away: its chunk unloads (`removed` is false, the data
+    /// stays saved) or the block was broken or replaced, or the plugin removed the entity (`removed`
+    /// is true, the data is gone).
+    record block-entity-unload-event-data {
+        target-world: %world,
+        pos: block-pos,
+        type-key: string,
+        removed: bool,
+        save-data: nbt-tree
+    }
+
     enum event-type {
         player-join-event,
         player-leave-event,
@@ -2278,6 +2373,12 @@ interface event {
         raid-stop-event,
         raid-trigger-event,
         lightning-strike-event,
+        player-use-item-event,
+        player-use-block-event,
+        menu-click-event,
+        menu-closed-event,
+        block-entity-load-event,
+        block-entity-unload-event,
     }
 
     variant event {
@@ -2562,5 +2663,11 @@ interface event {
         raid-stop-event(raid-stop-event-data),
         raid-trigger-event(raid-trigger-event-data),
         lightning-strike-event(lightning-strike-event-data),
+        player-use-item-event(player-use-item-event-data),
+        player-use-block-event(player-use-block-event-data),
+        menu-click-event(menu-click-event-data),
+        menu-closed-event(menu-closed-event-data),
+        block-entity-load-event(block-entity-load-event-data),
+        block-entity-unload-event(block-entity-unload-event-data),
     }
 }

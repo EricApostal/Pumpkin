@@ -1,0 +1,132 @@
+/// Registration of custom data component types, and access to their values on item stacks.
+///
+/// Clients that carry a mod can synchronise registries, among them `minecraft:data_component_type`,
+/// and then expect the data components of the mod on every item stack the server sends. Vanilla
+/// components are the `data-component` enum, a plugin registers more here. The type registered as
+/// the n-th gets the id `get-vanilla-data-component-type-count() + n` (0 for the first type
+/// registered by any plugin), and the server never reuses or changes an id while it runs. Plugins
+/// that register types must load in a stable order if clients depend on the ids. At most 64 types
+/// can be registered.
+///
+/// # Values
+///
+/// The value of a custom component is a byte list: its network encoding, exactly the bytes a client
+/// reads or writes after the component id in an item stack. The server keeps the bytes and writes
+/// them back unchanged, so stacks keep their custom components when they move through inventories,
+/// the creative inventory and container packets.
+///
+/// # Codecs
+///
+/// Most places in the protocol do not say how long a component value is, so the server has to know
+/// the shape of the encoding to find where one ends. Every type is registered with a `codec`, a
+/// description of that shape in prefix notation (a list of `codec-op`, one root node that is a
+/// primitive, or `optional` / `repeated` / `sequence` followed by the nodes they apply to).
+///
+/// * A vanilla `VarInt` component is `[var-int]`.
+/// * `terminal_size` (two `VarInt`) is `[sequence(2), var-int, var-int]`.
+/// * `treasure_disk` (two strings) is `[sequence(2), text, text]`.
+/// * `printout` (a string, then a count and that many pairs of strings) is
+///   `[sequence(2), text, repeated, sequence(2), text, text]`.
+/// * `UpgradeData` (a `VarInt` and a data component patch) is `[sequence(2), var-int,
+///   component-patch]`.
+///
+/// Where a stack is length prefixed on the wire (the stacks clients send) the server does not need
+/// the codec to find the end, but it still checks that the bytes are exactly one value of it.
+///
+/// # Persistence
+///
+/// A `persistent` type is saved with the stack (in the inventory, a container, an item entity) under
+/// its full key as an NBT byte array of the network bytes, and loaded back as long as the type is
+/// registered. A type that is not persistent only lives in memory and on the wire.
+///
+/// # Limits
+///
+/// The server cannot compute the hash a client sends for a stack in a container click when the stack
+/// has custom components, so it counts such a stack as changed and resends the slot. Custom
+/// components are invisible to the vanilla data component functions of `item-stack`
+/// (`get-components`, `set-component`), use the functions here.
+///
+/// Registration is only possible until the server starts accepting connections (plugin load and
+/// `server-load-event`), and needs the `registry.components` permission.
+interface custom-components {
+    use item-stack.{item-stack};
+
+    /// One node of the description of a value's network encoding, in prefix notation.
+    variant codec-op {
+        /// A `VarInt`.
+        var-int,
+        /// A `VarLong`.
+        var-long,
+        /// One byte that is `0` or `1`.
+        flag,
+        /// One byte.
+        byte,
+        /// Two bytes, big endian.
+        short,
+        /// Four bytes, big endian.
+        int,
+        /// Eight bytes, big endian.
+        long,
+        /// Four bytes, big endian IEEE 754.
+        float32,
+        /// Eight bytes, big endian IEEE 754.
+        float64,
+        /// A `VarInt` length and that many bytes of UTF-8. Identifiers are strings too.
+        text,
+        /// A `VarInt` length and that many bytes.
+        byte-array,
+        /// 16 bytes.
+        uuid,
+        /// A fixed number of bytes.
+        fixed-bytes(u32),
+        /// A network NBT tag (an unnamed root).
+        nbt,
+        /// An item stack in the play encoding.
+        stack,
+        /// A data component patch: `VarInt` added, `VarInt` removed, the added `(VarInt id, value)`
+        /// pairs, the removed `VarInt` ids. Values of custom components inside it are read with
+        /// their own codec.
+        component-patch,
+        /// A `flag` and, if it is true, the node that follows.
+        optional,
+        /// A `VarInt` count and that many of the node that follows.
+        repeated,
+        /// The next `n` nodes in order.
+        sequence(u32),
+    }
+
+    /// A component type and its network id.
+    record component-type-entry {
+        /// The full resource location, `namespace:path`.
+        key: string,
+        id: u32,
+        persistent: bool,
+    }
+
+    /// Registers a component type and returns its id. `key` is a full resource location,
+    /// `namespace:path`, lowercase, `a-z 0-9 _ - .` (and `/` in the path); the `minecraft`
+    /// namespace is reserved. Registering the same definition again returns the same id (a reloaded
+    /// plugin), a different definition for a known key fails. Fails for an invalid key or codec,
+    /// when 64 types are registered, or when registration is closed.
+    register-data-component-type: func(key: string, persistent: bool, codec: list<codec-op>) -> result<u32, string>;
+
+    /// Returns the id of a custom component type by key.
+    get-data-component-type-id: func(key: string) -> option<u32>;
+
+    /// Returns the number of vanilla data component types. This is also the id of the first custom
+    /// type.
+    get-vanilla-data-component-type-count: func() -> u32;
+
+    /// Returns all custom component types in id order.
+    get-registered-data-component-types: func() -> list<component-type-entry>;
+
+    /// Sets a custom component on an item stack, replacing the one it has. The value has to be
+    /// exactly one value of the codec of the type, otherwise this fails and nothing changes.
+    set-custom-component: func(stack: borrow<item-stack>, key: string, value: list<u8>) -> result<_, string>;
+
+    /// Returns the value of a custom component of an item stack, none if it has none.
+    get-custom-component: func(stack: borrow<item-stack>, key: string) -> option<list<u8>>;
+
+    /// Removes a custom component from an item stack. Fails if the type is not registered.
+    remove-custom-component: func(stack: borrow<item-stack>, key: string) -> result<_, string>;
+}
