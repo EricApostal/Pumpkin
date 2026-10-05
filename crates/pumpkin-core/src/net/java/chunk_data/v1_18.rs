@@ -1,8 +1,12 @@
 use super::util::write_compound_nbt;
+use crate::block::entities::plugin::CLIENT_DATA_KEY;
+use pumpkin_data::block_entity_registry::plugin_block_entity_type_by_key;
+use pumpkin_nbt::compound::NbtCompound;
 use pumpkin_protocol::codec::bit_set::BitSet;
 use pumpkin_protocol::codec::var_int::VarInt;
 use pumpkin_protocol::ser::NetworkWriteExt;
 use pumpkin_protocol::ser::WritingError;
+use pumpkin_util::math::position::BlockPos;
 use pumpkin_util::math::position::get_local_cord;
 use pumpkin_util::version::JavaMinecraftVersion;
 use pumpkin_world::chunk::ChunkData;
@@ -184,12 +188,19 @@ pub fn write_chunk_data(
         .pending_block_entities
         .lock()
         .map_err(|_| WritingError::Message("block_entities lock poisoned".into()))?;
-    write.write_var_int(&VarInt(block_entities.len() as i32))?;
+    let mut entries: Vec<(BlockPos, i32, NbtCompound)> = Vec::with_capacity(block_entities.len());
     for (pos, nbt) in block_entities.iter() {
-        let local_xz = ((get_local_cord(pos.0.x) & 0xF) << 4) | (get_local_cord(pos.0.z) & 0xF);
-
-        write.write_u8(local_xz as u8)?;
-        write.write_i16_be(pos.0.y as i16)?;
+        let plugin_type = nbt
+            .get_string("id")
+            .and_then(plugin_block_entity_type_by_key);
+        if let Some(entity_type) = plugin_type {
+            // The save data of a block entity of a plugin stays on the server, clients get its
+            // update tag. An entity without one is not sent.
+            if let Some(client_data) = nbt.get_compound(CLIENT_DATA_KEY) {
+                entries.push((*pos, entity_type.id as i32, client_data.clone()));
+            }
+            continue;
+        }
 
         let id = nbt.get_string("id").map_or(0, |id_str| {
             let name = id_str.split(':').next_back().unwrap_or(id_str);
@@ -198,7 +209,6 @@ pub fn write_chunk_data(
                 .position(|&n| n == name)
                 .unwrap_or(0)
         });
-        write.write_var_int(&VarInt(id as i32))?;
 
         let mut client_nbt = nbt.clone();
         client_nbt.child_tags.remove("id");
@@ -209,7 +219,16 @@ pub fn write_chunk_data(
         client_nbt.child_tags.remove("LootTableSeed");
         client_nbt.child_tags.remove("PumpkinCustomData");
         client_nbt.child_tags.remove("BukkitValues");
-        write_compound_nbt(&mut write, &client_nbt, *version)?;
+        entries.push((*pos, id as i32, client_nbt));
+    }
+    write.write_var_int(&VarInt(entries.len() as i32))?;
+    for (pos, id, client_nbt) in &entries {
+        let local_xz = ((get_local_cord(pos.0.x) & 0xF) << 4) | (get_local_cord(pos.0.z) & 0xF);
+
+        write.write_u8(local_xz as u8)?;
+        write.write_i16_be(pos.0.y as i16)?;
+        write.write_var_int(&VarInt(*id))?;
+        write_compound_nbt(&mut write, client_nbt, *version)?;
     }
 
     {

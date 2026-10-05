@@ -33,6 +33,7 @@ pub mod lectern;
 pub mod map;
 pub mod mob_spawner;
 pub mod piston;
+pub mod plugin;
 pub mod shulker_box;
 pub mod sign;
 pub mod smoker;
@@ -321,7 +322,8 @@ pub fn block_entity_from_nbt(nbt: &NbtCompound) -> Option<Arc<dyn BlockEntity>> 
         potent_sulfur::PotentSulfurBlockEntity::ID => Some(Arc::new(
             potent_sulfur::PotentSulfurBlockEntity::from_nbt(nbt, pos),
         )),
-        _ => None,
+        // Block entities of the types that plugins registered, saved under their full key.
+        _ => plugin::PluginBlockEntity::load(nbt, pos),
     }
 }
 

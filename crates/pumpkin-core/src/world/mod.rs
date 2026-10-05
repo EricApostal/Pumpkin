@@ -28,6 +28,7 @@ pub mod generation_cache;
 pub mod loot;
 pub mod map;
 mod neighbor_updater;
+mod plugin_block_entity;
 pub mod portal;
 pub mod raid;
 pub mod random_sequences;
@@ -4983,6 +4984,7 @@ impl World {
         }
 
         for chunk_pos in &chunks_set {
+            self.announce_plugin_block_entity_unloads(*chunk_pos).await;
             self.save_block_entities(*chunk_pos);
             self.block_entities.remove(chunk_pos);
         }
@@ -5122,6 +5124,11 @@ impl World {
         let new_block = Block::from_state_id(block_state_id);
         let is_new_block = old_block != new_block;
         let block_moved = flags.contains(BlockFlags::MOVED);
+
+        if is_new_block {
+            // The block entity of a plugin goes with its block, whatever kind of block that was.
+            self.remove_plugin_block_entity_for_replaced_block(position);
+        }
 
         if is_new_block
             && old_block.default_state.block_entity_type != u16::MAX
@@ -6354,6 +6361,8 @@ impl World {
                 self.update_block_entity(&entity);
             }
         }
+        // The plugins hear about the entities of their types that became active.
+        self.announce_plugin_block_entities(chunk_pos);
     }
 
     pub fn update_block_entity(&self, block_entity: &Arc<dyn BlockEntity>) {
