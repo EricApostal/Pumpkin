@@ -20,8 +20,8 @@ use crate::{
             datapack::DatapackManager as WitDatapackManager,
             player::{BanIpOptions, BanPlayerOptions, Player},
             server::{
-                BanManager as WitBanManager, BannedIpEntry, BannedPlayerEntry, Difficulty,
-                Dimension, OpEntry, OpManager as WitOpManager, Server, SysInfo,
+                BanManager as WitBanManager, BannedIpEntry, BannedPlayerEntry, ConnectionFlavour,
+                Difficulty, Dimension, OpEntry, OpManager as WitOpManager, Server, SysInfo,
                 WhitelistEntry as WitWhitelistEntry, WhitelistManager as WitWhitelistManager,
             },
             uuid::Uuid as WitUuid,
@@ -30,12 +30,155 @@ use crate::{
     uuid::UuidExt,
 };
 use pumpkin_core::data::SaveJSONConfiguration;
+use pumpkin_core::net::java::plugin_session::{ConnectionCommand, ConnectionPhase};
 use pumpkin_core::plugin::permissions;
 use pumpkin_wasm_host_common::state::PluginHostState;
 
 impl pumpkin::plugin::server::Host for PluginHostState {}
 
 impl pumpkin::plugin::server::HostServer for PluginHostState {
+    fn send_configuration_payload(
+        &mut self,
+        _res: Resource<Server>,
+        connection_id: u64,
+        channel: String,
+        data: Vec<u8>,
+    ) -> wasmtime::Result<Result<(), String>> {
+        let server = self
+            .server
+            .as_ref()
+            .ok_or_else(|| wasmtime::Error::msg("Server not available"))?;
+        Ok(
+            ConnectionCommand::send_payload(channel, data).and_then(|command| {
+                server.send_connection_command(
+                    connection_id,
+                    ConnectionPhase::Configuration,
+                    command,
+                )
+            }),
+        )
+    }
+
+    fn send_configuration_packet(
+        &mut self,
+        _res: Resource<Server>,
+        connection_id: u64,
+        packet_id: i32,
+        payload: Vec<u8>,
+    ) -> wasmtime::Result<Result<(), String>> {
+        let server = self
+            .server
+            .as_ref()
+            .ok_or_else(|| wasmtime::Error::msg("Server not available"))?;
+        Ok(
+            ConnectionCommand::send_packet(packet_id, payload).and_then(|command| {
+                server.send_connection_command(
+                    connection_id,
+                    ConnectionPhase::Configuration,
+                    command,
+                )
+            }),
+        )
+    }
+
+    fn release_configuration(
+        &mut self,
+        _res: Resource<Server>,
+        connection_id: u64,
+    ) -> wasmtime::Result<Result<(), String>> {
+        let server = self
+            .server
+            .as_ref()
+            .ok_or_else(|| wasmtime::Error::msg("Server not available"))?;
+        Ok(server.send_connection_command(
+            connection_id,
+            ConnectionPhase::Configuration,
+            ConnectionCommand::Release,
+        ))
+    }
+
+    fn disconnect_configuration(
+        &mut self,
+        _res: Resource<Server>,
+        connection_id: u64,
+        reason: String,
+    ) -> wasmtime::Result<Result<(), String>> {
+        let server = self
+            .server
+            .as_ref()
+            .ok_or_else(|| wasmtime::Error::msg("Server not available"))?;
+        Ok(server.send_connection_command(
+            connection_id,
+            ConnectionPhase::Configuration,
+            ConnectionCommand::Disconnect(reason),
+        ))
+    }
+
+    fn set_connection_flavour(
+        &mut self,
+        _res: Resource<Server>,
+        connection_id: u64,
+        flavour: ConnectionFlavour,
+    ) -> wasmtime::Result<Result<(), String>> {
+        let server = self
+            .server
+            .as_ref()
+            .ok_or_else(|| wasmtime::Error::msg("Server not available"))?;
+        let flavour = match flavour {
+            ConnectionFlavour::Vanilla => pumpkin_protocol::ConnectionFlavour::Vanilla,
+            ConnectionFlavour::Neoforge => pumpkin_protocol::ConnectionFlavour::NeoForge,
+        };
+        Ok(server.set_connection_flavour(connection_id, flavour))
+    }
+
+    fn send_login_query(
+        &mut self,
+        _res: Resource<Server>,
+        connection_id: u64,
+        query_id: i32,
+        channel: String,
+        data: Vec<u8>,
+    ) -> wasmtime::Result<Result<(), String>> {
+        let server = self
+            .server
+            .as_ref()
+            .ok_or_else(|| wasmtime::Error::msg("Server not available"))?;
+        Ok(server.send_login_query(connection_id, query_id, channel, data))
+    }
+
+    fn release_login(
+        &mut self,
+        _res: Resource<Server>,
+        connection_id: u64,
+    ) -> wasmtime::Result<Result<(), String>> {
+        let server = self
+            .server
+            .as_ref()
+            .ok_or_else(|| wasmtime::Error::msg("Server not available"))?;
+        Ok(server.send_connection_command(
+            connection_id,
+            ConnectionPhase::Login,
+            ConnectionCommand::Release,
+        ))
+    }
+
+    fn disconnect_login(
+        &mut self,
+        _res: Resource<Server>,
+        connection_id: u64,
+        reason: String,
+    ) -> wasmtime::Result<Result<(), String>> {
+        let server = self
+            .server
+            .as_ref()
+            .ok_or_else(|| wasmtime::Error::msg("Server not available"))?;
+        Ok(server.send_connection_command(
+            connection_id,
+            ConnectionPhase::Login,
+            ConnectionCommand::Disconnect(reason),
+        ))
+    }
+
     fn get_sys_info(&mut self, _res: Resource<Server>) -> wasmtime::Result<SysInfo> {
         let has_perm = |p: &str| self.permissions.iter().any(|perm| perm == p);
 

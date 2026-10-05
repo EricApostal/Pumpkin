@@ -357,6 +357,118 @@ interface event {
         duration-nanos: s64
     }
 
+    /// A client entered the configuration phase, BEFORE the server sends its
+    /// `minecraft:brand`. Handlers may set `hold` to speak first: the brand and
+    /// everything after it (including `configuration-start-event`) wait until
+    /// `server.release-configuration` is called. While held, the plugin can
+    /// use `server.send-configuration-payload` / `send-configuration-packet`
+    /// and receives the client's answers as `configuration-payload-event` /
+    /// `configuration-packet-received-event`. Mod loaders that classify a
+    /// connection when they see the brand (NeoForge) need their negotiation
+    /// to arrive before it, see `server.set-connection-flavour`.
+    record configuration-pre-brand-event-data {
+        connection-id: u64,
+        /// The authenticated profile of the connecting client.
+        uuid: string,
+        username: string,
+        /// The Minecraft protocol version the client connected with.
+        protocol-version: s32,
+        /// Set to true to hold the configuration before the brand. The server
+        /// sends nothing more until the plugin releases it, or
+        /// `hold-timeout-seconds` pass (the client is then disconnected).
+        hold: bool,
+        hold-timeout-seconds: u32
+    }
+
+    /// A client entered the configuration phase (after login, before the world
+    /// is sent). Handlers may set `hold` to pause the configuration until
+    /// `server.release-configuration` is called, to run a custom handshake over
+    /// `configuration-payload-event`s.
+    record configuration-start-event-data {
+        connection-id: u64,
+        /// The authenticated profile of the connecting client.
+        uuid: string,
+        username: string,
+        /// The Minecraft protocol version the client connected with.
+        protocol-version: s32,
+        /// Set to true to hold the configuration phase. The server does not send
+        /// the remaining configuration (resource pack, registries, ...) until
+        /// the plugin releases it, or `hold-timeout-seconds` pass (the client is
+        /// then disconnected).
+        hold: bool,
+        hold-timeout-seconds: u32
+    }
+
+    /// A custom payload (plugin message) from a client during configuration.
+    /// The `minecraft:brand` channel is handled by the server and not reported.
+    record configuration-payload-event-data {
+        connection-id: u64,
+        uuid: string,
+        username: string,
+        /// The client brand if it has been received (e.g. `vanilla`, `neoforge`).
+        brand: option<string>,
+        channel: string,
+        data: list<u8>
+    }
+
+    /// The configuration phase ended: the client finished it (`completed`) or
+    /// the connection closed before that.
+    record configuration-end-event-data {
+        connection-id: u64,
+        uuid: string,
+        username: string,
+        completed: bool
+    }
+
+    /// A raw packet the client sent during configuration, before the server
+    /// handles it (this includes custom payloads, the known-packs answer and
+    /// the acknowledgement of finish-configuration). Cancelling it makes the
+    /// server ignore the packet, so a plugin that implements a loader's
+    /// protocol can answer on its own.
+    record configuration-packet-received-event-data {
+        connection-id: u64,
+        uuid: string,
+        username: string,
+        packet-id: s32,
+        payload: list<u8>,
+        cancelled: bool
+    }
+
+    /// The server is about to send "finish configuration" (the registries and
+    /// tags were sent). Handlers may set `hold` to run more steps first, like
+    /// the configuration tasks mod loaders add before the player joins, and
+    /// call `server.release-configuration` when done.
+    record configuration-finish-event-data {
+        connection-id: u64,
+        uuid: string,
+        username: string,
+        hold: bool,
+        hold-timeout-seconds: u32
+    }
+
+    /// A client finished authenticating (login phase), before the server
+    /// sends "login finished". Handlers may set `hold` to send login queries
+    /// (`server.send-login-query`), the login-phase counterpart of custom
+    /// payloads, and call `server.release-login` when done.
+    record login-start-event-data {
+        connection-id: u64,
+        uuid: string,
+        username: string,
+        protocol-version: s32,
+        hold: bool,
+        hold-timeout-seconds: u32
+    }
+
+    /// The client answered a login query sent with `server.send-login-query`.
+    /// `data` is none if the client did not understand the query.
+    record login-query-answer-event-data {
+        connection-id: u64,
+        uuid: string,
+        username: string,
+        query-id: s32,
+        data: option<list<u8>>
+    }
+
     record packet-received-event-data {
         player: player,
         packet: serverbound-packet,
@@ -1929,6 +2041,14 @@ interface event {
         server-tick-end-event,
         packet-received-event,
         packet-sent-event,
+        configuration-pre-brand-event,
+        configuration-start-event,
+        configuration-payload-event,
+        configuration-end-event,
+        configuration-packet-received-event,
+        configuration-finish-event,
+        login-start-event,
+        login-query-answer-event,
         chunk-load-event,
         chunk-save-event,
         chunk-send-event,
@@ -2205,6 +2325,14 @@ interface event {
         server-tick-end-event(server-tick-end-event-data),
         packet-received-event(packet-received-event-data),
         packet-sent-event(packet-sent-event-data),
+        configuration-pre-brand-event(configuration-pre-brand-event-data),
+        configuration-start-event(configuration-start-event-data),
+        configuration-payload-event(configuration-payload-event-data),
+        configuration-end-event(configuration-end-event-data),
+        configuration-packet-received-event(configuration-packet-received-event-data),
+        configuration-finish-event(configuration-finish-event-data),
+        login-start-event(login-start-event-data),
+        login-query-answer-event(login-query-answer-event-data),
         chunk-load-event(chunk-load-event-data),
         chunk-save-event(chunk-save-event-data),
         chunk-send-event(chunk-send-event-data),

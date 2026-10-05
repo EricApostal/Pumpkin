@@ -210,6 +210,14 @@ pub fn cleanup_event(event: &Event, state: &mut PluginHostState) {
             cleanup_text_component(state, &data.sender);
         }
         Event::ServerTickStartEvent(_) => {}
+        Event::ConfigurationPreBrandEvent(_)
+        | Event::ConfigurationStartEvent(_)
+        | Event::ConfigurationPayloadEvent(_)
+        | Event::ConfigurationEndEvent(_)
+        | Event::ConfigurationPacketReceivedEvent(_)
+        | Event::ConfigurationFinishEvent(_)
+        | Event::LoginStartEvent(_)
+        | Event::LoginQueryAnswerEvent(_) => {}
         Event::ServerTickEndEvent(_) => {}
         Event::PacketReceivedEvent(data) => {
             cleanup_player(state, &data.player);

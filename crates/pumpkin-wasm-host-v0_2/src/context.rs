@@ -1337,7 +1337,12 @@ fn register_server_event(
     event_type: EventType,
 ) {
     use pumpkin_core::plugin::server::{
+        configuration::{
+            ConfigurationEndEvent, ConfigurationFinishEvent, ConfigurationPacketReceivedEvent,
+            ConfigurationPayloadEvent, ConfigurationPreBrandEvent, ConfigurationStartEvent,
+        },
         list_ping::ServerListPingEvent,
+        login::{LoginQueryAnswerEvent, LoginStartEvent},
         packet::{PacketReceivedEvent, PacketSentEvent},
         server_broadcast::ServerBroadcastEvent,
         server_command::ServerCommandEvent,
@@ -1352,6 +1357,36 @@ fn register_server_event(
         }
         EventType::PacketSentEvent => {
             register_typed_event::<PacketSentEvent>(resource, handler, priority, blocking);
+        }
+        EventType::ConfigurationPreBrandEvent => {
+            register_typed_event::<ConfigurationPreBrandEvent>(
+                resource, handler, priority, blocking,
+            );
+        }
+        EventType::ConfigurationStartEvent => {
+            register_typed_event::<ConfigurationStartEvent>(resource, handler, priority, blocking);
+        }
+        EventType::ConfigurationPayloadEvent => {
+            register_typed_event::<ConfigurationPayloadEvent>(
+                resource, handler, priority, blocking,
+            );
+        }
+        EventType::ConfigurationEndEvent => {
+            register_typed_event::<ConfigurationEndEvent>(resource, handler, priority, blocking);
+        }
+        EventType::ConfigurationPacketReceivedEvent => {
+            register_typed_event::<ConfigurationPacketReceivedEvent>(
+                resource, handler, priority, blocking,
+            );
+        }
+        EventType::ConfigurationFinishEvent => {
+            register_typed_event::<ConfigurationFinishEvent>(resource, handler, priority, blocking);
+        }
+        EventType::LoginStartEvent => {
+            register_typed_event::<LoginStartEvent>(resource, handler, priority, blocking);
+        }
+        EventType::LoginQueryAnswerEvent => {
+            register_typed_event::<LoginQueryAnswerEvent>(resource, handler, priority, blocking);
         }
         EventType::ServerCommandEvent => {
             register_typed_event::<ServerCommandEvent>(resource, handler, priority, blocking);
@@ -1445,6 +1480,14 @@ impl pumpkin::plugin::context::HostContext for PluginHostState {
         match event_type {
             event_type @ (EventType::PacketReceivedEvent
             | EventType::PacketSentEvent
+            | EventType::ConfigurationPreBrandEvent
+            | EventType::ConfigurationStartEvent
+            | EventType::ConfigurationPayloadEvent
+            | EventType::ConfigurationEndEvent
+            | EventType::ConfigurationPacketReceivedEvent
+            | EventType::ConfigurationFinishEvent
+            | EventType::LoginStartEvent
+            | EventType::LoginQueryAnswerEvent
             | EventType::ServerCommandEvent
             | EventType::ServerListPingEvent
             | EventType::ServerBroadcastEvent

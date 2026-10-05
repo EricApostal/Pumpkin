@@ -151,8 +151,56 @@ interface server {
         player(player),
     }
 
+    /// How the play-phase packets of a connection are encoded. `vanilla` is
+    /// the default. A client that was classified as a NeoForge connection
+    /// (it received `neoforge:register` before the brand) expects some
+    /// packets with extra fields, `neoforge` makes the server write them.
+    enum connection-flavour {
+        vanilla,
+        neoforge
+    }
+
     /// Represents the global server instance.
     resource server {
+        /// Sends a custom payload (plugin message) to a client that is in the
+        /// configuration phase. Fails if the connection is gone or no longer
+        /// configuring. Meant for custom handshakes, see
+        /// `configuration-start-event`.
+        send-configuration-payload: func(connection-id: u64, channel: string, data: list<u8>) -> result<_, string>;
+
+        /// Sends a raw clientbound configuration-phase packet: `payload` is the
+        /// packet body without its id and length. Lets a plugin implement the
+        /// configuration packets of a mod loader.
+        send-configuration-packet: func(connection-id: u64, packet-id: s32, payload: list<u8>) -> result<_, string>;
+
+        /// Continues a configuration that was held by
+        /// `configuration-pre-brand-event`, `configuration-start-event` or
+        /// `configuration-finish-event`. Releasing the pre-brand hold sends
+        /// the server brand and goes on with the normal configuration.
+        release-configuration: func(connection-id: u64) -> result<_, string>;
+
+        /// Marks a connection that is logging in or configuring with the
+        /// encoding flavour of its play phase (default `vanilla`). Takes
+        /// effect right away and is carried over to the player when the
+        /// configuration finishes. Fails if the connection is gone or already
+        /// playing. Call it when the client has been told to be a NeoForge
+        /// connection (a `neoforge:register` query was sent before the brand).
+        set-connection-flavour: func(connection-id: u64, flavour: connection-flavour) -> result<_, string>;
+
+        /// Disconnects a client that is in the configuration phase.
+        disconnect-configuration: func(connection-id: u64, reason: string) -> result<_, string>;
+
+        /// Sends a login query (custom query packet) to a client in the login
+        /// phase. The answer arrives as a `login-query-answer-event`. Fails if
+        /// the connection is gone, not logging in, or `query-id` is in use.
+        send-login-query: func(connection-id: u64, query-id: s32, channel: string, data: list<u8>) -> result<_, string>;
+
+        /// Continues a login that was held by `login-start-event`.
+        release-login: func(connection-id: u64) -> result<_, string>;
+
+        /// Disconnects a client that is in the login phase.
+        disconnect-login: func(connection-id: u64, reason: string) -> result<_, string>;
+
         /// Returns system information (CPU, Memory, OS).
         /// Fields are returned only if the plugin has the corresponding permissions.
         get-sys-info: func() -> sys-info;

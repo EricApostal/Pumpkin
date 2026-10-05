@@ -2,15 +2,24 @@ use crate::{
     events::{ToFromWasmEvent, cleanup_event, consume_text_component},
     generated_packets,
     pumpkin::plugin::event::{
-        ClientboundPacket, Event, MapInitializeEventData, PacketReceivedEventData,
-        PacketSentEventData, ServerBroadcastEventData, ServerCommandEventData,
-        ServerListPingAddress, ServerListPingEventData, ServerLoadEventData, ServerLoadType,
-        ServerTickEndEventData, ServerTickStartEventData, ServerboundPacket,
+        ClientboundPacket, ConfigurationEndEventData, ConfigurationFinishEventData,
+        ConfigurationPacketReceivedEventData, ConfigurationPayloadEventData,
+        ConfigurationPreBrandEventData, ConfigurationStartEventData, Event,
+        LoginQueryAnswerEventData, LoginStartEventData, MapInitializeEventData,
+        PacketReceivedEventData, PacketSentEventData, ServerBroadcastEventData,
+        ServerCommandEventData, ServerListPingAddress, ServerListPingEventData,
+        ServerLoadEventData, ServerLoadType, ServerTickEndEventData, ServerTickStartEventData,
+        ServerboundPacket,
     },
 };
 use pumpkin_core::net::ClientPlatform;
 use pumpkin_core::plugin::server::{
+    configuration::{
+        ConfigurationEndEvent, ConfigurationFinishEvent, ConfigurationPacketReceivedEvent,
+        ConfigurationPayloadEvent, ConfigurationPreBrandEvent, ConfigurationStartEvent,
+    },
     list_ping::ServerListPingEvent,
+    login::{LoginQueryAnswerEvent, LoginStartEvent},
     map_initialize::MapInitializeEvent,
     packet::{PacketReceivedEvent, PacketSentEvent},
     server_broadcast::ServerBroadcastEvent,
@@ -288,6 +297,264 @@ impl ToFromWasmEvent for MapInitializeEvent {
             _ => panic!("unexpected event type"),
         }
     }
+}
+
+impl ToFromWasmEvent for ConfigurationPreBrandEvent {
+    fn to_wasm_event(&self, _state: &mut PluginHostState) -> Event {
+        Event::ConfigurationPreBrandEvent(ConfigurationPreBrandEventData {
+            connection_id: self.connection_id,
+            uuid: self.uuid.to_string(),
+            username: self.username.clone(),
+            protocol_version: self.protocol_version,
+            hold: self.hold,
+            hold_timeout_seconds: self.hold_timeout_seconds,
+        })
+    }
+
+    fn from_wasm_event(event: Event, _state: &mut PluginHostState) -> Self {
+        match event {
+            Event::ConfigurationPreBrandEvent(data) => Self {
+                connection_id: data.connection_id,
+                uuid: data.uuid.parse().unwrap_or_default(),
+                username: data.username,
+                protocol_version: data.protocol_version,
+                hold: data.hold,
+                hold_timeout_seconds: data.hold_timeout_seconds,
+            },
+            _ => panic!("unexpected event type"),
+        }
+    }
+
+    /// Only the hold request is writable, the rest identifies the connection.
+    fn apply_wasm_event(&mut self, event: Event, _state: &mut PluginHostState) {
+        if let Event::ConfigurationPreBrandEvent(data) = event {
+            self.hold = data.hold;
+            self.hold_timeout_seconds = data.hold_timeout_seconds;
+        }
+    }
+}
+
+impl ToFromWasmEvent for ConfigurationStartEvent {
+    fn to_wasm_event(&self, _state: &mut PluginHostState) -> Event {
+        Event::ConfigurationStartEvent(ConfigurationStartEventData {
+            connection_id: self.connection_id,
+            uuid: self.uuid.to_string(),
+            username: self.username.clone(),
+            protocol_version: self.protocol_version,
+            hold: self.hold,
+            hold_timeout_seconds: self.hold_timeout_seconds,
+        })
+    }
+
+    fn from_wasm_event(event: Event, _state: &mut PluginHostState) -> Self {
+        match event {
+            Event::ConfigurationStartEvent(data) => Self {
+                connection_id: data.connection_id,
+                uuid: data.uuid.parse().unwrap_or_default(),
+                username: data.username,
+                protocol_version: data.protocol_version,
+                hold: data.hold,
+                hold_timeout_seconds: data.hold_timeout_seconds,
+            },
+            _ => panic!("unexpected event type"),
+        }
+    }
+
+    /// Only the hold request is writable, the rest identifies the connection.
+    fn apply_wasm_event(&mut self, event: Event, _state: &mut PluginHostState) {
+        if let Event::ConfigurationStartEvent(data) = event {
+            self.hold = data.hold;
+            self.hold_timeout_seconds = data.hold_timeout_seconds;
+        }
+    }
+}
+
+impl ToFromWasmEvent for ConfigurationPayloadEvent {
+    fn to_wasm_event(&self, _state: &mut PluginHostState) -> Event {
+        Event::ConfigurationPayloadEvent(ConfigurationPayloadEventData {
+            connection_id: self.connection_id,
+            uuid: self.uuid.to_string(),
+            username: self.username.clone(),
+            brand: self.brand.clone(),
+            channel: self.channel.clone(),
+            data: self.data.clone(),
+        })
+    }
+
+    fn from_wasm_event(event: Event, _state: &mut PluginHostState) -> Self {
+        match event {
+            Event::ConfigurationPayloadEvent(data) => Self {
+                connection_id: data.connection_id,
+                uuid: data.uuid.parse().unwrap_or_default(),
+                username: data.username,
+                brand: data.brand,
+                channel: data.channel,
+                data: data.data,
+            },
+            _ => panic!("unexpected event type"),
+        }
+    }
+
+    /// Informational only.
+    fn apply_wasm_event(&mut self, _event: Event, _state: &mut PluginHostState) {}
+}
+
+impl ToFromWasmEvent for ConfigurationEndEvent {
+    fn to_wasm_event(&self, _state: &mut PluginHostState) -> Event {
+        Event::ConfigurationEndEvent(ConfigurationEndEventData {
+            connection_id: self.connection_id,
+            uuid: self.uuid.to_string(),
+            username: self.username.clone(),
+            completed: self.completed,
+        })
+    }
+
+    fn from_wasm_event(event: Event, _state: &mut PluginHostState) -> Self {
+        match event {
+            Event::ConfigurationEndEvent(data) => Self {
+                connection_id: data.connection_id,
+                uuid: data.uuid.parse().unwrap_or_default(),
+                username: data.username,
+                completed: data.completed,
+            },
+            _ => panic!("unexpected event type"),
+        }
+    }
+
+    /// Informational only.
+    fn apply_wasm_event(&mut self, _event: Event, _state: &mut PluginHostState) {}
+}
+
+impl ToFromWasmEvent for ConfigurationPacketReceivedEvent {
+    fn to_wasm_event(&self, _state: &mut PluginHostState) -> Event {
+        Event::ConfigurationPacketReceivedEvent(ConfigurationPacketReceivedEventData {
+            connection_id: self.connection_id,
+            uuid: self.uuid.to_string(),
+            username: self.username.clone(),
+            packet_id: self.packet_id,
+            payload: self.payload.to_vec(),
+            cancelled: self.cancelled,
+        })
+    }
+
+    fn from_wasm_event(event: Event, _state: &mut PluginHostState) -> Self {
+        match event {
+            Event::ConfigurationPacketReceivedEvent(data) => Self {
+                connection_id: data.connection_id,
+                uuid: data.uuid.parse().unwrap_or_default(),
+                username: data.username,
+                packet_id: data.packet_id,
+                payload: data.payload.into(),
+                cancelled: data.cancelled,
+            },
+            _ => panic!("unexpected event type"),
+        }
+    }
+
+    /// The connection is identified by the host, handlers rewrite or cancel the packet.
+    fn apply_wasm_event(&mut self, event: Event, _state: &mut PluginHostState) {
+        if let Event::ConfigurationPacketReceivedEvent(data) = event {
+            self.packet_id = data.packet_id;
+            self.payload = data.payload.into();
+            self.cancelled = data.cancelled;
+        }
+    }
+}
+
+impl ToFromWasmEvent for ConfigurationFinishEvent {
+    fn to_wasm_event(&self, _state: &mut PluginHostState) -> Event {
+        Event::ConfigurationFinishEvent(ConfigurationFinishEventData {
+            connection_id: self.connection_id,
+            uuid: self.uuid.to_string(),
+            username: self.username.clone(),
+            hold: self.hold,
+            hold_timeout_seconds: self.hold_timeout_seconds,
+        })
+    }
+
+    fn from_wasm_event(event: Event, _state: &mut PluginHostState) -> Self {
+        match event {
+            Event::ConfigurationFinishEvent(data) => Self {
+                connection_id: data.connection_id,
+                uuid: data.uuid.parse().unwrap_or_default(),
+                username: data.username,
+                hold: data.hold,
+                hold_timeout_seconds: data.hold_timeout_seconds,
+            },
+            _ => panic!("unexpected event type"),
+        }
+    }
+
+    /// Only the hold request is writable.
+    fn apply_wasm_event(&mut self, event: Event, _state: &mut PluginHostState) {
+        if let Event::ConfigurationFinishEvent(data) = event {
+            self.hold = data.hold;
+            self.hold_timeout_seconds = data.hold_timeout_seconds;
+        }
+    }
+}
+
+impl ToFromWasmEvent for LoginStartEvent {
+    fn to_wasm_event(&self, _state: &mut PluginHostState) -> Event {
+        Event::LoginStartEvent(LoginStartEventData {
+            connection_id: self.connection_id,
+            uuid: self.uuid.to_string(),
+            username: self.username.clone(),
+            protocol_version: self.protocol_version,
+            hold: self.hold,
+            hold_timeout_seconds: self.hold_timeout_seconds,
+        })
+    }
+
+    fn from_wasm_event(event: Event, _state: &mut PluginHostState) -> Self {
+        match event {
+            Event::LoginStartEvent(data) => Self {
+                connection_id: data.connection_id,
+                uuid: data.uuid.parse().unwrap_or_default(),
+                username: data.username,
+                protocol_version: data.protocol_version,
+                hold: data.hold,
+                hold_timeout_seconds: data.hold_timeout_seconds,
+            },
+            _ => panic!("unexpected event type"),
+        }
+    }
+
+    /// Only the hold request is writable.
+    fn apply_wasm_event(&mut self, event: Event, _state: &mut PluginHostState) {
+        if let Event::LoginStartEvent(data) = event {
+            self.hold = data.hold;
+            self.hold_timeout_seconds = data.hold_timeout_seconds;
+        }
+    }
+}
+
+impl ToFromWasmEvent for LoginQueryAnswerEvent {
+    fn to_wasm_event(&self, _state: &mut PluginHostState) -> Event {
+        Event::LoginQueryAnswerEvent(LoginQueryAnswerEventData {
+            connection_id: self.connection_id,
+            uuid: self.uuid.to_string(),
+            username: self.username.clone(),
+            query_id: self.query_id,
+            data: self.data.clone(),
+        })
+    }
+
+    fn from_wasm_event(event: Event, _state: &mut PluginHostState) -> Self {
+        match event {
+            Event::LoginQueryAnswerEvent(data) => Self {
+                connection_id: data.connection_id,
+                uuid: data.uuid.parse().unwrap_or_default(),
+                username: data.username,
+                query_id: data.query_id,
+                data: data.data,
+            },
+            _ => panic!("unexpected event type"),
+        }
+    }
+
+    /// Informational only.
+    fn apply_wasm_event(&mut self, _event: Event, _state: &mut PluginHostState) {}
 }
 
 #[cfg(test)]
