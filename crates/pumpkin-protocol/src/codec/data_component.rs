@@ -7,6 +7,9 @@ use crate::ser::{NetworkReadExt, NetworkWriteExt, ReadingError, WritingError};
 use pumpkin_data::Enchantment;
 use pumpkin_data::data_component::DataComponent;
 use pumpkin_data::data_component_impl::*;
+use pumpkin_data::data_component_registry::{
+    ComponentCodec, MAX_PLUGIN_COMPONENT_SIZE, PluginComponentImpl,
+};
 
 use pumpkin_data::effect::StatusEffect;
 use pumpkin_data::entity::EntityType;
@@ -931,11 +934,236 @@ impl DataComponentCodec<Self> for RarityImpl {
     }
 }
 
+// --- Components of plugin registered types ---
+//
+// The value of such a component is kept as the bytes of its network encoding, see
+// `pumpkin_data::data_component_registry`. The codec of the type is only needed to find where a
+// value ends in a stream that does not say how long it is.
+
+/// Largest string of a plugin component, in bytes (vanilla's 32767 characters, three bytes each).
+const MAX_PLUGIN_STRING_BYTES: usize = 32767 * 3;
+/// Deepest nesting of plugin components inside each other (through item stacks and patches).
+const MAX_PLUGIN_COMPONENT_DEPTH: u32 = 8;
+
+thread_local! {
+    static PLUGIN_COMPONENT_DEPTH: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
+}
+
+/// Counts the nesting of `read_plugin_component`, so a stack that contains itself through plugin
+/// components cannot overflow the stack.
+struct PluginComponentDepth;
+
+impl PluginComponentDepth {
+    fn enter() -> Result<Self, ReadingError> {
+        PLUGIN_COMPONENT_DEPTH.with(|depth| {
+            if depth.get() >= MAX_PLUGIN_COMPONENT_DEPTH {
+                return Err(ReadingError::Message(
+                    "Plugin data components nest too deeply".to_string(),
+                ));
+            }
+            depth.set(depth.get() + 1);
+            Ok(Self)
+        })
+    }
+}
+
+impl Drop for PluginComponentDepth {
+    fn drop(&mut self) {
+        PLUGIN_COMPONENT_DEPTH.with(|depth| depth.set(depth.get().saturating_sub(1)));
+    }
+}
+
+/// Lets a [`NetworkReadExt`] be used as a plain reader. It only reads whole buffers.
+struct ExtReader<'a, R: NetworkReadExt + ?Sized>(&'a mut R);
+
+impl<R: NetworkReadExt + ?Sized> std::io::Read for ExtReader<'_, R> {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        if buf.is_empty() {
+            return Ok(0);
+        }
+        self.0.read_bytes_to_buf(buf).map_err(|error| {
+            std::io::Error::new(std::io::ErrorKind::UnexpectedEof, error.to_string())
+        })?;
+        Ok(buf.len())
+    }
+}
+
+/// Reads from another reader and keeps every byte it handed out.
+struct RecordingReader<'a> {
+    inner: &'a mut dyn std::io::Read,
+    recorded: Vec<u8>,
+}
+
+impl std::io::Read for RecordingReader<'_> {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        if buf.is_empty() {
+            return Ok(0);
+        }
+        self.inner.read_exact(buf)?;
+        self.recorded.extend_from_slice(buf);
+        Ok(buf.len())
+    }
+}
+
+fn read_codec_length(reader: &mut RecordingReader<'_>, max: usize) -> Result<usize, ReadingError> {
+    let length = reader.get_var_int()?.0;
+    usize::try_from(length)
+        .ok()
+        .filter(|length| *length <= max)
+        .ok_or_else(|| {
+            ReadingError::Message(format!(
+                "Invalid length {length} in a plugin data component"
+            ))
+        })
+}
+
+fn skip_codec_bytes(reader: &mut RecordingReader<'_>, length: usize) -> Result<(), ReadingError> {
+    if length > MAX_PLUGIN_COMPONENT_SIZE {
+        return Err(ReadingError::TooLarge(
+            "Plugin data component too large".to_string(),
+        ));
+    }
+    let mut buffer = vec![0u8; length];
+    reader.read_bytes_to_buf(&mut buffer)
+}
+
+/// Reads a data component patch and drops it, to find where it ends.
+fn skip_component_patch(reader: &mut RecordingReader<'_>) -> Result<(), ReadingError> {
+    const MAX_COMPONENTS: i32 = 256;
+
+    let added = reader.get_var_int()?.0;
+    let removed = reader.get_var_int()?.0;
+    if !(0..=MAX_COMPONENTS).contains(&added) || !(0..=MAX_COMPONENTS).contains(&removed) {
+        return Err(ReadingError::Message(
+            "Invalid component count in a plugin data component".to_string(),
+        ));
+    }
+    for _ in 0..added {
+        let id_val = reader.get_var_int()?.0;
+        let id = u8::try_from(id_val)
+            .ok()
+            .and_then(DataComponent::try_from_id)
+            .ok_or_else(|| ReadingError::Message(format!("Unknown component ID: {id_val}")))?;
+        deserialize(id, reader)?;
+    }
+    for _ in 0..removed {
+        reader.get_var_int()?;
+    }
+    Ok(())
+}
+
+/// Reads one value of `codec`. The caller records the bytes.
+fn read_codec(
+    codec: &ComponentCodec,
+    reader: &mut RecordingReader<'_>,
+) -> Result<(), ReadingError> {
+    match codec {
+        ComponentCodec::VarInt => {
+            reader.get_var_int()?;
+        }
+        ComponentCodec::VarLong => {
+            reader.get_var_long()?;
+        }
+        ComponentCodec::Bool | ComponentCodec::Byte => {
+            reader.get_u8()?;
+        }
+        ComponentCodec::Short => {
+            reader.get_u16_be()?;
+        }
+        ComponentCodec::Int | ComponentCodec::Float => {
+            reader.get_u32_be()?;
+        }
+        ComponentCodec::Long | ComponentCodec::Double => {
+            reader.get_u64_be()?;
+        }
+        ComponentCodec::String => {
+            let length = read_codec_length(reader, MAX_PLUGIN_STRING_BYTES)?;
+            skip_codec_bytes(reader, length)?;
+        }
+        ComponentCodec::ByteArray => {
+            let length = read_codec_length(reader, MAX_PLUGIN_COMPONENT_SIZE)?;
+            skip_codec_bytes(reader, length)?;
+        }
+        ComponentCodec::Uuid => skip_codec_bytes(reader, 16)?,
+        ComponentCodec::FixedBytes(length) => skip_codec_bytes(reader, *length as usize)?,
+        ComponentCodec::Nbt => {
+            reader.get_nbt_with_version(&JavaMinecraftVersion::V_26_2)?;
+        }
+        ComponentCodec::ItemStack => {
+            crate::codec::item_stack_seralizer::ItemStackSerializer::read(reader)?;
+        }
+        ComponentCodec::ComponentPatch => skip_component_patch(reader)?,
+        ComponentCodec::Optional(inner) => {
+            if reader.get_bool()? {
+                read_codec(inner, reader)?;
+            }
+        }
+        ComponentCodec::List(inner) => {
+            let count = read_codec_length(reader, MAX_PLUGIN_COMPONENT_SIZE)?;
+            for _ in 0..count {
+                read_codec(inner, reader)?;
+            }
+        }
+        ComponentCodec::Sequence(fields) => {
+            for field in fields {
+                read_codec(field, reader)?;
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Reads the value of a component of a plugin registered type from a stream, following the codec of
+/// the type to find where it ends.
+pub fn read_plugin_component(
+    id: DataComponent,
+    seq: &mut impl NetworkReadExt,
+) -> Result<PluginComponentImpl, ReadingError> {
+    let component_type = id
+        .plugin_type()
+        .ok_or_else(|| ReadingError::Message(format!("Unknown component ID: {}", id.to_id())))?;
+    let _depth = PluginComponentDepth::enter()?;
+
+    let mut source = ExtReader(seq);
+    let mut recorder = RecordingReader {
+        inner: &mut source,
+        recorded: Vec::new(),
+    };
+    read_codec(&component_type.codec, &mut recorder)?;
+    if recorder.recorded.len() > MAX_PLUGIN_COMPONENT_SIZE {
+        return Err(ReadingError::TooLarge(
+            "Plugin data component too large".to_string(),
+        ));
+    }
+    Ok(PluginComponentImpl::new(id, recorder.recorded))
+}
+
+/// Checks that `data` is exactly one value of the codec of the plugin component type `id` and keeps
+/// it. For the places where a component is length prefixed.
+pub fn plugin_component_from_bytes(
+    id: DataComponent,
+    data: &[u8],
+) -> Result<PluginComponentImpl, ReadingError> {
+    let mut cursor = std::io::Cursor::new(data);
+    let component = read_plugin_component(id, &mut cursor)?;
+    if cursor.position() != data.len() as u64 {
+        return Err(ReadingError::Message(format!(
+            "Plugin data component {} has {} trailing bytes",
+            id.to_id(),
+            data.len() as u64 - cursor.position()
+        )));
+    }
+    Ok(component)
+}
+
 #[allow(clippy::too_many_lines)]
 pub fn deserialize(
     id: DataComponent,
     seq: &mut impl NetworkReadExt,
 ) -> Result<Box<dyn DataComponentImpl>, ReadingError> {
+    if id.plugin_slot().is_some() {
+        return Ok(read_plugin_component(id, seq)?.to_dyn());
+    }
     match id {
         DataComponent::CustomData => Ok(CustomDataImpl::deserialize(seq)?.to_dyn()),
         DataComponent::MaxStackSize => Ok(MaxStackSizeImpl::deserialize(seq)?.to_dyn()),
@@ -1090,6 +1318,15 @@ pub fn serialize(
     value: &dyn DataComponentImpl,
     seq: &mut impl NetworkWriteExt,
 ) -> Result<(), WritingError> {
+    if id.plugin_slot().is_some() {
+        let Some(component) = value.as_any().downcast_ref::<PluginComponentImpl>() else {
+            return Err(WritingError::Message(format!(
+                "Component {} is not the value of a plugin data component",
+                id.to_id()
+            )));
+        };
+        return seq.write_slice(&component.data);
+    }
     match id {
         DataComponent::CustomData => get::<CustomDataImpl>(value).serialize(seq),
         DataComponent::MaxStackSize => get::<MaxStackSizeImpl>(value).serialize(seq),

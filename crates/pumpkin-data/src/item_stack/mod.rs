@@ -809,13 +809,22 @@ impl ItemStack {
         let mut tag = NbtCompound::new();
 
         for (id, data) in &self.patch {
-            if !id.is_persistent() {
-                continue;
-            }
-            if let Some(data) = data {
-                tag.put(id.to_name(), data.write_data());
+            // Components of plugin types are saved under the key of their type, and only when
+            // the type is persistent.
+            let name = if id.plugin_slot().is_some() {
+                match id.plugin_type() {
+                    Some(component_type) if component_type.persistent => component_type.key,
+                    _ => continue,
+                }
+            } else if id.is_persistent() {
+                id.to_name()
             } else {
-                let name = '!'.to_string() + id.to_name();
+                continue;
+            };
+            if let Some(data) = data {
+                tag.put(name, data.write_data());
+            } else {
+                let name = '!'.to_string() + name;
                 tag.put(name.as_str(), NbtCompound::new());
             }
         }
@@ -843,16 +852,34 @@ impl ItemStack {
         // Process any additional data in the components compound
         if let Some(tag) = compound.get_compound("components") {
             for (name, data) in &tag.child_tags {
-                if let Some(name) = name.strip_prefix("!") {
-                    let id = DataComponent::try_from_name(name)?;
-                    if id.is_persistent() {
-                        item_stack.patch.push((id, None));
+                let raw_name: &str = name;
+                let (negated, name) = raw_name
+                    .strip_prefix('!')
+                    .map_or((false, raw_name), |name| (true, name));
+                let id = if let Some(id) = DataComponent::try_from_name(name) {
+                    id
+                } else if name.contains(':') && !name.starts_with("minecraft:") {
+                    // A component of a plugin. Stacks that carry a type that is not registered
+                    // (the plugin is gone) keep everything else.
+                    match DataComponent::from_plugin_key(name) {
+                        Some(id) => id,
+                        None => {
+                            tracing::warn!(
+                                "Skipping unknown data component '{name}' of item '{full_id}'"
+                            );
+                            continue;
+                        }
                     }
                 } else {
-                    let id = DataComponent::try_from_name(name)?;
-                    if id.is_persistent() {
-                        item_stack.patch.push((id, Some(read_data(id, data)?)));
-                    }
+                    return None;
+                };
+                if id.plugin_slot().is_none() && !id.is_persistent() {
+                    continue;
+                }
+                if negated {
+                    item_stack.patch.push((id, None));
+                } else {
+                    item_stack.patch.push((id, Some(read_data(id, data)?)));
                 }
             }
         }

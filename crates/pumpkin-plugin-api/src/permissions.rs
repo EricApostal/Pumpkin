@@ -70,3 +70,18 @@ pub const REGISTRY_ITEMS: &str = "registry.items";
 ///
 /// Registration is only possible while the server starts, before players can connect.
 pub const REGISTRY_BLOCKS: &str = "registry.blocks";
+
+/// Allows the plugin to register custom block entity types with `plugin_block_entity`.
+///
+/// Registration is only possible while the server starts, before players can connect.
+pub const REGISTRY_BLOCK_ENTITIES: &str = "registry.block-entities";
+
+/// Allows the plugin to register custom menu types with `menus`.
+///
+/// Registration is only possible while the server starts, before players can connect.
+pub const REGISTRY_MENUS: &str = "registry.menus";
+
+/// Allows the plugin to register custom data component types with `custom_components`.
+///
+/// Registration is only possible while the server starts, before players can connect.
+pub const REGISTRY_COMPONENTS: &str = "registry.components";

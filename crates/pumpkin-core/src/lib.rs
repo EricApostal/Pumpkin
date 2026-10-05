@@ -479,6 +479,11 @@ impl PumpkinServer {
         // Close registration before players can connect.
         pumpkin_data::item::Item::freeze_dynamic_registry();
         pumpkin_data::Block::freeze_dynamic_registry();
+        // Block entity types, menu types and data component types are registries clients
+        // synchronise too, their ids are handed out from here on.
+        pumpkin_data::block_entity_registry::freeze_plugin_block_entity_types();
+        pumpkin_data::menu_registry::freeze_plugin_menu_types();
+        pumpkin_data::data_component_registry::freeze_plugin_component_types();
 
         self.server.start_telemetry();
         self.server.management_hub.broadcast_server_started();

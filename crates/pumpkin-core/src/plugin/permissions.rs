@@ -71,6 +71,22 @@ pub const REGISTRY_ITEMS: &str = "registry.items";
 /// Allows the plugin to register custom blocks (and block tags) while the server starts.
 pub const REGISTRY_BLOCKS: &str = "registry.blocks";
 
+/// Allows the plugin to register custom block entity types while the server starts.
+///
+/// Block entity types are a registry that clients synchronise, their ids are handed to clients.
+pub const REGISTRY_BLOCK_ENTITIES: &str = "registry.block-entities";
+
+/// Allows the plugin to register custom menu types while the server starts.
+///
+/// Menu types are a registry that clients synchronise, their ids are handed to clients.
+pub const REGISTRY_MENUS: &str = "registry.menus";
+
+/// Allows the plugin to register custom data component types while the server starts.
+///
+/// Component types are a registry that clients synchronise, their ids are written into every item
+/// stack that carries one.
+pub const REGISTRY_COMPONENTS: &str = "registry.components";
+
 #[must_use]
 pub fn get_permission_description(permission: &str) -> Option<&'static str> {
     match permission {
@@ -110,6 +126,9 @@ pub fn get_permission_description(permission: &str) -> Option<&'static str> {
         SYS_INFO_OS => Some("Allows the plugin to read OS information."),
         REGISTRY_ITEMS => Some("Allows the plugin to register custom items and item tags."),
         REGISTRY_BLOCKS => Some("Allows the plugin to register custom blocks and block tags."),
+        REGISTRY_BLOCK_ENTITIES => Some("Allows the plugin to register custom block entity types."),
+        REGISTRY_MENUS => Some("Allows the plugin to register custom menu types."),
+        REGISTRY_COMPONENTS => Some("Allows the plugin to register custom data component types."),
         p if p.starts_with(SYS_ENV_PREFIX) => {
             Some("Allows the plugin to read specific environment variables.")
         }

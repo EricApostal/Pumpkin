@@ -48,6 +48,10 @@ impl DataComponentValue {
     }
 }
 
+/// Number of ids after the vanilla ones that plugin registered component types can take. Component
+/// ids are a byte on the wire and in `DataComponent`, so each possible type needs its own variant.
+const PLUGIN_SLOTS: u8 = 64;
+
 /// Generates the `TokenStream` for the `DataComponent` enum and its ID/name conversion methods.
 pub fn build() -> TokenStream {
     let data_component: BTreeMap<String, DataComponentValue> =
@@ -104,6 +108,39 @@ pub fn build() -> TokenStream {
         });
     }
 
+    // Ids `vanilla_count..vanilla_count + PLUGIN_SLOTS` belong to component types that plugins
+    // register at runtime (see `data_component_registry`). The id of a type is the vanilla count
+    // plus its registration index, which is what a modded client's registry sync announces.
+    let vanilla_count = data_component_vec
+        .last()
+        .map_or(0u8, |(_, value)| value.id() + 1);
+    assert!(
+        u16::from(vanilla_count) + u16::from(PLUGIN_SLOTS) <= 256,
+        "no room for plugin component ids"
+    );
+    for slot in 0..PLUGIN_SLOTS {
+        let value = vanilla_count + slot;
+        let pascal_case = format_ident!("PluginComponent{}", slot);
+        let name = format!("pumpkin:plugin_component_{slot}");
+
+        enum_variants.extend(quote! {
+            #pascal_case = #value,
+        });
+        id_to_enum.extend(quote! {
+            #value => Some(Self::#pascal_case),
+        });
+        enum_to_name.extend(quote! {
+            Self::#pascal_case => #name,
+        });
+        // Whether a plugin component is saved is decided by its registered type, see `ItemStack`.
+        enum_to_persistent.extend(quote! {
+            Self::#pascal_case => true,
+        });
+        enum_to_ignore_swap.extend(quote! {
+            Self::#pascal_case => false,
+        });
+    }
+
     quote! {
         use crate::data_component_impl::*;
 
@@ -114,9 +151,34 @@ pub fn build() -> TokenStream {
         }
 
         impl DataComponent {
+            /// Number of vanilla components. Component ids from here on are plugin slots.
+            pub const VANILLA_COUNT: u8 = #vanilla_count;
+            /// Number of component types plugins can register.
+            pub const PLUGIN_SLOT_COUNT: u8 = #PLUGIN_SLOTS;
+
             #[must_use]
             pub const fn to_id(self) -> u8 {
                 self as u8
+            }
+
+            /// The index of a plugin component slot, `None` for a vanilla component.
+            #[must_use]
+            pub const fn plugin_slot(self) -> Option<u8> {
+                let id = self as u8;
+                if id >= Self::VANILLA_COUNT {
+                    Some(id - Self::VANILLA_COUNT)
+                } else {
+                    None
+                }
+            }
+
+            /// The component of a plugin slot, `None` if the slot does not exist.
+            #[must_use]
+            pub const fn from_plugin_slot(slot: u8) -> Option<Self> {
+                if slot >= Self::PLUGIN_SLOT_COUNT {
+                    return None;
+                }
+                Self::try_from_id(Self::VANILLA_COUNT + slot)
             }
 
             #[must_use]

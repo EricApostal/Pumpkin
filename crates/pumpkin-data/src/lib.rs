@@ -445,6 +445,8 @@ pub mod potion_brewing;
 #[cfg(feature = "block")]
 mod block_direction;
 #[cfg(feature = "block")]
+pub mod block_entity_registry;
+#[cfg(feature = "block")]
 pub mod block_registry;
 #[cfg(feature = "block")]
 pub mod block_rotation;
@@ -452,6 +454,14 @@ pub mod block_rotation;
 pub mod block_state;
 #[cfg(feature = "block")]
 mod blocks;
+
+pub mod plugin_registry;
+
+#[cfg(feature = "screen")]
+pub mod menu_registry;
+
+#[cfg(feature = "data_component")]
+pub mod data_component_registry;
 
 #[cfg(feature = "block")]
 pub use block_direction::{BlockDirection, FacingExt, HorizontalFacingExt};

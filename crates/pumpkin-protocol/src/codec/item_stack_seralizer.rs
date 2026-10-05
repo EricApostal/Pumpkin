@@ -215,6 +215,13 @@ fn decode_component(
     id: DataComponent,
     component_data: &[u8],
 ) -> Result<Box<dyn DataComponentImpl>, ReadingError> {
+    // A component of a plugin registered type: the bytes are kept as they are, after checking them
+    // against the codec of the type.
+    if id.plugin_slot().is_some() {
+        return Ok(
+            crate::codec::data_component::plugin_component_from_bytes(id, component_data)?.to_dyn(),
+        );
+    }
     match id {
         DataComponent::CustomName => decode_custom_name(component_data),
         DataComponent::ItemName => decode_item_name(component_data),
@@ -748,6 +755,13 @@ impl OptionalItemStackHash {
             write.put_bool(false)?;
         }
         Ok(())
+    }
+
+    /// The item id and the count of the stack the hash is of, `None` for an empty slot. The server
+    /// only gets a hash of the components, so this is all it can tell about a stack a client reports.
+    #[must_use]
+    pub fn item_and_count(&self) -> Option<(i32, i32)> {
+        self.0.as_ref().map(|hash| (hash.item_id.0, hash.count.0))
     }
 
     #[must_use]
