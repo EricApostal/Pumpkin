@@ -1,6 +1,8 @@
 #[allow(clippy::wildcard_imports)]
 use super::*;
 use crate::item::registry::should_try_block_placement;
+use crate::plugin::player::player_use_block::PlayerUseBlockEvent;
+use crate::plugin::player::player_use_item::PlayerUseItemEvent;
 
 impl JavaClient {
     #[allow(clippy::too_many_lines)]
@@ -102,13 +104,33 @@ impl JavaClient {
             }
         }}
 
+        let sneaking = player.get_entity().is_sneaking();
+
+        // A plugin can take over the click: it gets the face, the hit position and the held item
+        // before the block and the item do anything with them.
+        let mut use_block_event = PlayerUseBlockEvent::new(
+            player,
+            hand,
+            item.clone(),
+            position,
+            block,
+            face,
+            cursor_pos,
+            sneaking,
+        );
+        server
+            .plugin_manager
+            .fire_blocking(server, &mut use_block_event);
+        if use_block_event.cancelled {
+            Self::resync_after_cancelled_use(player, &position, face, hand, &item);
+            return Ok(());
+        }
+
         let equipment_slot = if matches!(hand, Hand::Right) {
             EquipmentSlot::MAIN_HAND
         } else {
             EquipmentSlot::OFF_HAND
         };
-
-        let sneaking = player.get_entity().is_sneaking();
 
         // Code based on the java class ServerPlayerInteractionManager
         if !(sneaking && (!held_item_empty || !off_hand_item_empty)) {
@@ -142,6 +164,16 @@ impl JavaClient {
         if item.is_empty() {
             // TODO item cool down
             // If the hand is empty we stop here
+            return Ok(());
+        }
+
+        let mut use_item_event =
+            PlayerUseItemEvent::new(player, hand, item.clone(), Some(position), Some(face));
+        server
+            .plugin_manager
+            .fire_blocking(server, &mut use_item_event);
+        if use_item_event.cancelled {
+            Self::resync_after_cancelled_use(player, &position, face, hand, &item);
             return Ok(());
         }
 
@@ -198,6 +230,31 @@ impl JavaClient {
         }
 
         Ok(())
+    }
+
+    /// Puts the client back in step after a plugin cancelled a click: the clicked block, the block a
+    /// placement would have created next to it, and the held item the client may have used up.
+    fn resync_after_cancelled_use(
+        player: &Arc<Player>,
+        position: &BlockPos,
+        face: BlockDirection,
+        hand: Hand,
+        held: &ItemStack,
+    ) {
+        let world = player.world();
+        for block_position in [*position, position.offset(face.to_offset())] {
+            let state_id = world.get_block_state_id(&block_position);
+            player.try_send_client_packet(&CBlockUpdate::new(
+                block_position,
+                VarInt(i32::from(state_id.as_u16())),
+            ));
+        }
+        let slot_index = if matches!(hand, Hand::Right) {
+            player.inventory().get_selected_slot() as usize
+        } else {
+            PlayerInventory::OFF_HAND_SLOT
+        };
+        player.sync_hand_slot(slot_index, held.clone());
     }
 
     #[expect(clippy::too_many_arguments)]

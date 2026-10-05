@@ -5684,13 +5684,17 @@ impl Player {
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .clone();
 
-        let window_type = {
+        let (window_type, plugin_menu) = {
             let mut handler = current_screen_handler
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner);
             let wt = handler.window_type();
+            let plugin_menu = handler
+                .as_any()
+                .downcast_ref::<crate::plugin::api::menu::PluginMenuScreenHandler>()
+                .map(|menu| (menu.sync_id(), menu.menu_type().key));
             handler.on_closed(self);
-            wt
+            (wt, plugin_menu)
         };
 
         let world = self.living_entity.entity.world.load();
@@ -5704,6 +5708,17 @@ impl Player {
                     window_type,
                 );
             server.plugin_manager.fire_blocking(&server, &mut event);
+
+            if let Some((container_id, menu_type)) = plugin_menu {
+                let mut menu_event = crate::plugin::api::events::player::menu::MenuClosedEvent::new(
+                    &player_arc,
+                    u32::from(container_id),
+                    menu_type.to_string(),
+                );
+                server
+                    .plugin_manager
+                    .fire_blocking(&server, &mut menu_event);
+            }
         }
 
         let player_screen_handler: Arc<std::sync::Mutex<dyn ScreenHandler>> =
@@ -5988,6 +6003,11 @@ impl Player {
         };
 
         if i32::from(sync_id) != packet.sync_id.0 {
+            return;
+        }
+
+        // The clicks of a menu of a plugin registered type belong to the plugin.
+        if self.route_plugin_menu_click(&packet, server) {
             return;
         }
 

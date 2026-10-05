@@ -1,6 +1,7 @@
 pub mod context;
 pub mod events;
 pub mod gui;
+pub mod menu;
 pub mod tab_list;
 pub mod title;
 

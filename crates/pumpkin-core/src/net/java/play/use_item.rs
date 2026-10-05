@@ -1,5 +1,6 @@
 #[allow(clippy::wildcard_imports)]
 use super::*;
+use crate::plugin::player::player_use_item::PlayerUseItemEvent;
 use pumpkin_util::version::JavaMinecraftVersion;
 
 impl JavaClient {
@@ -23,6 +24,21 @@ impl JavaClient {
         self.update_sequence(use_item.sequence.0);
 
         let mut item_in_hand = inventory.get_stack_in_hand(hand);
+
+        if !item_in_hand.is_empty() {
+            let mut use_event =
+                PlayerUseItemEvent::new(player, hand, item_in_hand.clone(), None, None);
+            server.plugin_manager.fire_blocking(server, &mut use_event);
+            if use_event.cancelled {
+                let slot_index = if matches!(hand, Hand::Right) {
+                    inventory.get_selected_slot() as usize
+                } else {
+                    PlayerInventory::OFF_HAND_SLOT
+                };
+                player.sync_hand_slot(slot_index, item_in_hand);
+                return;
+            }
+        }
 
         let mut consume_event =
             crate::plugin::api::events::player::player_item_consume::PlayerItemConsumeEvent::new(
