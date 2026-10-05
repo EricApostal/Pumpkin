@@ -21,10 +21,12 @@ use ser::{ReadingError, WritingError};
 use thiserror::Error;
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 
+pub use crate::flavour::ConnectionFlavour;
 pub use crate::packet::{MultiVersionJavaPacket, Packet};
 
 pub mod bedrock;
 pub mod codec;
+pub mod flavour;
 pub mod java;
 pub mod packet;
 #[cfg(feature = "query")]

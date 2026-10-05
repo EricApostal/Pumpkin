@@ -5,7 +5,7 @@ use pumpkin_macros::java_packet;
 use pumpkin_util::{math::vector3::Vector3, version::JavaMinecraftVersion};
 
 use crate::{
-    ClientPacket, ServerPacket, VarInt,
+    ClientPacket, ConnectionFlavour, ServerPacket, VarInt,
     ser::{NetworkReadExt, NetworkReadSliceExt, NetworkWriteExt, ReadingError, WritingError},
 };
 
@@ -35,7 +35,9 @@ pub struct CParticle<'a> {
     /// The ID of the particle type (e.g., `minecraft:flame`).
     pub particle_id: VarInt,
     /// Extra data required by specific particles (e.g., block states for
-    /// `block` particles or RGB values for `dust`).
+    /// `block` particles or RGB values for `dust`), always in the vanilla encoding.
+    /// For a [`ConnectionFlavour::NeoForge`] connection the writer appends what NeoForge adds
+    /// (see [`takes_block_particle_option`]).
     pub data: &'a [u8],
 }
 
@@ -63,6 +65,29 @@ impl<'a> CParticle<'a> {
             data,
         }
     }
+}
+
+/// Whether the particle type of the 26.3 id `particle_id` carries a `BlockParticleOption`,
+/// which is a block state id in the vanilla encoding.
+///
+/// NeoForge's `BlockParticleOption` stream codec (`patches/net/minecraft/core/particles/
+/// BlockParticleOption.java.patch`) reads an `Optional<BlockPos>` after the state id when the
+/// connection is a NeoForge one, so [`CParticle`] appends an empty one (a single `false`) to the
+/// data of these particles for [`ConnectionFlavour::NeoForge`] connections.
+#[must_use]
+pub fn takes_block_particle_option(particle_id: i32) -> bool {
+    use pumpkin_data::particle::Particle::{
+        Block, BlockCrumble, BlockMarker, DustPillar, FallingDust,
+    };
+    u16::try_from(particle_id)
+        .ok()
+        .and_then(pumpkin_data::particle::Particle::from_id)
+        .is_some_and(|particle| {
+            matches!(
+                particle,
+                Block | BlockMarker | FallingDust | DustPillar | BlockCrumble
+            )
+        })
 }
 
 #[must_use]
@@ -179,6 +204,12 @@ impl ClientPacket for CParticle<'_> {
             // The particle moved back to the front of the packet in 26.3
             write.write_var_int(&self.particle_id)?;
             write.write_slice(self.data)?;
+            if ConnectionFlavour::current().is_neoforge()
+                && takes_block_particle_option(self.particle_id.0)
+            {
+                // NeoForge: the optional position of the block, none.
+                write.write_bool(false)?;
+            }
         }
 
         if *version >= JavaMinecraftVersion::V_1_8 {
@@ -301,6 +332,69 @@ mod tests {
     use crate::{ClientPacket, VarInt};
 
     use super::CParticle;
+
+    #[test]
+    fn block_particle_option_gets_an_empty_position_for_neoforge_only() {
+        use crate::ConnectionFlavour;
+
+        let state = [0x2a];
+        let packet = CParticle::new(
+            false,
+            false,
+            Vector3::new(0.0, 0.0, 0.0),
+            Vector3::new(0.0, 0.0, 0.0),
+            0.0,
+            1,
+            VarInt(Particle::Block.to_id().into()),
+            &state,
+        );
+        let write = |flavour: ConnectionFlavour| {
+            let mut bytes = Vec::new();
+            flavour.scope(|| {
+                packet
+                    .write_packet_data(&mut bytes, &JavaMinecraftVersion::V_26_3)
+                    .unwrap();
+            });
+            bytes
+        };
+        let vanilla = write(ConnectionFlavour::Vanilla);
+        let neoforge = write(ConnectionFlavour::NeoForge);
+
+        // The id (one byte) is followed by the state, then NeoForge's `Optional.empty()`.
+        assert_eq!(vanilla[1], 0x2a);
+        assert_eq!(neoforge[1..3], [0x2a, 0x00]);
+        assert_eq!(neoforge.len(), vanilla.len() + 1);
+        assert_eq!(neoforge[3..], vanilla[2..], "the rest is unchanged");
+    }
+
+    #[test]
+    fn other_particles_are_the_same_for_neoforge() {
+        use crate::ConnectionFlavour;
+
+        let packet = CParticle::new(
+            false,
+            false,
+            Vector3::new(0.0, 0.0, 0.0),
+            Vector3::new(0.0, 0.0, 0.0),
+            0.0,
+            1,
+            VarInt(Particle::Flame.to_id().into()),
+            &[],
+        );
+        let write = |flavour: ConnectionFlavour| {
+            let mut bytes = Vec::new();
+            flavour.scope(|| {
+                packet
+                    .write_packet_data(&mut bytes, &JavaMinecraftVersion::V_26_3)
+                    .unwrap();
+            });
+            bytes
+        };
+        assert_eq!(
+            write(ConnectionFlavour::Vanilla),
+            write(ConnectionFlavour::NeoForge)
+        );
+    }
 
     #[test]
     fn particle_encoding_legacy_1_7_string() {
