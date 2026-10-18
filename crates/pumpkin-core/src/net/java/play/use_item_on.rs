@@ -126,6 +126,32 @@ impl JavaClient {
             return Ok(());
         }
 
+        // A plugin can take the click away from the block and the item.
+        if server
+            .plugin_manager
+            .has_handlers::<crate::plugin::api::events::entity::ItemUseFirstEvent>()
+        {
+            use crate::plugin::api::events::entity::ItemUseFirstResult;
+            let mut use_first_event = crate::plugin::api::events::entity::ItemUseFirstEvent::new(
+                player.clone(),
+                hand,
+                item.clone(),
+                position,
+                face,
+            );
+            server
+                .plugin_manager
+                .fire_blocking(server, &mut use_first_event);
+            match use_first_event.result {
+                ItemUseFirstResult::Pass => {}
+                ItemUseFirstResult::Consume => return Ok(()),
+                ItemUseFirstResult::Success => {
+                    player.swing_hand(hand, true);
+                    return Ok(());
+                }
+            }
+        }
+
         let equipment_slot = if matches!(hand, Hand::Right) {
             EquipmentSlot::MAIN_HAND
         } else {
@@ -318,6 +344,28 @@ impl JavaClient {
         location: BlockPos,
         face: BlockDirection,
     ) -> Result<bool, BlockPlacingError> {
+        if player.is_fake
+            && server
+                .plugin_manager
+                .has_handlers::<crate::plugin::api::events::entity::FakePlayerPlaceCheckEvent>()
+        {
+            let world = player.world();
+            let clicked = world.get_block_state(&location);
+            let mut check = crate::plugin::api::events::entity::FakePlayerPlaceCheckEvent::new(
+                player.clone(),
+                player.inventory().get_stack_in_hand(
+                    Hand::from_packet_id(use_item_on.hand.0).unwrap_or(Hand::Right),
+                ),
+                location,
+                face,
+                clicked.replaceable(),
+            );
+            server.plugin_manager.fire_blocking(server, &mut check);
+            if check.cancelled {
+                return Ok(false);
+            }
+        }
+
         match server
             .block_registry
             .place_block(player, block, server, use_item_on, location, face)

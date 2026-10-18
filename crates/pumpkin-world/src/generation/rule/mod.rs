@@ -17,6 +17,8 @@ pub enum RuleTest {
     BlockMatch(BlockMatchRuleTest),
     BlockStateMatch(BlockStateMatchRuleTest),
     TagMatch(TagMatchRuleTest),
+    /// Block tag by name (`namespace:path`), so plugin tags work.
+    TagKey(String),
     RandomBlockMatch(RandomBlockMatchRuleTest),
     RandomBlockStateMatch(RandomBlockStateMatchRuleTest),
     // Added in 26.3
@@ -36,6 +38,10 @@ impl RuleTest {
             Self::BlockMatch(rule) => rule.test(state),
             Self::BlockStateMatch(rule) => rule.test(state),
             Self::TagMatch(rule) => rule.test(state),
+            Self::TagKey(tag) => {
+                pumpkin_data::tag::Taggable::is_tagged_with(state.to_block_id().to_block(), tag)
+                    .unwrap_or(false)
+            }
             Self::RandomBlockMatch(rule) => rule.test(state, random),
             Self::RandomBlockStateMatch(rule) => rule.test(state, random),
             Self::AnyOf(rules) => rules.iter().any(|rule| rule.test(state, y, random)),

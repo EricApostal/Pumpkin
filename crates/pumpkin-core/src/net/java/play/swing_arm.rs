@@ -26,6 +26,21 @@ impl JavaClient {
             return;
         }
 
+        if server
+            .plugin_manager
+            .has_handlers::<crate::plugin::api::events::entity::ItemSwingEvent>()
+        {
+            let mut swing_event = crate::plugin::api::events::entity::ItemSwingEvent::new(
+                player.clone(),
+                hand,
+                player.inventory().get_stack_in_hand(hand),
+            );
+            server.plugin_manager.fire_blocking(server, &mut swing_event);
+            if swing_event.cancelled {
+                return;
+            }
+        }
+
         let (yaw, pitch) = player.rotation();
         let hit = player.world().clip(&pumpkin_world::clip::ClipContext::new(
             player.eye_position(),

@@ -74,6 +74,10 @@ pub const REGISTRY_BLOCKS: &str = "registry.blocks";
 /// Allows the plugin to register custom fluids while the server starts.
 pub const REGISTRY_FLUIDS: &str = "registry.fluids";
 
+/// Allows the plugin to register worldgen features and add them to biomes with `worldgen`
+/// before the first chunk generates.
+pub const REGISTRY_WORLDGEN: &str = "registry.worldgen";
+
 /// Allows the plugin to register custom block entity types while the server starts.
 ///
 /// Block entity types are a registry that clients synchronise, their ids are handed to clients.
@@ -100,6 +104,12 @@ pub const REGISTRY_DAMAGE_TYPES: &str = "registry.damage-types";
 /// Entity types are a registry that clients synchronise, their ids are handed to clients.
 pub const REGISTRY_ENTITIES: &str = "registry.entities";
 
+/// Allows the plugin to register custom sound events, particle types, mob effects, map decoration
+/// types, datapack registry entries and plugin owned registries while the server starts.
+///
+/// Most of these are registries that clients synchronise, their ids are handed to clients.
+pub const REGISTRY_EXTRA: &str = "registry.extra";
+
 /// Allows the plugin to register custom recipe types and add recipes of those types.
 ///
 /// Recipe types are plugin side data, they are not sent to clients and can be added at any time.
@@ -116,6 +126,10 @@ pub const CONTAINERS: &str = "containers";
 /// Allows the plugin to declare mods, channels and registries for the NeoForge client handshake
 /// with `neoforge`. Declarations are only possible while the server starts.
 pub const NEOFORGE: &str = "neoforge";
+
+/// Allows the plugin to set entity flags and overrides (size, pickup box, pose, item entity
+/// ticking) with `entity_flags`.
+pub const ENTITY_FLAGS: &str = "entity-flags";
 
 #[must_use]
 pub fn get_permission_description(permission: &str) -> Option<&'static str> {
@@ -157,17 +171,24 @@ pub fn get_permission_description(permission: &str) -> Option<&'static str> {
         REGISTRY_ITEMS => Some("Allows the plugin to register custom items and item tags."),
         REGISTRY_BLOCKS => Some("Allows the plugin to register custom blocks and block tags."),
         REGISTRY_FLUIDS => Some("Allows the plugin to register custom fluids."),
+        REGISTRY_WORLDGEN => Some("Allows the plugin to add worldgen features to biomes."),
         REGISTRY_BLOCK_ENTITIES => Some("Allows the plugin to register custom block entity types."),
         REGISTRY_MENUS => Some("Allows the plugin to register custom menu types."),
         REGISTRY_COMPONENTS => Some("Allows the plugin to register custom data component types."),
         REGISTRY_DAMAGE_TYPES => Some("Allows the plugin to register custom damage types."),
         REGISTRY_ENTITIES => Some("Allows the plugin to register custom entity types."),
+        REGISTRY_EXTRA => Some(
+            "Allows the plugin to register sounds, particles, mob effects, map decorations and datapack entries.",
+        ),
         REGISTRY_RECIPES => Some("Allows the plugin to register custom recipe types and recipes."),
         FAKE_PLAYERS => Some(
             "Allows the plugin to create fake players that break blocks, use items and attack like players.",
         ),
         NEOFORGE => Some(
             "Allows the plugin to declare mods, channels and registries for the NeoForge handshake.",
+        ),
+        ENTITY_FLAGS => Some(
+            "Allows the plugin to set entity flags and overrides such as fire immunity, size and pose.",
         ),
         CONTAINERS => Some(
             "Allows the plugin to move items in and out of block containers and give plugin block entities inventories.",

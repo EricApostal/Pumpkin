@@ -217,6 +217,13 @@ interface recipe {
 
         /// The recipe that cooks an item (e.g. "minecraft:raw_iron") in a station.
         find-smelting-recipe: func(item: string, station-type: cooking-type) -> option<cooking-result>;
+
+        /// Like `register-custom-recipe`, with the recipe's network encoding for NeoForge clients:
+        /// the bytes of the recipe serializer's stream codec (everything after the serializer
+        /// id), at most 32 KiB. The host sends them as they are in `neoforge:recipe_content` when
+        /// the type is declared with `neoforge.declare-synced-recipe-types`. Without data a
+        /// recipe is not synced.
+        register-custom-recipe-with-network-data: func(recipe-type: string, recipe: custom-recipe, network-data: option<list<u8>>) -> result<_, string>;
     }
 }
 

@@ -72,7 +72,7 @@ impl EnchantmentsImpl {
         };
         let mut enc = Vec::with_capacity(data.len());
         for (name, level) in data {
-            let enchantment = Enchantment::from_name(name.as_ref())
+            let enchantment = crate::enchantment_registry::enchantment_from_key(name.as_ref())
                 .or_else(|| Enchantment::from_name(&format!("minecraft:{name}")))?;
             enc.push((enchantment, level.extract_int()?));
         }
@@ -1078,7 +1078,7 @@ impl StoredEnchantmentsImpl {
         };
         let mut enc = Vec::with_capacity(data.len());
         for (name, level) in data {
-            let enchantment = Enchantment::from_name(name.as_ref())
+            let enchantment = crate::enchantment_registry::enchantment_from_key(name.as_ref())
                 .or_else(|| Enchantment::from_name(&format!("minecraft:{name}")))?;
             enc.push((enchantment, level.extract_int()?));
         }

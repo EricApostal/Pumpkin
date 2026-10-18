@@ -49,6 +49,66 @@ fn from_wit_flags(flags: BlockCallbackFlags) -> BlockCallbacks {
             BlockCallbackFlags::COMPARATOR_OUTPUT,
             BlockCallbacks::COMPARATOR_OUTPUT,
         ),
+        (
+            BlockCallbackFlags::DYNAMIC_SHAPE,
+            BlockCallbacks::DYNAMIC_SHAPE,
+        ),
+        (
+            BlockCallbackFlags::USE_WITHOUT_ITEM,
+            BlockCallbacks::USE_WITHOUT_ITEM,
+        ),
+        (
+            BlockCallbackFlags::USE_WITH_ITEM,
+            BlockCallbacks::USE_WITH_ITEM,
+        ),
+        (
+            BlockCallbackFlags::ATTACK,
+            BlockCallbacks::ATTACK,
+        ),
+        (
+            BlockCallbackFlags::GET_CLONE_ITEM,
+            BlockCallbacks::GET_CLONE_ITEM,
+        ),
+        (
+            BlockCallbackFlags::PLAYER_WILL_DESTROY,
+            BlockCallbacks::PLAYER_WILL_DESTROY,
+        ),
+        (
+            BlockCallbackFlags::GET_FRICTION,
+            BlockCallbacks::GET_FRICTION,
+        ),
+        (
+            BlockCallbackFlags::GET_SPEED_FACTOR,
+            BlockCallbacks::GET_SPEED_FACTOR,
+        ),
+        (
+            BlockCallbackFlags::GET_JUMP_FACTOR,
+            BlockCallbacks::GET_JUMP_FACTOR,
+        ),
+        (
+            BlockCallbackFlags::CAN_ENTITY_DESTROY,
+            BlockCallbacks::CAN_ENTITY_DESTROY,
+        ),
+        (
+            BlockCallbackFlags::ON_LANDED_UPON,
+            BlockCallbacks::ON_LANDED_UPON,
+        ),
+        (
+            BlockCallbackFlags::GET_SOUND_TYPE,
+            BlockCallbacks::GET_SOUND_TYPE,
+        ),
+        (
+            BlockCallbackFlags::IS_PATHFINDABLE,
+            BlockCallbacks::IS_PATHFINDABLE,
+        ),
+        (
+            BlockCallbackFlags::CAN_CONNECT_REDSTONE,
+            BlockCallbacks::CAN_CONNECT_REDSTONE,
+        ),
+        (
+            BlockCallbackFlags::GET_FIRE_SPREAD,
+            BlockCallbacks::GET_FIRE_SPREAD,
+        ),
     ]
     .into_iter()
     .filter(|(wit, _)| flags.contains(*wit))

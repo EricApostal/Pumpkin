@@ -9,6 +9,7 @@ use tracing::warn;
 
 use super::BlockEntity;
 use super::plugin_inventory::{INVENTORY_KEY, MAX_SLOTS, PluginInventory};
+use super::plugin_tank::{FluidContent, MAX_TANKS, PluginTanks, TANKS_KEY};
 use pumpkin_inventory::Inventory;
 
 /// Key of the compound with the data of the plugin in the saved block entity.
@@ -35,6 +36,8 @@ pub struct PluginBlockEntity {
     announced: AtomicBool,
     /// The slots a plugin registered for this entity, see [`Self::register_inventory`].
     inventory: Mutex<Option<Arc<PluginInventory>>>,
+    /// The fluid tanks a plugin registered, see [`Self::register_tanks`].
+    tanks: Mutex<Option<Arc<PluginTanks>>>,
 }
 
 impl PluginBlockEntity {
@@ -52,6 +55,7 @@ impl PluginBlockEntity {
             client_data: Mutex::new(client_data),
             announced: AtomicBool::new(false),
             inventory: Mutex::new(None),
+            tanks: Mutex::new(None),
         }
     }
 
@@ -71,6 +75,9 @@ impl PluginBlockEntity {
                 .inventory
                 .lock()
                 .unwrap_or_else(PoisonError::into_inner) = Some(Arc::new(inventory));
+        }
+        if let Some(tanks) = nbt.get_compound(TANKS_KEY).and_then(PluginTanks::from_nbt) {
+            *entity.tanks.lock().unwrap_or_else(PoisonError::into_inner) = Some(Arc::new(tanks));
         }
         Some(entity)
     }
@@ -169,6 +176,42 @@ impl PluginBlockEntity {
             .unwrap_or_default()
     }
 
+    /// The tanks a plugin registered, if any.
+    #[must_use]
+    pub fn plugin_tanks(&self) -> Option<Arc<PluginTanks>> {
+        self.tanks.lock().unwrap_or_else(PoisonError::into_inner).clone()
+    }
+
+    /// Gives the entity `tank_count` fluid tanks of `capacity` millibuckets each, or resizes the
+    /// ones it has (see [`PluginTanks::resize`]). They are saved with the entity.
+    pub fn register_tanks(
+        &self,
+        tank_count: usize,
+        capacity: u32,
+    ) -> Result<Arc<PluginTanks>, String> {
+        if tank_count > MAX_TANKS {
+            return Err(format!("a block entity has at most {MAX_TANKS} tanks"));
+        }
+        let mut guard = self.tanks.lock().unwrap_or_else(PoisonError::into_inner);
+        if let Some(existing) = guard.as_ref() {
+            existing.resize(tank_count, capacity)?;
+            return Ok(existing.clone());
+        }
+        let tanks = Arc::new(PluginTanks::new(tank_count, capacity));
+        *guard = Some(tanks.clone());
+        Ok(tanks)
+    }
+
+    /// Takes the tanks away and returns the fluids that were in them.
+    pub fn unregister_tanks(&self) -> Vec<FluidContent> {
+        self.tanks
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .take()
+            .map(|tanks| tanks.take_all())
+            .unwrap_or_default()
+    }
+
     /// Marks the entity as announced to the plugin and returns whether it was before.
     pub fn mark_announced(&self) -> bool {
         self.announced.swap(true, Ordering::AcqRel)
@@ -180,6 +223,9 @@ impl BlockEntity for PluginBlockEntity {
         nbt.put_compound(SAVE_DATA_KEY, self.data());
         if let Some(inventory) = self.plugin_inventory() {
             nbt.put_compound(INVENTORY_KEY, inventory.write_nbt());
+        }
+        if let Some(tanks) = self.plugin_tanks() {
+            nbt.put_compound(TANKS_KEY, tanks.write_nbt());
         }
         if let Some(client_data) = self.client_data() {
             nbt.put_compound(CLIENT_DATA_KEY, client_data);
@@ -196,10 +242,11 @@ impl BlockEntity for PluginBlockEntity {
 
     /// Writes the slots back to the chunk when hoppers or item handlers changed them.
     fn tick(&self, world: &Arc<crate::world::World>) {
-        if self
+        let inventory_dirty = self
             .plugin_inventory()
-            .is_some_and(|inventory| inventory.take_dirty())
-        {
+            .is_some_and(|inventory| inventory.take_dirty());
+        let tanks_dirty = self.plugin_tanks().is_some_and(|tanks| tanks.take_dirty());
+        if inventory_dirty || tanks_dirty {
             let mut nbt = NbtCompound::new();
             self.write_internal(&mut nbt);
             world.add_block_entity_nbt(self.position, &nbt);

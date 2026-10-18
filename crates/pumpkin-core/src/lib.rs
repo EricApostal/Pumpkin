@@ -487,6 +487,13 @@ impl PumpkinServer {
         // Damage types too: plugin types come first after the vanilla ids, datapack types follow.
         pumpkin_data::damage_type_registry::freeze_plugin_damage_types();
         pumpkin_data::entity_registry::freeze_plugin_entity_types();
+        pumpkin_data::extra_registry::freeze_plugin_sounds();
+        pumpkin_data::extra_registry::freeze_plugin_particles();
+        pumpkin_data::extra_registry::freeze_plugin_map_decorations();
+        pumpkin_data::extra_registry::freeze_extra_registries();
+        pumpkin_data::mob_effect_registry::freeze_plugin_mob_effects();
+        pumpkin_data::enchantment_registry::freeze_plugin_enchantments();
+        pumpkin_data::entity_data_serializer_registry::freeze_plugin_entity_data_serializers();
         self.server.datapack_manager.renumber_damage_types();
 
         self.server.start_telemetry();

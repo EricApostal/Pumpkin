@@ -130,7 +130,7 @@ impl PlacedFeature {
     }
 }
 
-fn generate_with_modifiers<T, P, G>(
+pub(crate) fn generate_with_modifiers<T, P, G>(
     state: &mut T,
     modifier_index: usize,
     modifier_count: usize,
@@ -521,6 +521,9 @@ impl ConditionalPlacementModifier for BiomePlacementModifier {
     ) -> bool {
         let biome = chunk.get_biome_for_terrain_gen(pos.0.x, pos.0.y, pos.0.z);
 
+        if super::additive::is_removed(biome.id, this_feature) {
+            return false;
+        }
         for step in biome.features {
             if step.contains(&this_feature) {
                 return true;

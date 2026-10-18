@@ -22,6 +22,31 @@ impl JavaClient {
 
         player.last_input.store(input.input, Ordering::Relaxed);
 
+        // Riders of plugin vehicles tell the plugin what they press.
+        if let Some(vehicle) = player.get_entity().get_vehicle()
+            && vehicle.get_plugin_entity().is_some()
+            && server
+                .plugin_manager
+                .has_handlers::<crate::plugin::api::events::entity::PluginVehicleInputEvent>()
+        {
+            let axis = |positive: i8, negative: i8| {
+                f32::from(i8::from(input.input & positive != 0) - i8::from(input.input & negative != 0))
+            };
+            let mut vehicle_input =
+                crate::plugin::api::events::entity::PluginVehicleInputEvent::new(
+                    vehicle.get_entity().entity_id,
+                    player.clone(),
+                    axis(SPlayerInput::FORWARD, SPlayerInput::BACKWARD),
+                    axis(SPlayerInput::LEFT, SPlayerInput::RIGHT),
+                    input.input & SPlayerInput::JUMP != 0,
+                    input.input & SPlayerInput::SNEAK != 0,
+                    input.input & SPlayerInput::SPRINT != 0,
+                );
+            server
+                .plugin_manager
+                .fire_blocking(server, &mut vehicle_input);
+        }
+
         let sneak = input.input & SPlayerInput::SNEAK != 0;
         if sneak
             && player.gamemode.load() == GameMode::Spectator

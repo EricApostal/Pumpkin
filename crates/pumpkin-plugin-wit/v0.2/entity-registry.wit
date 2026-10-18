@@ -47,6 +47,12 @@ interface entity-registry {
         pickable: bool,
         /// Whether other entities collide with it, like with a boat.
         collidable: bool,
+        /// Whether other entities push it away when they overlap.
+        pushable: bool,
+        /// Whether projectiles pass through the riders of the entity instead of hitting them.
+        /// Kept for compatibility and the opposite of vanilla; to let projectiles hit riders of
+        /// the entity, set the `projectiles-hit-riders` flag in `entity-flags` instead.
+        ignore-riders-hit: bool,
         /// Encoded entity metadata entries (index, serializer id, value; without the 0xFF end
         /// marker) that a new entity starts with, at most 8192 bytes.
         default-synced-data: list<u8>,
@@ -60,6 +66,13 @@ interface entity-registry {
     /// returns the existing id. Fails for an invalid key or definition, a different definition for
     /// a known key, or when registration is closed.
     register-entity-type: func(definition: entity-type-definition) -> result<u32, string>;
+
+    /// Registers an entity data serializer for the entries of the synced data (`neoforge:entity_data_serializers`)
+    /// and returns its id: the vanilla count plus the registration order. An entry of the
+    /// synced data that uses the id is encoded by the plugin and a modded client must register
+    /// a serializer of the same key. Needs the `registry.entities` permission, registration
+    /// closes with the other registries. Registering a key again returns its id.
+    register-entity-data-serializer: func(key: string) -> result<u32, string>;
 
     /// Adds entity types to an entity type tag, creating it if needed, like `register-block-tag`.
     /// An entry is an entity type key or `#tag` for another tag. Needs the `registry.entities`

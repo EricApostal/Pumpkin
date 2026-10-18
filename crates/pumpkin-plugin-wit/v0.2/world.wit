@@ -257,6 +257,33 @@ interface %world {
         skip-block-entity-replaced-callback,
         /// Skips the callback when a block is added.
         skip-block-added-callback,
+        /// Skips the shape updates of the neighbours (vanilla `UPDATE_KNOWN_SHAPE`).
+        skip-shape-update,
+        /// Bulk changes only (`set-blocks`, `remove-blocks`, `mark-and-notify`): also updates the
+        /// neighbours of the neighbours, which strong redstone power needs.
+        update-indirect-neighbours,
+    }
+
+    /// A plugin block entity to create together with a block, see `plugin-block-entity`.
+    record plugin-block-entity-change {
+        /// The key of the registered type.
+        type-key: string,
+        /// A compound tag saved with the chunk.
+        save-data: nbt-tree,
+        /// A compound tag sent to the players watching the chunk.
+        client-data: option<nbt-tree>,
+    }
+
+    /// One block of `set-blocks`.
+    record block-change {
+        pos: block-pos,
+        /// The block state id to write.
+        state: u16,
+        /// Vanilla block entity data as binary NBT (see `get-block-entity-nbt`) with an `id`; the
+        /// position is taken from `pos`.
+        block-entity-nbt: option<list<u8>>,
+        /// A plugin block entity to create at `pos`.
+        plugin-block-entity: option<plugin-block-entity-change>,
     }
 
     /// Flammability properties of a block.
@@ -564,6 +591,32 @@ interface %world {
         set-plugin-spawn-data: func(data: list<u8>) -> result<_, string>;
         /// Changes the hitbox size of a plugin entity.
         set-plugin-size: func(width: f32, height: f32) -> result<_, string>;
+        /// Sets one entry of the synced data of a plugin entity: `data` is the serializer id
+        /// (`VarInt`) followed by the encoded value, the index is the entry's index (0..254). The
+        /// entry is sent to the clients that track the entity and, after the blob of
+        /// `set-plugin-synced-data`, to the ones that start to track it. Empty data forgets the
+        /// entry on the server (clients keep what they got). Entries are saved with the entity.
+        set-plugin-synced-entry: func(index: u8, data: list<u8>) -> result<_, string>;
+        /// Sets where a passenger sits relative to this entity. The server places the passenger
+        /// there every tick of the entity (plugin entities only), clients take the offset from the
+        /// plugin's synced data. The offset is not saved.
+        set-passenger-offset: func(passenger: borrow<entity>, x: f64, y: f64, z: f64) -> result<_, string>;
+        /// Overrides how often the position of a plugin entity is sent (ticks, at least 1, 0 keeps
+        /// the type's) and whether movement is sent as deltas (none keeps the type's). This is the
+        /// server side of the client's interpolation: a shorter interval means smaller steps.
+        set-plugin-tracking: func(update-interval: u32, track-deltas: option<bool>) -> result<_, string>;
+        /// Whether the movement packets of the client that drives a plugin vehicle are applied
+        /// (within 16 blocks of the server position). Off by default: the plugin moves its
+        /// vehicles and gets `plugin-vehicle-input-event` for the input of the riders.
+        set-plugin-accept-client-movement: func(accept: bool) -> result<_, string>;
+        /// Moves the entity by `delta`. With `collide` the blocks stop it like they stop a mob
+        /// (the plugin sets velocity and calls this every tick, gravity is the plugin's). Returns
+        /// the distance moved. Not for players.
+        move-entity: func(delta: position, collide: bool) -> position;
+        set-on-ground: func(on-ground: bool);
+        /// Sets position, rotation and velocity at once, without teleport packets: the tracker
+        /// sends them with the next position update.
+        set-position-rotation-delta: func(pos: position, yaw: f32, pitch: f32, velocity: position);
     }
 
     /// Represents a dropped item (the entity of an item lying in the world).
@@ -929,6 +982,39 @@ interface %world {
         /// Sets the block state at the specified position.
         set-block-state: async func(pos: block-pos, state: u16, update-flags: block-flags);
 
+        /// Writes many blocks in one call. All blocks are written first, then the neighbour,
+        /// shape and light updates run once for the whole batch (like vanilla fill and structure
+        /// placement), so a block does not see half-placed neighbours. `moved` and `skip-drops` also
+        /// skip the contents-spill callback of replaced block entities. Positions outside the build
+        /// height or in unloaded chunks are skipped. Returns the number of blocks that changed; fails
+        /// only when a block entity could not be created, after everything else was placed.
+        set-blocks: async func(changes: list<block-change>, update-flags: block-flags) -> result<u32, string>;
+
+        /// Replaces many positions with air (water for waterlogged blocks) in one call, with the
+        /// batching of `set-blocks`. Returns the number of blocks that changed.
+        remove-blocks: async func(positions: list<block-pos>, update-flags: block-flags) -> u32;
+
+        /// Breaks the block at `pos` like a player does: `block-broken` and block break events, loot
+        /// (only if `drop`), the break particles and sound (only if `with-particles`), and the
+        /// neighbour updates. `player` is the entity that breaks it and is used when it is a player
+        /// (its tool decides the loot). Returns whether a block was broken (false for air or a
+        /// cancelled event).
+        destroy-block: async func(pos: block-pos, drop: bool, player: option<borrow<entity>>, with-particles: bool) -> bool;
+
+        /// Sends the shape updates to the six neighbours of `pos`, as if the block there changed.
+        update-shape-around: async func(pos: block-pos);
+
+        /// Tells clients and neighbours that the state at `pos` went from `old-state` to
+        /// `new-state`, without writing anything (vanilla `markAndNotifyBlock`). `notify-listeners`
+        /// resends the block, `notify-neighbors` updates the neighbours, `skip-shape-update` and
+        /// `moved` skip the shape updates.
+        mark-and-notify: async func(pos: block-pos, old-state: u16, new-state: u16, update-flags: block-flags);
+
+        /// Creates an entity from its saved binary NBT (an `id` and the rest, like a structure
+        /// entity or `entity.write-nbt`) and spawns it at `pos`. The entity gets a new uuid.
+        /// Returns none for an unknown entity type or when a plugin cancelled the spawn.
+        spawn-entity-from-nbt: async func(nbt: list<u8>, pos: position) -> option<entity>;
+
         /// Gets the block type at the specified position.
         get-block: func(pos: block-pos) -> block;
 
@@ -994,6 +1080,13 @@ interface %world {
         /// runs: for a custom block with the `scheduled-tick` callback of `block-callbacks` it is a
         /// `custom-block-scheduled-tick-event`. Does nothing when the chunk is not loaded.
         schedule-block-tick: func(pos: block-pos, delay-ticks: u8, priority: tick-priority);
+
+        /// Forgets what plugins answered for the block at `pos` and asks again next time: the
+        /// shapes of a block with the `dynamic-shape` callback and the friction, speed factor and
+        /// jump factor of blocks with those callbacks (see `block-callbacks`). Call it whenever a
+        /// block's answer changes, for example when the block entity of a copycat gets a new
+        /// material. Replacing the block at `pos` clears it on its own.
+        invalidate-block-shape: func(pos: block-pos);
 
         /// Returns the redstone power that the block at `pos` receives from its neighbour on the
         /// `direction` side (the neighbour at `pos` plus `direction`), 0 to 15. Like vanilla
@@ -1095,6 +1188,11 @@ interface %world {
 
         /// Spawns particles at the specified position.
         spawn-particle: func(particle: particle, pos: position, offset: position, max-speed: f32, count: s32);
+
+        /// Spawns a particle registered with `extra-registries.register-particle` for the
+        /// NeoForge players of the world (other clients do not know the type). `options` are
+        /// the encoded options, see `particle-definition.options-format`.
+        spawn-plugin-particle: func(key: string, pos: position, delta: position, speed: f32, count: s32, options: list<u8>) -> result<_, string>;
 
         /// Creates an explosion at the specified position.
         create-explosion: async func(pos: position, power: f32, create-fire: bool, interaction: explosion-interaction);

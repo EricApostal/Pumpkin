@@ -1,3 +1,5 @@
+/// Features that plugins and datapacks add to existing biomes.
+pub mod additive;
 pub mod configured_features;
 // So first we go trough all the placed features and check if we should place a feature
 // somewhere using `placed_features`. Then if we want to place a feature we place it

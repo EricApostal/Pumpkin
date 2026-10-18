@@ -210,7 +210,7 @@ static REBUILDS: AtomicU64 = AtomicU64::new(0);
 
 struct CachedAggregate {
     generation: u64,
-    plugin_counts: [usize; 7],
+    plugin_counts: [usize; 8],
     aggregate: Arc<Aggregate>,
 }
 
@@ -280,6 +280,47 @@ pub fn withdraw(owner: &str) {
     }
 }
 
+/// Replaces (or adds) a config file of the mod `owner` declared, also after players connected.
+/// Clients that join later get the new content with the handshake. Fails for a plugin without
+/// declaration, another mod id, a bad file name or a file that is too large.
+pub fn update_config_file(
+    owner: &str,
+    mod_id: &str,
+    name: &str,
+    content: Vec<u8>,
+) -> Result<(), String> {
+    if name.is_empty() || name.contains(['/', '\\']) {
+        return Err(format!("'{name}' is not a valid config file name"));
+    }
+    if content.len() > MAX_CONFIG_FILE_BYTES {
+        return Err(format!("config file {name} is too large"));
+    }
+    let mut store = STORE.write().unwrap_or_else(PoisonError::into_inner);
+    let Some((_, declaration)) = store.declarations.iter_mut().find(|(other, _)| other == owner)
+    else {
+        return Err("the plugin has no NeoForge declaration".to_string());
+    };
+    if declaration.mod_info.id != mod_id {
+        return Err(format!(
+            "'{mod_id}' is not the mod id of the plugin's declaration"
+        ));
+    }
+    match declaration.config_files.iter_mut().find(|file| file.name == name) {
+        Some(file) => file.content = content,
+        None => {
+            if declaration.config_files.len() >= MAX_ITEMS {
+                return Err(format!("a declaration has at most {MAX_ITEMS} config files"));
+            }
+            declaration.config_files.push(ConfigFileDecl {
+                name: name.to_string(),
+                content,
+            });
+        }
+    }
+    store.generation += 1;
+    Ok(())
+}
+
 /// The handshake all declarations make up, none when no plugin declared anything. Cheap, built
 /// once and rebuilt only when a declaration or the plugin registered entries change.
 #[must_use]
@@ -306,7 +347,12 @@ pub fn current() -> Option<Arc<Aggregate>> {
     {
         return Some(Arc::clone(&cached.aggregate));
     }
-    let aggregate = Arc::new(Aggregate::build(&declarations, registries::host_registries()));
+    let mut aggregate = Aggregate::build(&declarations, registries::host_registries());
+    // The datapack entries plugins registered through the host need no declaration.
+    aggregate
+        .datapack_entries
+        .extend(super::extra_registries::datapack_entries());
+    let aggregate = Arc::new(aggregate);
     REBUILDS.fetch_add(1, Ordering::Relaxed);
     *cache = Some(CachedAggregate {
         generation,

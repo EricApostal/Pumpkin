@@ -123,4 +123,17 @@ interface neoforge {
 
     /// Returns whether the player's connection completed the NeoForge handshake.
     is-neoforge-player: func(player-uuid: string) -> bool;
+
+    /// Declares the recipe types the plugin's client mod syncs (`neoforge:recipe_content`), for
+    /// example `minecraft:crafting`, `minecraft:smelting` or `create:pressing`. Vanilla types are
+    /// sent from the server's recipes, recipes of other types only with the network data given to
+    /// `register-custom-recipe-with-network-data`. Other types are added to the `recipe_type` and
+    /// `recipe_serializer` registries of the handshake. Replaces the previous list, needs the
+    /// `neoforge` permission and is only possible before players can connect.
+    declare-synced-recipe-types: func(types: list<string>) -> result<_, string>;
+
+    /// Replaces a synced config file of the plugin's declared mod and sends it to the connected
+    /// NeoForge players (`neoforge:config_file`). Players that join later get it with the
+    /// handshake. Needs the `neoforge` permission and a declaration with that mod id.
+    update-config-file: func(mod-id: string, file-name: string, content: list<u8>) -> result<_, string>;
 }

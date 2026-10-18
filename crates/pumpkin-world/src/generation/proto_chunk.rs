@@ -282,6 +282,42 @@ impl ProtoChunk {
         }
     }
 
+    /// A cheap chunk with the same position and size but no blocks or light, to stand in for
+    /// this one while it is moved out (see [`std::mem::replace`]).
+    #[must_use]
+    pub fn empty_shell(&self) -> Self {
+        Self {
+            x: self.x,
+            z: self.z,
+            default_block: self.default_block,
+            biome_mixer_seed: self.biome_mixer_seed,
+            flat_block_map: Vec::new(),
+            flat_biome_map: Box::default(),
+            flat_surface_height_map: [i16::MIN; CHUNK_AREA],
+            flat_ocean_floor_height_map: [i16::MIN; CHUNK_AREA],
+            flat_surface_wg_height_map: [i16::MIN; CHUNK_AREA],
+            flat_ocean_floor_wg_height_map: [i16::MIN; CHUNK_AREA],
+            flat_motion_blocking_height_map: [i16::MIN; CHUNK_AREA],
+            flat_motion_blocking_no_leaves_height_map: [i16::MIN; CHUNK_AREA],
+            structure_starts: FxHashMap::default(),
+            structure_references: Vec::new(),
+            height: self.height,
+            bottom_y: self.bottom_y,
+            generation_height: self.generation_height,
+            generation_bottom_y: self.generation_bottom_y,
+            sea_level: self.sea_level,
+            stage: self.stage,
+            light: ChunkLight {
+                sky_light: Box::default(),
+                block_light: Box::default(),
+            },
+            blending_data: None,
+            pending_block_entities: Vec::new(),
+            pending_structure_entities: Vec::new(),
+            fluid_ticks: Vec::new(),
+        }
+    }
+
     #[must_use]
     #[expect(clippy::too_many_lines)]
     pub fn from_chunk_data(
@@ -1318,6 +1354,17 @@ impl ProtoChunk {
                     );
                 }
             }
+
+            // Features that plugins and datapacks add, after the vanilla ones of the step.
+            super::feature::additive::apply_step(
+                cache,
+                block_registry,
+                step,
+                population_seed,
+                origin_pos,
+                generation_min_y,
+                generation_height,
+            );
         }
 
         cache.get_center_chunk_mut().stage = StagedChunkEnum::Features;

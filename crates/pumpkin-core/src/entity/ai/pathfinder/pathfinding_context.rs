@@ -311,6 +311,15 @@ impl PathfindingContext {
     #[must_use]
     pub fn is_pathfindable(&self, pos: &BlockPos, computation_type: PathComputationType) -> bool {
         let (block, state) = self.world.get_block_and_state(pos);
+        if let Some(pathfindable) = crate::block::blocks::dynamic::pathfindable(
+            &self.world,
+            pos,
+            block,
+            state,
+            computation_type,
+        ) {
+            return pathfindable;
+        }
         self.world
             .block_registry
             .is_pathfindable(block, state, computation_type)

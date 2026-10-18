@@ -659,3 +659,48 @@ fn shuffle_and_split_items(
         result.swap(i, j);
     }
 }
+
+/// Whether a plugin listens to the loot modify event, so callers only build it when needed.
+#[must_use]
+pub fn has_loot_modify_handlers(world: &crate::world::World) -> bool {
+    world.server.upgrade().is_some_and(|server| {
+        server
+            .plugin_manager
+            .has_handlers::<crate::plugin::api::events::world::LootModifyEvent>()
+    })
+}
+
+/// Fires the loot modify event and returns the stacks that drop: what the handlers left, nothing
+/// when one cancelled.
+#[must_use]
+pub fn fire_loot_modify(
+    world: &crate::world::World,
+    mut event: crate::plugin::api::events::world::LootModifyEvent,
+) -> Vec<ItemStack> {
+    let Some(server) = world.server.upgrade() else {
+        return event.loot;
+    };
+    server.plugin_manager.fire_blocking(&server, &mut event);
+    if event.cancelled {
+        Vec::new()
+    } else {
+        event.loot
+    }
+}
+
+/// The loot modify event for the loot of a broken block.
+#[must_use]
+pub fn block_loot_event(
+    block_loot_table: Option<&str>,
+    pos: &pumpkin_util::math::position::BlockPos,
+    params: &LootContextParameters,
+    loot: Vec<ItemStack>,
+) -> crate::plugin::api::events::world::LootModifyEvent {
+    use crate::plugin::api::events::world::{LootModifyEvent, LootSource};
+    let mut event = LootModifyEvent::new(LootSource::Block, pos.to_f64(), loot);
+    event.loot_table = block_loot_table.map(str::to_string);
+    event.tool = params.tool.clone();
+    event.block_pos = Some(*pos);
+    event.block_state = params.block_state.map(|state| state.id.as_u16());
+    event
+}

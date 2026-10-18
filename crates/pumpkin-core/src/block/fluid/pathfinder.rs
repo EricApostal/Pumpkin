@@ -1,5 +1,6 @@
 use super::physics;
 use crate::block::fluid::flowing_trait::FlowingFluid;
+use crate::plugin::api::events::entity::FluidCanPassThroughEvent;
 use crate::world::World;
 use pumpkin_data::BlockStateId;
 use pumpkin_data::{
@@ -40,6 +41,13 @@ pub fn get_spread<T: FlowingFluid + Sync + ?Sized>(
     let mut result = [(BlockDirection::North, BlockStateId::default()); 4];
     let mut result_count = 0;
 
+    // Plugins can stop the fluid from passing, looked up once for the four sides.
+    let pass_server = world.server.upgrade().filter(|server| {
+        server
+            .plugin_manager
+            .has_handlers::<FluidCanPassThroughEvent>()
+    });
+
     for direction in [
         BlockDirection::North,
         BlockDirection::South,
@@ -60,6 +68,19 @@ pub fn get_spread<T: FlowingFluid + Sync + ?Sized>(
                 .is_some_and(|p| p.level == Level::L8 && p.falling != Falling::True)
         {
             continue;
+        }
+
+        if let Some(server) = &pass_server {
+            let mut event = FluidCanPassThroughEvent::new(
+                world.clone(),
+                *block_pos,
+                direction,
+                format!("minecraft:{}", fluid.name),
+            );
+            server.plugin_manager.fire_blocking(server, &mut event);
+            if event.cancelled {
+                continue;
+            }
         }
 
         // Skip if no valid fluid state for this position

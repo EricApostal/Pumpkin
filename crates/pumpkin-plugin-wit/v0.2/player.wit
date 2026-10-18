@@ -1269,6 +1269,14 @@ interface player {
         /// Sets the selected advancement tab for this player (must be a root advancement ID).
         set-selected-advancement-tab: func(tab-id: option<string>);
 
+        /// Fires a criterion trigger (see `advancement.register-criterion-trigger`) for this player
+        /// and awards every criterion of every advancement that uses it. A criterion whose
+        /// conditions have a string `plugin_tag` only matches when `matcher` equals it, criteria
+        /// without one match any matcher. No other condition is evaluated by the host, the plugin
+        /// decides when to fire. Granting works as for `award-advancement-criterion` (events,
+        /// rewards, toast, announcement). Returns how many criteria were newly awarded.
+        trigger-criterion: async func(trigger-key: string, matcher: option<string>) -> u32;
+
         /// Returns a Java-specific player handle, if the player is connected via Java Edition.
         ///
         /// This allows access to Java-exclusive features like sending specific packets

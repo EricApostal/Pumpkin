@@ -3218,6 +3218,19 @@ impl pumpkin::plugin::player::HostPlayerWithStore<PluginHostState> for HasSelf<P
         .await
     }
 
+    async fn trigger_criterion(
+        accessor: &Accessor<PluginHostState, Self>,
+        player: Resource<Player>,
+        trigger_key: String,
+        matcher: Option<String>,
+    ) -> wasmtime::Result<u32> {
+        let player = accessor.get_res(&player)?;
+        run_blocking(accessor, move || {
+            player.trigger_criterion(&trigger_key, matcher.as_deref())
+        })
+        .await
+    }
+
     async fn award_advancement(
         accessor: &Accessor<PluginHostState, Self>,
         player: Resource<Player>,

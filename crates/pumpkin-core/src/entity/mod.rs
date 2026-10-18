@@ -1,4 +1,5 @@
 use crate::plugin::api::events::entity::{EntityEnteringSectionEvent, EntitySizeEvent};
+use crate::plugin::block::CustomBlockPhysicsKind;
 use crate::{
     entity::item::ItemEntity,
     net::{ClientPlatform, bedrock::BedrockClient, java::JavaClient},
@@ -92,6 +93,7 @@ pub mod mob;
 pub mod passive;
 pub mod player;
 pub mod plugin_entity;
+pub mod plugin_flags;
 pub mod projectile;
 pub mod projectile_deflection;
 pub mod spawn_util;
@@ -911,6 +913,8 @@ pub struct Entity {
     pub damage_immunities: std::sync::Mutex<Vec<DamageType>>,
     // Whether the entity is immune to fire (to disable visual fire and fire damage)
     pub fire_immune: AtomicBool,
+    /// Flags and overrides set by plugins.
+    pub plugin_flags: plugin_flags::PluginFlags,
     pub fire_ticks: AtomicI32,
     pub has_visual_fire: AtomicBool,
     /// The number of ticks the entity has been frozen (in powder snow)
@@ -1069,6 +1073,7 @@ impl Entity {
             bedrock_flags: std::sync::atomic::AtomicI64::new(0),
             bedrock_flags_two: std::sync::atomic::AtomicI64::new(0),
             fire_immune: AtomicBool::new(false),
+            plugin_flags: plugin_flags::PluginFlags::default(),
             fire_ticks: AtomicI32::new(-1),
             has_visual_fire: AtomicBool::new(false),
             frozen_ticks: AtomicI32::new(0),
@@ -2012,13 +2017,19 @@ impl Entity {
     #[expect(clippy::float_cmp)]
     pub fn get_block_speed_factor(&self) -> f32 {
         let world = self.world.load();
-        let (block, _state) = world.get_block_and_state(&self.block_pos.load());
-        let speed_factor_here = block.get_speed_factor();
+        let pos = self.block_pos.load();
+        let (block, state) = world.get_block_and_state(&pos);
+        let speed_factor_here = world.block_physics(&pos, block, state, CustomBlockPhysicsKind::SpeedFactor);
         if block != &Block::WATER && block != &Block::BUBBLE_COLUMN {
             if speed_factor_here == 1.0 {
                 let below_pos = self.get_block_pos_below_that_affects_my_movement();
-                let (below_block, _below_state) = world.get_block_and_state(&below_pos);
-                below_block.get_speed_factor()
+                let (below_block, below_state) = world.get_block_and_state(&below_pos);
+                world.block_physics(
+                    &below_pos,
+                    below_block,
+                    below_state,
+                    CustomBlockPhysicsKind::SpeedFactor,
+                )
             } else {
                 speed_factor_here
             }
@@ -2029,16 +2040,18 @@ impl Entity {
 
     #[expect(clippy::float_cmp)]
     fn get_jump_velocity_multiplier(&self) -> f32 {
-        let f = self
-            .world
-            .load()
-            .get_block(&self.block_pos.load())
-            .jump_velocity_multiplier;
+        let world = self.world.load();
+        let pos = self.block_pos.load();
+        let (block, state) = world.get_block_and_state(&pos);
+        let f = world.block_physics(&pos, block, state, CustomBlockPhysicsKind::JumpFactor);
 
-        let g = self
-            .get_block_with_y_offset(0.500_001)
-            .1
-            .jump_velocity_multiplier;
+        let (below_pos, below_block, below_state) = self.get_block_with_y_offset(0.500_001);
+        let g = world.block_physics(
+            &below_pos,
+            below_block,
+            below_state,
+            CustomBlockPhysicsKind::JumpFactor,
+        );
 
         if f == 1f32 { g } else { f }
     }
@@ -3068,6 +3081,7 @@ impl Entity {
     }
 
     pub fn set_pose(&self, pose: EntityPose) {
+        let pose = self.plugin_flags.pose_override().unwrap_or(pose);
         if self.pose.load() == pose {
             return;
         }
@@ -3086,7 +3100,7 @@ impl Entity {
             }
         }
 
-        let mut dimension = self.get_dimensions(pose);
+        let mut dimension = self.plugin_dimensions(self.get_dimensions(pose));
         if let Some(server) = self.world.load().server.upgrade()
             && server.plugin_manager.has_handlers::<EntitySizeEvent>()
         {
@@ -3122,7 +3136,9 @@ impl Entity {
 
     /// Vanilla `Entity.fireImmune`: the entity type.
     pub fn is_fire_immune(&self) -> bool {
-        self.entity_type.fire_immune || self.fire_immune.load(Ordering::Relaxed)
+        self.entity_type.fire_immune
+            || self.fire_immune.load(Ordering::Relaxed)
+            || self.plugin_flags.has(plugin_flags::FLAG_FIRE_IMMUNE)
     }
 
     /// Vanilla `Entity.isInvulnerableToBase`. Driven by the damage type tags, so datapacks
@@ -3194,9 +3210,25 @@ impl Entity {
                 for z in blockpos.0.z..=blockpos1.0.z {
                     let pos = BlockPos::new(x, y, z);
                     let (block, state) = world.get_block_and_state(&pos);
-                    let block_outlines = state.get_block_outline_shapes_at(&pos);
-
-                    if state.outline_shapes.is_empty() {
+                    let dynamic = world.dynamic_block_shapes(
+                        &pos,
+                        state,
+                        pumpkin_data::block_registry::ShapeKind::Selection,
+                    );
+                    // A block without a shape counts as touched.
+                    let touched = match &dynamic {
+                        Some(shapes) => {
+                            shapes.is_empty()
+                                || shapes.iter().any(|o| o.at_pos(pos).intersects(&aabb))
+                        }
+                        None => {
+                            state.outline_shapes.is_empty()
+                                || state
+                                    .get_block_outline_shapes_at(&pos)
+                                    .any(|o| o.at_pos(pos).intersects(&aabb))
+                        }
+                    };
+                    if touched {
                         world
                             .block_registry
                             .on_entity_collision(block, &world, entity, &pos, state, server);
@@ -3204,20 +3236,6 @@ impl Entity {
                         world
                             .block_registry
                             .on_entity_collision_fluid(fluid, entity);
-                        continue;
-                    }
-                    for outline in block_outlines {
-                        let outline_aabb = outline.at_pos(pos);
-                        if outline_aabb.intersects(&aabb) {
-                            world
-                                .block_registry
-                                .on_entity_collision(block, &world, entity, &pos, state, server);
-                            let fluid = world.get_fluid(&pos);
-                            world
-                                .block_registry
-                                .on_entity_collision_fluid(fluid, entity);
-                            break;
-                        }
                     }
                 }
             }

@@ -70,6 +70,50 @@ interface block-callbacks {
         /// The output that is stored is kept in memory only and dropped when the block is replaced
         /// or moved. Placing the block updates the comparators next to it.
         comparator-output,
+        /// The shape of the block depends on more than its state, like a copycat that takes the
+        /// shape of another block: the server asks with a `custom-block-shape-event` for the
+        /// collision, selection and visual shape. The answer is cached per position, so call
+        /// `world.invalidate-block-shape` whenever it would change. Placing or removing the block
+        /// clears it on its own. The registered shapes are the start of the event's list.
+        dynamic-shape,
+        /// A player right clicks the block with an empty hand: `custom-block-use-event` with
+        /// `with-item` false.
+        use-without-item,
+        /// A player right clicks the block holding an item: `custom-block-use-event` with
+        /// `with-item` true. Fired before the item is used or placed.
+        use-with-item,
+        /// A player left clicks the block (starts digging): `custom-block-attack-event`.
+        attack,
+        /// A player picks the block (middle click): `custom-block-clone-item-event` sets the item.
+        get-clone-item,
+        /// A player is about to break the block: `custom-block-player-will-destroy-event`, which
+        /// can cancel it.
+        player-will-destroy,
+        /// The friction (slipperiness, 0.6 for most blocks) of the block comes from a
+        /// `custom-block-physics-event` with kind `friction`. Cached per position.
+        get-friction,
+        /// The speed factor (1.0 normally) comes from a `custom-block-physics-event` with kind
+        /// `speed-factor`. Cached per position.
+        get-speed-factor,
+        /// The jump factor (1.0 normally) comes from a `custom-block-physics-event` with kind
+        /// `jump-factor`. Cached per position.
+        get-jump-factor,
+        /// Whether an entity can destroy the block (explosions, the wither):
+        /// `custom-block-condition-event` with kind `entity-destroy`.
+        can-entity-destroy,
+        /// An entity landed on the block after a fall: `custom-block-landed-event` sets the fall
+        /// damage multiplier.
+        on-landed-upon,
+        /// The sound type comes from a `custom-block-sound-type-event`.
+        get-sound-type,
+        /// Whether mobs can path through the block: `custom-block-condition-event` with kind
+        /// `pathfindable-land`, `pathfindable-water` or `pathfindable-air`.
+        is-pathfindable,
+        /// Whether redstone wire connects to the block: `custom-block-condition-event` with kind
+        /// `redstone-connect`.
+        can-connect-redstone,
+        /// How fast the block catches fire and burns: `custom-block-fire-spread-event`.
+        get-fire-spread,
     }
 
     /// Sets the hooks of a block registered with `register-block` that call the plugin. Fails for

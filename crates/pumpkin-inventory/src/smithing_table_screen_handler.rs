@@ -1,5 +1,6 @@
 use std::any::Any;
 use std::sync::Arc;
+use std::sync::OnceLock;
 use std::sync::atomic::{AtomicU8, Ordering};
 
 use crate::player::player_inventory::PlayerInventory;
@@ -18,6 +19,27 @@ use pumpkin_data::screen::WindowType;
 use pumpkin_data::statistic::StatisticCategory;
 use pumpkin_nbt::tag::NbtTag;
 use pumpkin_protocol::java::server::play::SlotActionType;
+
+/// What the smithing result hook sees when a result was computed.
+pub struct SmithingContext<'a> {
+    /// The player using the table, none when the output is refreshed without one.
+    pub player: Option<&'a dyn InventoryPlayer>,
+    pub template: &'a ItemStack,
+    pub base: &'a ItemStack,
+    pub addition: &'a ItemStack,
+    /// The computed result, empty when no recipe matches.
+    pub result: &'a ItemStack,
+}
+
+/// Returns the stack that replaces the computed result (empty strips it), none keeps it.
+pub type SmithingResultHook = fn(&SmithingContext<'_>) -> Option<ItemStack>;
+
+static SMITHING_RESULT_HOOK: OnceLock<SmithingResultHook> = OnceLock::new();
+
+/// Installs the hook that can replace the smithing result. Only the first call counts.
+pub fn set_smithing_result_hook(hook: SmithingResultHook) {
+    let _ = SMITHING_RESULT_HOOK.set(hook);
+}
 
 pub struct SmithingTableScreenHandler {
     behaviour: ScreenHandlerBehaviour,
@@ -62,6 +84,35 @@ impl SmithingTableScreenHandler {
     }
 
     pub fn update_output(&self) {
+        self.update_output_for(None);
+    }
+
+    /// Computes the result and lets the hook replace it.
+    pub fn update_output_for(&self, player: Option<&dyn InventoryPlayer>) {
+        self.compute_output();
+        let Some(hook) = SMITHING_RESULT_HOOK.get() else {
+            return;
+        };
+        let template = self.input_inventory.get_stack(0);
+        let base = self.input_inventory.get_stack(1);
+        let addition = self.input_inventory.get_stack(2);
+        if template.is_empty() || base.is_empty() || addition.is_empty() {
+            return;
+        }
+        let result = self.output_inventory.get_stack(0);
+        let context = SmithingContext {
+            player,
+            template: &template,
+            base: &base,
+            addition: &addition,
+            result: &result,
+        };
+        if let Some(replacement) = hook(&context) {
+            self.output_inventory.set_stack(0, replacement);
+        }
+    }
+
+    fn compute_output(&self) {
         let template_stack = self.input_inventory.get_stack(0);
         let base_stack = self.input_inventory.get_stack(1);
         let addition_stack = self.input_inventory.get_stack(2);
@@ -148,7 +199,7 @@ impl ScreenHandler for SmithingTableScreenHandler {
     ) {
         self.internal_on_slot_click(slot_index, button, action_type, player);
         if (0..=3).contains(&slot_index) {
-            self.update_output();
+            self.update_output_for(Some(player));
         }
     }
 
@@ -184,7 +235,7 @@ impl ScreenHandler for SmithingTableScreenHandler {
                         }
                     }
                 }
-                self.update_output();
+                self.update_output_for(Some(player));
 
                 if slot_stack.is_empty() {
                     slot.set_stack(ItemStack::EMPTY.clone());

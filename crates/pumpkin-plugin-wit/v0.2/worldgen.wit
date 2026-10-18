@@ -1,0 +1,93 @@
+/// Additive world generation: features that plugins add to existing biomes.
+///
+/// A feature is registered with `register-feature` (placed by the plugin, see
+/// `plugin-feature-place-event`) or `register-ore-feature` (placed by the server like a vanilla
+/// ore, no callback). `add-feature-to-biomes` then says where it generates. Rules run after the
+/// vanilla features of their step, with the same placement math as vanilla placed features:
+/// rarity, count, in-square, height range and a biome check at the placed position. Vanilla
+/// generation does not change while no rule exists.
+///
+/// Registration and rules need the `registry.worldgen` permission. Register in `on-load`,
+/// chunks that generated earlier keep what they have. Datapacks can do the same with
+/// `worldgen/configured_feature` (ore), `worldgen/placed_feature` and
+/// `neoforge/biome_modifier` (`neoforge:add_features`, `neoforge:remove_features`) JSON.
+interface worldgen {
+    /// The vanilla generation steps in order.
+    enum generation-step {
+        raw-generation,
+        lakes,
+        local-modifications,
+        underground-structures,
+        surface-structures,
+        strongest-stronghold,
+        underground-ores,
+        underground-decoration,
+        fluid-springs,
+        vegetal-decoration,
+        top-layer-modification,
+    }
+
+    /// What places a registered feature.
+    enum feature-kind {
+        /// The plugin places it: `plugin-feature-place-event` fires for every chunk where a
+        /// rule selects the feature. Ores need no callback, see `register-ore-feature`.
+        plugin,
+    }
+
+    /// One block an ore replaces.
+    record ore-target {
+        /// A block key (`namespace:path`) or a `#tag` such as `#minecraft:stone_ore_replaceables`.
+        target: string,
+        /// Key of the block placed instead, its default state is used. May be a plugin block.
+        state: string,
+    }
+
+    /// How the heights of a placement are drawn.
+    enum height-shape {
+        /// Every height in the range is equally likely.
+        uniform,
+        /// Heights in the middle of the range are more likely (vanilla `trapezoid` without a
+        /// plateau).
+        triangle,
+    }
+
+    /// Absolute heights, both ends inclusive.
+    record height-range {
+        min: s32,
+        max: s32,
+        shape: height-shape,
+    }
+
+    /// Where and how often a registered feature generates.
+    record placement-rule {
+        /// Entries are biome keys (`minecraft:plains`, `minecraft:` optional) or `#tag`s such
+        /// as `#minecraft:is_overworld`. Only vanilla biomes and tags exist.
+        biomes: list<string>,
+        step: generation-step,
+        /// Attempts per chunk, after the rarity filter.
+        count: u32,
+        /// Generates in one of `rarity` chunks, none for every chunk. At least 1.
+        rarity: option<u32>,
+        height: height-range,
+        /// Spreads the attempts over the chunk's 16 by 16 columns, otherwise they all use the
+        /// chunk corner.
+        in-square: bool,
+    }
+
+    /// Registers a feature under `key` (`namespace:path`). Fails for a duplicate key.
+    register-feature: func(key: string, kind: feature-kind) -> result<_, string>;
+
+    /// Registers an ore feature placed by the server, using the vanilla ore vein code.
+    /// `size` is the vein size in blocks (1 to 64). `discard-chance-on-air-exposure` is the
+    /// chance (0.0 to 1.0) that a block touching air is skipped, vanilla coal is 0.5 and
+    /// diamonds 0.5 to 1.0.
+    register-ore-feature: func(
+        key: string,
+        targets: list<ore-target>,
+        size: u32,
+        discard-chance-on-air-exposure: f32,
+    ) -> result<_, string>;
+
+    /// Makes a registered feature generate in biomes. Several rules can use one feature.
+    add-feature-to-biomes: func(feature-key: string, rule: placement-rule) -> result<_, string>;
+}

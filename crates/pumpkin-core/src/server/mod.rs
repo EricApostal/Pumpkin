@@ -559,6 +559,18 @@ impl Server {
         let dynamic_recipes = self.recipe_manager.get_dynamic_recipes_internal();
         for player in self.get_all_players() {
             if let crate::net::ClientPlatform::Java(java_client) = player.client.as_ref() {
+                if java_client.flavour.load() == pumpkin_protocol::ConnectionFlavour::NeoForge {
+                    let content = crate::net::neoforge::recipe_sync::recipe_content(
+                        &self.recipe_manager,
+                    );
+                    let payload = pumpkin_protocol::java::client::play::CCustomPayload::new(
+                        crate::net::neoforge::channels::RECIPE_CONTENT,
+                        &content,
+                    );
+                    if let Ok(data) = java_client.serialize_packet(&payload) {
+                        java_client.try_enqueue_packet(data);
+                    }
+                }
                 let add_packet = pumpkin_protocol::java::client::play::CRecipeBookAdd::new(
                     true,
                     &dynamic_recipes,
@@ -566,6 +578,27 @@ impl Server {
                 if let Ok(data) = java_client.serialize_packet(&add_packet) {
                     java_client.try_enqueue_packet(data);
                 }
+            }
+        }
+
+        // Plugins that build lookup tables from recipes and tags rebuild them here.
+        let tag_count = u32::try_from(pumpkin_data::dynamic_tag::runtime_tag_count())
+            .unwrap_or(u32::MAX);
+        let mut reloaded = crate::plugin::api::events::world::DatapackReloadEvent::new(
+            u32::try_from(dynamic_recipes.len()).unwrap_or(u32::MAX),
+            tag_count,
+        );
+        self.plugin_manager.fire_blocking(server, &mut reloaded);
+        let mut tags_updated = crate::plugin::api::events::world::TagsUpdatedEvent::new(tag_count);
+        self.plugin_manager.fire_blocking(server, &mut tags_updated);
+        if self
+            .plugin_manager
+            .has_handlers::<crate::plugin::api::events::world::DatapackSyncEvent>()
+        {
+            for player in self.get_all_players() {
+                let mut synced =
+                    crate::plugin::api::events::world::DatapackSyncEvent::new(player, true);
+                self.plugin_manager.fire_blocking(server, &mut synced);
             }
         }
     }

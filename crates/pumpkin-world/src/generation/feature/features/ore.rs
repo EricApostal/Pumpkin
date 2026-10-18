@@ -32,6 +32,16 @@ impl OreFeature {
         random: &mut RandomGenerator,
         pos: BlockPos,
     ) -> bool {
+        self.generate_at(chunk, random, pos)
+    }
+
+    /// Places a vein at `pos`, without the placed feature arguments of [`Self::generate`].
+    pub fn generate_at<T: GenerationCache>(
+        &self,
+        chunk: &mut T,
+        random: &mut RandomGenerator,
+        pos: BlockPos,
+    ) -> bool {
         let f = random.next_f32() * f32::consts::PI;
         let g = self.size as f32 / 8.0f32;
         let i = f32::midpoint(self.size as f32 / 16.0f32 * 2.0, 1.0).ceil() as i32;

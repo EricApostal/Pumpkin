@@ -17,9 +17,15 @@ impl PendingConnection {
                     .await;
                 continue;
             }
-            let merged = server
+            let mut merged = server
                 .datapack_manager
                 .merge_registry_entries(&reg.registry_id, &reg.registry_entries);
+            if reg.registry_id == "minecraft:enchantment" {
+                // Plugin enchantments follow the vanilla ones, which is what their ids say.
+                let at = pumpkin_data::Enchantment::ALL.len().min(merged.len());
+                let plugin = server.enchantment_manager.registry_entries().await;
+                merged.splice(at..at, plugin);
+            }
             let merged = self.with_neoforge_datapack_entries(&reg.registry_id, merged);
             self.send_packet_now(&CRegistryData::new(&reg.registry_id, &merged))
                 .await;

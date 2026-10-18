@@ -740,6 +740,8 @@ mod tests {
             map_color: 0,
             collision_shape: ShapeDefinition::Empty,
             selection_shape: ShapeDefinition::Empty,
+            shape_rules: Vec::new(),
+            piston_behavior: crate::block_state::PistonBehavior::Normal,
             connect_rules: Vec::new(),
             drops: BlockDrops::Nothing,
             tags: Vec::new(),

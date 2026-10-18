@@ -47,7 +47,7 @@ use pumpkin_data::data_component_impl::{
 use pumpkin_data::item::Item;
 use pumpkin_data::item_stack::ItemStack;
 use pumpkin_data::sound::{Sound, SoundCategory};
-use pumpkin_data::{Advancement, Block, BlockDirection, translation};
+use pumpkin_data::{Block, BlockDirection, translation};
 use pumpkin_inventory::InventoryError;
 use pumpkin_inventory::merchant::merchant_screen_handler::MerchantScreenHandler;
 use pumpkin_inventory::player::player_inventory::PlayerInventory;

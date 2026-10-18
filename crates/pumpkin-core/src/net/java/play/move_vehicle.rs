@@ -14,6 +14,15 @@ impl JavaClient {
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .clone();
+        // The plugin moves its vehicles, the client only drives the ones the plugin allows to.
+        if let Some(plugin_entity) = vehicle.as_ref().and_then(|v| v.get_plugin_entity()) {
+            let vehicle_pos = vehicle.as_ref().map_or(last_pos, |v| v.get_entity().pos.load());
+            if !plugin_entity.accepts_client_movement()
+                || vehicle_pos.squared_distance_to_vec(&pos) > 16.0 * 16.0
+            {
+                return;
+            }
+        }
         if let Some(vehicle) = vehicle {
             let vehicle_entity = vehicle.get_entity();
             vehicle_entity.set_pos(pos);

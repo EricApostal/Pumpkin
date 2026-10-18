@@ -198,6 +198,9 @@ pub mod enchantment;
 #[cfg(feature = "enchantment")]
 pub use enchantment::*;
 
+#[cfg(feature = "enchantment")]
+pub mod enchantment_registry;
+
 #[cfg(feature = "entity")]
 pub mod entity {
     #[cfg(feature = "entity_pose")]
@@ -457,6 +460,8 @@ mod blocks;
 
 pub mod plugin_registry;
 
+pub mod entity_data_serializer_registry;
+
 #[cfg(feature = "entity_type")]
 pub mod entity_registry;
 
@@ -471,6 +476,11 @@ pub mod menu_registry;
 
 #[cfg(feature = "data_component")]
 pub mod data_component_registry;
+
+pub mod extra_registry;
+
+#[cfg(all(feature = "effect", feature = "attributes", feature = "data_component"))]
+pub mod mob_effect_registry;
 
 #[cfg(feature = "block")]
 pub use block_direction::{BlockDirection, FacingExt, HorizontalFacingExt};

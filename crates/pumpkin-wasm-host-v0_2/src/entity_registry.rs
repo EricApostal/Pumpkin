@@ -42,6 +42,8 @@ fn to_definition(definition: WitEntityTypeDefinition) -> PluginEntityDefinition 
         saveable: definition.saveable,
         pickable: definition.pickable,
         collidable: definition.collidable,
+        pushable: definition.pushable,
+        ignore_riders_hit: definition.ignore_riders_hit,
         default_synced_data: definition.default_synced_data,
         spawn_data_channel: definition.spawn_data_channel,
     }
@@ -76,6 +78,29 @@ impl Host for PluginHostState {
                 }
                 Err(error) => Err(error.to_string()),
             },
+        )
+    }
+
+    fn register_entity_data_serializer(
+        &mut self,
+        key: String,
+    ) -> wasmtime::Result<Result<u32, String>> {
+        if !self
+            .permissions
+            .iter()
+            .any(|p| p == permissions::REGISTRY_ENTITIES)
+        {
+            return Ok(Err(format!(
+                "registering entity data serializers needs the '{}' permission",
+                permissions::REGISTRY_ENTITIES
+            )));
+        }
+        Ok(
+            pumpkin_data::entity_data_serializer_registry::register_plugin_entity_data_serializer(
+                &key,
+            )
+            .map(|serializer| serializer.id)
+            .map_err(|error| error.to_string()),
         )
     }
 
@@ -129,6 +154,22 @@ pub(crate) fn set_synced_data(entity: &dyn EntityBase, data: Vec<u8>) -> Result<
         return Err(format!("synced data is at most {MAX_SYNCED_DATA} bytes"));
     }
     plugin_entity.set_synced_data(data);
+    Ok(())
+}
+
+pub(crate) fn set_synced_entry(
+    entity: &dyn EntityBase,
+    index: u8,
+    data: Vec<u8>,
+) -> Result<(), String> {
+    let plugin_entity = plugin_entity_of(entity)?;
+    if index == 255 {
+        return Err("the entry index is at most 254".to_string());
+    }
+    if data.len() > MAX_SYNCED_DATA {
+        return Err(format!("a synced entry is at most {MAX_SYNCED_DATA} bytes"));
+    }
+    plugin_entity.set_synced_entry(index, data);
     Ok(())
 }
 

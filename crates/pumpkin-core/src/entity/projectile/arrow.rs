@@ -1060,6 +1060,11 @@ impl ArrowEntity {
             return true;
         }
 
+        // Untargetable plugin entities and riders of some are not hit
+        if crate::entity::plugin_entity::PluginEntity::projectiles_pass_through(other.as_ref()) {
+            return true;
+        }
+
         // Skip dead entities
         if !other_ent.is_alive() {
             return true;

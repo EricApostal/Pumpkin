@@ -462,6 +462,9 @@ impl ToFromWasmEvent for PrepareSmithingEvent {
         Event::PrepareSmithingEvent(PrepareSmithingEventData {
             player,
             result_item: self.result_item.clone(),
+            template_item: self.template_item.clone(),
+            base_item: self.base_item.clone(),
+            addition_item: self.addition_item.clone(),
         })
     }
 
@@ -470,6 +473,9 @@ impl ToFromWasmEvent for PrepareSmithingEvent {
             Event::PrepareSmithingEvent(data) => Self {
                 player: consume_player(state, &data.player),
                 result_item: data.result_item,
+                template_item: data.template_item,
+                base_item: data.base_item,
+                addition_item: data.addition_item,
             },
             _ => panic!("unexpected event type"),
         }

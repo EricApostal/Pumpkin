@@ -35,6 +35,7 @@ pub mod mob_spawner;
 pub mod piston;
 pub mod plugin;
 pub mod plugin_inventory;
+pub mod plugin_tank;
 pub mod shulker_box;
 pub mod sign;
 pub mod smoker;

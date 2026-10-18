@@ -1541,6 +1541,17 @@ impl LivingEntity {
         }
     }
 
+    /// The friction of the block the entity stands on, plugins can override it per position.
+    fn slipperiness_below(&self) -> f32 {
+        let (pos, block, state) = self.entity.get_block_with_y_offset(0.500_001);
+        self.entity.world.load().block_physics(
+            &pos,
+            block,
+            state,
+            crate::plugin::block::CustomBlockPhysicsKind::Friction,
+        )
+    }
+
     /// Decays player velocity like vanilla `travelInAir` friction.
     fn apply_travel_friction(&self) {
         let mut velo = self.entity.velocity.load();
@@ -1549,12 +1560,7 @@ impl LivingEntity {
         }
 
         let friction = if self.entity.on_ground.load(Relaxed) {
-            f64::from(
-                self.entity
-                    .get_block_with_y_offset(0.500_001)
-                    .1
-                    .slipperiness,
-            ) * 0.91
+            f64::from(self.slipperiness_below()) * 0.91
         } else {
             0.91
         };
@@ -1574,12 +1580,7 @@ impl LivingEntity {
         let (speed, friction) = if self.entity.on_ground.load(Relaxed) {
             // getVelocityAffectingPos
 
-            let slipperiness = f64::from(
-                self.entity
-                    .get_block_with_y_offset(0.500_001)
-                    .1
-                    .slipperiness,
-            );
+            let slipperiness = f64::from(self.slipperiness_below());
 
             let speed =
                 effective_speed * 0.216_000_02 / (slipperiness * slipperiness * slipperiness);
@@ -1712,6 +1713,29 @@ impl LivingEntity {
             }
 
             self.entity.velocity.store(velo);
+        }
+
+        // Only for entities a plugin opted in.
+        if self
+            .entity
+            .plugin_flags
+            .has(crate::entity::plugin_flags::FLAG_FLUID_MOVEMENT_EVENTS)
+            && let Some(server) = self.entity.world.load().server.upgrade()
+            && server.plugin_manager.has_handlers::<
+                crate::plugin::api::events::entity::EntityFluidMovementEvent,
+            >()
+        {
+            let mut event = crate::plugin::api::events::entity::EntityFluidMovementEvent::new(
+                self.entity.entity_id,
+                if water {
+                    "minecraft:water".to_string()
+                } else {
+                    "minecraft:lava".to_string()
+                },
+                self.entity.velocity.load(),
+            );
+            server.plugin_manager.fire_blocking(&server, &mut event);
+            self.entity.velocity.store(event.velocity);
         }
 
         let mut velo = self.entity.velocity.load();
@@ -1915,11 +1939,14 @@ impl LivingEntity {
                 return;
             }
             let world = self.entity.world.load();
-            let block = world.get_block(&self.entity.get_pos_with_y_offset(0.2).0);
+            let landed_pos = self.entity.get_pos_with_y_offset(0.2).0;
+            let block = world.get_block(&landed_pos);
             let pumpkin_block = world.block_registry.get_pumpkin_block(block.id);
             if let Some(pumpkin_block) = pumpkin_block {
                 pumpkin_block.on_landed_upon(OnLandedUponArgs {
                     world: &world,
+                    block,
+                    position: &landed_pos,
                     fall_distance,
                     entity: caller,
                 });
@@ -2147,6 +2174,9 @@ impl LivingEntity {
             };
 
             let mut drops = self.collect_loot(&params);
+            if !drops.is_empty() && crate::world::loot::has_loot_modify_handlers(&world) {
+                drops = self.modify_loot(drops, &params, killer, looting_level);
+            }
 
             // Award experience
             if params.killed_by_player.unwrap_or(false)
@@ -2382,6 +2412,34 @@ impl LivingEntity {
                 }
             }
         }
+    }
+
+    /// Lets plugins change the loot table stacks of a death.
+    fn modify_loot(
+        &self,
+        drops: Vec<ItemStack>,
+        params: &LootContextParameters,
+        killer: Option<&dyn EntityBase>,
+        looting_level: u32,
+    ) -> Vec<ItemStack> {
+        use crate::plugin::api::events::world::{LootModifyEvent, LootSource};
+        let entity = &self.entity;
+        let mut event = LootModifyEvent::new(LootSource::Entity, entity.pos.load(), drops);
+        event.loot_table = Some(format!(
+            "minecraft:entities/{}",
+            entity.entity_type.resource_name
+        ));
+        event.damage_source = params
+            .damage_type
+            .as_ref()
+            .and_then(pumpkin_data::damage_type_registry::damage_type_key);
+        event.killer_uuid = killer.map(|killer| killer.get_entity().entity_uuid);
+        event.killer_id = killer.map(|killer| killer.get_entity().entity_id);
+        event.tool = params.tool.clone();
+        event.looting_level = looting_level;
+        event.entity_id = Some(entity.entity_id);
+        event.entity_type = Some(format!("minecraft:{}", entity.entity_type.resource_name));
+        crate::world::loot::fire_loot_modify(&entity.world.load(), event)
     }
 
     fn collect_loot(&self, params: &LootContextParameters) -> Vec<ItemStack> {
@@ -3537,6 +3595,23 @@ impl EntityBase for LivingEntity {
                     server
                         .item_registry
                         .on_use_tick(item, player, remaining_use_ticks);
+                    if server
+                        .plugin_manager
+                        .has_handlers::<crate::plugin::api::events::entity::ItemUseTickEvent>()
+                    {
+                        let world = self.entity.world.load();
+                        if let Some(server) = world.server.upgrade()
+                            && let Some(player) = world.get_player_by_uuid(player.gameprofile.id)
+                        {
+                            let mut event =
+                                crate::plugin::api::events::entity::ItemUseTickEvent::new(
+                                    player,
+                                    item.clone(),
+                                    remaining_use_ticks,
+                                );
+                            server.plugin_manager.fire_blocking(&server, &mut event);
+                        }
+                    }
                 }
             }
         }

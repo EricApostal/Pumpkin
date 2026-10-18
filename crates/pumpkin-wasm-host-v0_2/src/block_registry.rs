@@ -2,14 +2,16 @@ use crate::pumpkin::plugin::block_registry::{
     BlockDefinition as WitBlockDefinition, BlockDrops as WitBlockDrops,
     BlockEntry as WitBlockEntry, BlockShape as WitBlockShape,
     ConnectDirection as WitConnectDirection, ConnectRule as WitConnectRule,
-    ConnectTarget as WitConnectTarget, Host, PropertyKind as WitPropertyKind,
-    PropertyValue as WitPropertyValue,
+    ConnectTarget as WitConnectTarget, Host, PistonBehavior as WitPistonBehavior,
+    PropertyKind as WitPropertyKind, PropertyValue as WitPropertyValue,
+    ShapeRule as WitShapeRule,
 };
 use pumpkin_core::plugin::permissions;
 use pumpkin_data::block_registry::{
     BlockDrops, BlockRegistration, ConnectRule, ConnectTarget, PropertyDefinition, PropertyKind,
-    ShapeDefinition,
+    ShapeDefinition, ShapeRule,
 };
+use pumpkin_data::block_state::PistonBehavior;
 use pumpkin_data::item::Item;
 use pumpkin_data::{Block, BlockDirection, BlockId};
 use pumpkin_wasm_host_common::state::PluginHostState;
@@ -47,6 +49,28 @@ fn from_wit_shape(shape: WitBlockShape) -> ShapeDefinition {
                 .map(|b| [b.min_x, b.min_y, b.min_z, b.max_x, b.max_y, b.max_z])
                 .collect(),
         ),
+    }
+}
+
+fn from_wit_shape_rule(rule: WitShapeRule) -> ShapeRule {
+    ShapeRule {
+        when: rule
+            .when
+            .into_iter()
+            .map(|property| (property.name, property.value))
+            .collect(),
+        collision: rule.collision_shape.map(from_wit_shape),
+        selection: rule.selection_shape.map(from_wit_shape),
+    }
+}
+
+const fn from_wit_piston_behavior(behavior: WitPistonBehavior) -> PistonBehavior {
+    match behavior {
+        WitPistonBehavior::Normal => PistonBehavior::Normal,
+        WitPistonBehavior::Destroy => PistonBehavior::Destroy,
+        WitPistonBehavior::Block => PistonBehavior::Block,
+        WitPistonBehavior::Ignore => PistonBehavior::Ignore,
+        WitPistonBehavior::PushOnly => PistonBehavior::PushOnly,
     }
 }
 
@@ -88,6 +112,12 @@ fn from_wit_definition(definition: WitBlockDefinition) -> BlockRegistration {
         map_color: definition.map_color,
         collision_shape: from_wit_shape(definition.collision_shape),
         selection_shape: from_wit_shape(definition.selection_shape),
+        shape_rules: definition
+            .shape_rules
+            .into_iter()
+            .map(from_wit_shape_rule)
+            .collect(),
+        piston_behavior: from_wit_piston_behavior(definition.piston_behavior),
         connect_rules: definition
             .connect_rules
             .into_iter()

@@ -2506,7 +2506,8 @@ impl Player {
         self.play_sound_event(
             pumpkin_protocol::SoundEvent {
                 sound_name: sound_name.into(),
-                range: None,
+                range: pumpkin_data::extra_registry::plugin_sound_by_key(sound_name)
+                    .and_then(|sound| sound.fixed_range),
             },
             category,
             position,
@@ -6189,18 +6190,10 @@ impl Player {
                     self.clone(),
                     stack.item.registry_key.to_string(),
                 );
-            let mut prep_smith =
-                crate::plugin::api::events::inventory::prepare_smithing::PrepareSmithingEvent::new(
-                    self.clone(),
-                    Some(stack.item.registry_key.to_string()),
-                );
             if let Some(server) = self.world().server.upgrade() {
                 server
                     .plugin_manager
                     .fire_blocking(&server, &mut smith_event);
-                server
-                    .plugin_manager
-                    .fire_blocking(&server, &mut prep_smith);
             }
             if smith_event.cancelled {
                 cancel_screen();

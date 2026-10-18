@@ -547,8 +547,16 @@ impl WitherEntity {
                                     min_pos.0.y + dy,
                                     min_pos.0.z + dz,
                                 );
-                                let block = world.get_block(&bpos);
-                                if Self::can_destroy(block) {
+                                let (block, state) = world.get_block_and_state(&bpos);
+                                if Self::can_destroy(block)
+                                    && crate::block::blocks::dynamic::entity_can_destroy(
+                                        &world,
+                                        &bpos,
+                                        block,
+                                        state,
+                                        Some(entity.entity_type),
+                                    )
+                                {
                                     world.set_block_state(
                                         &bpos,
                                         Block::AIR.default_state.id,

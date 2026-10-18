@@ -1,14 +1,16 @@
+mod runtime;
 pub mod trigger;
 mod visibility_evaluator;
 
 use crate::data::advancement_data::AdvancementManager;
+use crate::data::runtime_advancement;
 use crate::entity::EntityBase;
 use crate::entity::player::Player;
 use indexmap::IndexMap;
 use pumpkin_data::advancement_data::{
-    AdvancementNode, AdvancementProgressData, AdvancementRequirement, AdvancementReward, Criteria,
+    AdvancementProgressData, AdvancementRequirement, AdvancementReward, Criteria,
 };
-use pumpkin_data::{ADVANCEMENT_TREE, Advancement, translation};
+use pumpkin_data::{Advancement, translation};
 use pumpkin_protocol::bedrock::server::text::SText;
 use pumpkin_protocol::java::client::play::{
     CSelectAdvancementsTab, CSystemChatMessage, CUpdateAdvancements,
@@ -204,7 +206,7 @@ impl AdvancementProgressMap {
 pub struct PlayerAdvancement {
     pub progress: AdvancementProgressMap,
     pub is_first_packet: bool,
-    pub roots_to_update: HashSet<&'static AdvancementNode>,
+    pub roots_to_update: HashSet<&'static Advancement>,
     pub visible: HashSet<&'static Advancement>,
     pub progress_changed: HashSet<&'static Advancement>,
     pub manager: Arc<AdvancementManager>,
@@ -212,6 +214,10 @@ pub struct PlayerAdvancement {
     pub last_selected_tab: Option<&'static Advancement>,
     /// A weak reference to the player who owns these advancements.
     pub player: Weak<Player>,
+    /// Version of the runtime advancements this state was last synced with.
+    pub runtime_version: u64,
+    /// Saved progress of advancements that do not exist (yet), kept for when they do.
+    pub unresolved: HashMap<String, HashMap<Arc<str>, CriterionProgress>>,
 }
 
 /// The state changes produced by awarding an advancement criterion.
@@ -262,6 +268,8 @@ impl PlayerAdvancement {
             visible: HashSet::default(),
             progress_changed: HashSet::default(),
             last_selected_tab: None,
+            runtime_version: 0,
+            unresolved: HashMap::new(),
         }
     }
 
@@ -286,6 +294,8 @@ impl PlayerAdvancement {
         self.progress_changed.clear();
         self.is_first_packet = true;
         self.last_selected_tab = None;
+        self.runtime_version = 0;
+        self.unresolved.clear();
         self.load()
     }
 
@@ -321,13 +331,16 @@ impl PlayerAdvancement {
 
         self.progress.clear();
         for (advancement_id, mut progress) in loaded_data {
-            if let Some(advancement_ref) = Advancement::from_minecraft_name(&advancement_id) {
+            if let Some(advancement_ref) = runtime_advancement::find(&advancement_id) {
                 progress.update(AdvancementRequirement::from_const(
                     advancement_ref.requirements,
                 ));
                 self.progress.insert(advancement_ref, progress);
                 self.progress_changed.insert(advancement_ref);
                 self.mark_for_visibility_update(advancement_ref);
+            } else if advancement_id.contains(':') && !advancement_id.starts_with("minecraft:") {
+                // Probably a runtime advancement that is not registered (yet).
+                self.unresolved.insert(advancement_id, progress.criteria);
             } else {
                 warn!("The Advancement name {} is invalid", advancement_id);
             }
@@ -336,15 +349,67 @@ impl PlayerAdvancement {
     }
 
     fn mark_for_visibility_update(&mut self, advancement: &'static Advancement) {
-        let node = ADVANCEMENT_TREE.get_node_from_id(&advancement.id);
-        if let Some(node) = node {
-            self.roots_to_update.insert(node.root());
+        self.roots_to_update
+            .insert(runtime_advancement::root_of(advancement));
+    }
+
+    /// Brings the progress in line with the runtime advancements when they changed: the progress
+    /// moves to the new definitions, saved progress of ones that exist now is restored, and the
+    /// whole tree is sent again.
+    pub fn sync_runtime(&mut self) {
+        let version = runtime_advancement::version();
+        if version == self.runtime_version {
+            return;
         }
+        self.runtime_version = version;
+
+        // Trees that were shown have to be evaluated again after the reset.
+        for advancement in std::mem::take(&mut self.visible) {
+            self.mark_for_visibility_update(advancement);
+        }
+        let old = std::mem::take(&mut self.progress.map);
+        for (advancement, progress) in old {
+            if runtime_advancement::is_generated(advancement) {
+                self.progress.map.insert(advancement, progress);
+            } else if let Some(current) = runtime_advancement::find_runtime(&advancement.id.to_string())
+            {
+                let mut progress = progress;
+                progress.update(AdvancementRequirement::from_const(current.requirements));
+                self.progress.map.insert(current, progress);
+            } else if progress.has_progress() {
+                self.unresolved
+                    .insert(advancement.id.to_string(), progress.criteria);
+            }
+        }
+        let unresolved = std::mem::take(&mut self.unresolved);
+        for (id, criteria) in unresolved {
+            if let Some(current) = runtime_advancement::find_runtime(&id) {
+                let mut progress = AdvancementProgress {
+                    criteria,
+                    requirements: AdvancementRequirement::default(),
+                };
+                progress.update(AdvancementRequirement::from_const(current.requirements));
+                self.progress.map.insert(current, progress);
+            } else {
+                self.unresolved.insert(id, criteria);
+            }
+        }
+        self.last_selected_tab = self
+            .last_selected_tab
+            .and_then(|tab| runtime_advancement::find(&tab.id.to_string()));
+        for advancement in self.progress.map.keys().copied().collect::<Vec<_>>() {
+            self.progress_changed.insert(advancement);
+            self.mark_for_visibility_update(advancement);
+        }
+        for root in runtime_advancement::roots() {
+            self.roots_to_update.insert(root);
+        }
+        self.is_first_packet = true;
     }
 
     fn update_tree_visibility(
         &mut self,
-        root: &AdvancementNode,
+        root: &'static Advancement,
         added: &mut Vec<&'static Advancement>,
         removed: &mut Vec<Identifier>,
     ) {
@@ -354,11 +419,10 @@ impl PlayerAdvancement {
             &mut |player_advancement, node| {
                 player_advancement
                     .progress
-                    .get_mut_or_start_progress(node.value)
+                    .get_mut_or_start_progress(node)
                     .is_done()
             },
-            &mut move |player_advancement, node, should_be_visible| {
-                let advancement = node.value;
+            &mut move |player_advancement, advancement, should_be_visible| {
                 if should_be_visible {
                     if player_advancement.visible.insert(advancement) {
                         added.push(advancement);
@@ -375,6 +439,7 @@ impl PlayerAdvancement {
 
     /// Flushes any pending advancement state down to the client.
     pub fn flush_dirty(&mut self, player: &Player, show_advancement: bool) {
+        self.sync_runtime();
         if self.is_first_packet
             || !self.roots_to_update.is_empty()
             || !self.progress_changed.is_empty()
@@ -436,6 +501,7 @@ impl PlayerAdvancement {
         advancement: &'static Advancement,
         criterion: &str,
     ) -> AdvancementAward {
+        self.sync_runtime();
         let mut result = AdvancementAward::default();
         let progress = self.progress.get_mut_or_start_progress(advancement);
         let was_done = progress.is_done();
@@ -550,10 +616,14 @@ impl Serialize for PlayerAdvancement {
             .filter(|(_key, value)| value.has_progress())
             .map(|(&key, val)| (key, val))
             .collect();
-        let mut map = serializer.serialize_map(Some(filtered_map.len()))?;
+        let mut map =
+            serializer.serialize_map(Some(filtered_map.len() + self.unresolved.len()))?;
 
         for (advancement, progress) in &filtered_map {
             map.serialize_entry(&advancement.id, &progress.criteria)?;
+        }
+        for (id, criteria) in &self.unresolved {
+            map.serialize_entry(id, criteria)?;
         }
         map.end()
     }

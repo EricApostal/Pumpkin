@@ -1,0 +1,56 @@
+package pumpkin:plugin@0.2.0;
+
+/// Per entity flags and overrides, and the opt-in for item entity updates. They give plugins what
+/// gameplay mods do with small hooks in the game: fire immunity, no landing bounce, a hitbox of
+/// their own, mobs that ignore an actor. Nothing costs anything until a plugin sets one. Needs
+/// the `entity-flags` permission.
+interface entity-flags {
+    use %world.{entity};
+    use player.{player};
+    use common.{entity-pose};
+
+    /// Sets a flag of an entity. The keys:
+    /// - `fire-immune`: no fire or lava damage and no burning.
+    /// - `no-fall-bounce`: slime blocks and beds do not bounce the entity after a fall.
+    /// - `ignore-riders-hit`: projectiles pass through the entities that ride this entity. This is
+    ///   the opposite of vanilla, which hits riders, so most plugins want the next flag instead.
+    /// - `projectiles-hit-riders`: projectiles fired by a rider of this entity (or a rider of a
+    ///   vehicle stack on it) can hit the other riders. Vanilla skips riders that share the
+    ///   shooter's vehicle; this is what contraptions need.
+    /// - `ignore-vehicle-box`: mobs riding this entity attack from their own box, not from a box
+    ///   that includes this vehicle.
+    /// - `fluid-movement-events`: fires `entity-fluid-movement-event` after the entity moved in
+    ///   water or lava.
+    /// - `ignored-by-mobs`: mobs never pick the entity as a target (for fake players).
+    /// Fails for an unknown key.
+    set-flag: func(entity: borrow<entity>, key: string, value: bool) -> result<_, string>;
+
+    /// Reads a flag of an entity. Fails for an unknown key.
+    get-flag: func(entity: borrow<entity>, key: string) -> result<bool, string>;
+
+    /// Like `set-flag` for a player, a fake player included.
+    set-player-flag: func(player: borrow<player>, key: string, value: bool) -> result<_, string>;
+
+    /// Like `get-flag` for a player.
+    get-player-flag: func(player: borrow<player>, key: string) -> result<bool, string>;
+
+    /// Replaces the width and height of the entity in every pose (the eye height scales with the
+    /// height), none goes back to the normal dimensions. It lasts until cleared, pose changes keep
+    /// it, and `entity-size-event` can still change the result. Bedrock clients get the size, Java
+    /// clients keep their own idea of the box. Fails for a size that is not positive.
+    set-size-override: func(entity: borrow<entity>, size: option<tuple<f32, f32>>) -> result<_, string>;
+
+    /// Sets how far the box that picks up items reaches around the bounding box of a player, on
+    /// the x, y and z axis (vanilla: `1.0, 0.5, 1.0`). None goes back to vanilla.
+    set-pickup-box-override: func(player: borrow<player>, reach: option<tuple<f64, f64, f64>>) -> result<_, string>;
+
+    /// Forces the pose of an entity. Every pose change of the entity (a player's own sneaking
+    /// or swimming included) ends up as this pose until cleared, none releases the entity back to
+    /// the standing pose. The pose change event still fires and can cancel a change.
+    set-pose-override: func(entity: borrow<entity>, pose: option<entity-pose>) -> result<_, string>;
+
+    /// Makes the item entities of an item, like `minecraft:stick`, fire `entity-item-update-event`
+    /// every `interval` ticks, 0 stops it. Applies to every plugin that listens to the event.
+    /// Returns false when no item has the key.
+    set-item-entity-ticking: func(item-key: string, interval: u32) -> bool;
+}

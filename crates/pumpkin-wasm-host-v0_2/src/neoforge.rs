@@ -8,6 +8,7 @@ use pumpkin_core::net::neoforge::{
         RegistryDecl,
     },
     payloads::{Flow, Phase},
+    play_sync, recipe_sync,
 };
 use pumpkin_core::plugin::permissions;
 use pumpkin_wasm_host_common::state::PluginHostState;
@@ -111,7 +112,44 @@ impl Host for PluginHostState {
 
     fn withdraw(&mut self) -> wasmtime::Result<()> {
         declaration::withdraw(&owner(self));
+        recipe_sync::withdraw(&owner(self));
         Ok(())
+    }
+
+    fn declare_synced_recipe_types(
+        &mut self,
+        types: Vec<String>,
+    ) -> wasmtime::Result<Result<(), String>> {
+        if !self.permissions.iter().any(|p| p == permissions::NEOFORGE) {
+            return Ok(Err(format!(
+                "declaring NeoForge content needs the '{}' permission",
+                permissions::NEOFORGE
+            )));
+        }
+        Ok(recipe_sync::declare_synced_types(&owner(self), &types))
+    }
+
+    fn update_config_file(
+        &mut self,
+        mod_id: String,
+        file_name: String,
+        content: Vec<u8>,
+    ) -> wasmtime::Result<Result<(), String>> {
+        if !self.permissions.iter().any(|p| p == permissions::NEOFORGE) {
+            return Ok(Err(format!(
+                "updating NeoForge config files needs the '{}' permission",
+                permissions::NEOFORGE
+            )));
+        }
+        if let Err(message) =
+            declaration::update_config_file(&owner(self), &mod_id, &file_name, content.clone())
+        {
+            return Ok(Err(message));
+        }
+        if let Some(server) = self.server.as_ref() {
+            play_sync::broadcast_config_file(server, &file_name, &content);
+        }
+        Ok(Ok(()))
     }
 
     fn is_neoforge_player(&mut self, player_uuid: String) -> wasmtime::Result<bool> {

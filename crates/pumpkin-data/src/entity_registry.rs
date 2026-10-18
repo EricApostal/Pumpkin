@@ -84,6 +84,11 @@ pub struct PluginEntityDefinition {
     pub pickable: bool,
     /// Whether other entities collide with it, like with a boat, vanilla `canBeCollidedWith`.
     pub collidable: bool,
+    /// Whether other entities push it away when they overlap (vanilla `isPushable`).
+    pub pushable: bool,
+    /// Whether projectiles fly through the riders of this entity instead of hitting them.
+    /// Kept for compatibility; the `projectiles-hit-riders` entity flag is the vanilla-style one.
+    pub ignore_riders_hit: bool,
     /// The synced data (the entity metadata entries, without the 0xFF end marker) of a new entity.
     pub default_synced_data: Vec<u8>,
     /// The channel of the custom payload the server sends right after the add entity packet to
@@ -318,6 +323,8 @@ mod tests {
             saveable: true,
             pickable: true,
             collidable: false,
+            pushable: false,
+            ignore_riders_hit: false,
             default_synced_data: vec![],
             spawn_data_channel: None,
         }

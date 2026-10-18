@@ -4,7 +4,6 @@ use std::borrow::Cow;
 
 use crate::codec::var_int::VarInt;
 use crate::ser::{NetworkReadExt, NetworkWriteExt, ReadingError, WritingError};
-use pumpkin_data::Enchantment;
 use pumpkin_data::attributes::Attributes;
 use pumpkin_data::data_component::DataComponent;
 use pumpkin_data::data_component_impl::*;
@@ -288,7 +287,7 @@ impl DataComponentCodec<Self> for EnchantmentsImpl {
             let id = seq.get_var_int()?.0 as u8;
             let level = seq.get_var_int()?.0;
             enc.push((
-                Enchantment::from_id(id).ok_or(ReadingError::Message(
+                pumpkin_data::enchantment_registry::enchantment_from_id(id).ok_or(ReadingError::Message(
                     "EnchantmentsImpl Enchantment VarInt Incorrect!".into(),
                 ))?,
                 level,
@@ -880,7 +879,7 @@ impl DataComponentCodec<Self> for StoredEnchantmentsImpl {
             let id = seq.get_var_int()?.0 as u8;
             let level = seq.get_var_int()?.0;
             stored_enchantments.push((
-                Enchantment::from_id(id).ok_or(ReadingError::Message(
+                pumpkin_data::enchantment_registry::enchantment_from_id(id).ok_or(ReadingError::Message(
                     "StoredEnchantmentsImpl Enchantment VarInt Incorrect!".into(),
                 ))?,
                 level,

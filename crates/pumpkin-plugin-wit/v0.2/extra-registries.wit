@@ -1,0 +1,119 @@
+package pumpkin:plugin@0.2.0;
+
+/// Sound events, particle types, mob effects, map decoration types, datapack registries and
+/// plugin owned registries.
+///
+/// All of them are append only and close when the server starts accepting connections. An entry
+/// registered as the n-th gets the id `vanilla count + n` in registries clients synchronise
+/// (sound events, particle types, mob effects, map decoration types): NeoForge clients get the
+/// ids through the handshake without a `neoforge` declaration, other clients do not know the
+/// entries. Needs the `registry.extra` permission.
+interface extra-registries {
+  use attributes.{modifier-operation};
+
+  /// A sound event to add to the `minecraft:sound_event` registry.
+  record sound-definition {
+    /// Full resource location, `namespace:path`. The `minecraft` namespace is reserved.
+    key: string,
+    /// The distance the sound is heard at, none for the usual range of its volume.
+    fixed-range: option<f32>,
+  }
+
+  /// Registers a sound event and returns its id. Play it with `player.play-custom-sound` and
+  /// `world.play-custom-sound` by its key, a registered fixed range is applied.
+  register-sound: func(definition: sound-definition) -> result<u32, string>;
+
+  /// Returns the id of a sound event by key, vanilla (`minecraft:` prefix optional) or plugin.
+  get-sound-id: func(key: string) -> option<u32>;
+
+  /// A particle type to add to the `minecraft:particle_type` registry.
+  record particle-definition {
+    key: string,
+    /// Whether the particle ignores the particle limit of the client.
+    override-limiter: bool,
+    /// How `spawn-plugin-particle` options are encoded: `none` (no options), `bytes` (the
+    /// options are written as given, in the format the mod's particle codec reads), `color`
+    /// (an ARGB `s32`) or `block-state` (a block state id as var int). The host checks the
+    /// size of `none`, `color` and `block-state` options.
+    options-format: string,
+  }
+
+  /// Registers a particle type and returns its id. Spawn it with `world.spawn-plugin-particle`,
+  /// which sends it to NeoForge clients only.
+  register-particle: func(definition: particle-definition) -> result<u32, string>;
+
+  /// Returns the id of a particle type by key, vanilla (`minecraft:` prefix optional) or plugin.
+  get-particle-id: func(key: string) -> option<u32>;
+
+  enum mob-effect-category {
+    beneficial,
+    harmful,
+    neutral,
+  }
+
+  /// An attribute modifier a mob effect applies, scaled by the amplifier.
+  record mob-effect-modifier {
+    /// The attribute, for example `minecraft:movement_speed`.
+    attribute: string,
+    /// The modifier id, `namespace:path`.
+    id: string,
+    amount: f64,
+    operation: modifier-operation,
+  }
+
+  /// A mob effect to add to the `minecraft:mob_effect` registry.
+  record mob-effect-definition {
+    key: string,
+    category: mob-effect-category,
+    /// The particle colour, RGB.
+    color: u32,
+    modifiers: list<mob-effect-modifier>,
+  }
+
+  /// Registers a mob effect and returns its id. The translation key is
+  /// `effect.<namespace>.<path>`. Tick, applied and removed hooks are not available.
+  register-mob-effect: func(definition: mob-effect-definition) -> result<u32, string>;
+
+  /// Returns the id of a mob effect by key, vanilla (`minecraft:` prefix optional) or plugin.
+  get-mob-effect-id: func(key: string) -> option<u32>;
+
+  /// A map decoration type to add to the `minecraft:map_decoration_type` registry.
+  record map-decoration-definition {
+    key: string,
+    /// The texture asset name, a resource location path in the `map/decorations` atlas.
+    asset-name: string,
+    show-on-item-frame: bool,
+    /// The colour of the decoration on the map item, `-1` for none.
+    map-color: s32,
+    exploration-map-element: bool,
+    track-count: bool,
+  }
+
+  /// Registers a map decoration type and returns its id.
+  register-map-decoration-type: func(definition: map-decoration-definition) -> result<u32, string>;
+
+  /// Returns the id of a map decoration type by key, vanilla (`minecraft:` prefix optional) or plugin.
+  get-map-decoration-id: func(key: string) -> option<u32>;
+
+  /// Declares a datapack registry, for example `minecraft:enchantment` to add entries to a
+  /// vanilla one or `mymod:thing` for a registry of the mod. `kind` is a free label. Declaring
+  /// it again with the same kind is fine.
+  register-datapack-registry: func(key: string, kind: string) -> result<_, string>;
+
+  /// Adds an entry to a declared datapack registry. NeoForge clients get it with the registry
+  /// data (a registry the vanilla data does not have is sent as an extra registry), other
+  /// clients do not. `nbt` is the entry as network NBT (a nameless compound), none for an entry
+  /// whose data the client has. The same entry again is fine, another content is an error.
+  add-datapack-entry: func(registry: string, id: string, nbt: option<list<u8>>) -> result<_, string>;
+
+  /// Declares a registry the plugin owns (`create:fan_processing_type` style) that is synced
+  /// to NeoForge clients with all its entries in id order. The `minecraft` namespace is
+  /// reserved.
+  register-synced-registry: func(key: string) -> result<_, string>;
+
+  /// Adds an entry to a plugin owned registry and returns its id (its index).
+  add-synced-registry-entry: func(registry: string, entry: string) -> result<u32, string>;
+
+  /// Returns the id of an entry of a plugin owned registry.
+  get-synced-registry-entry-id: func(registry: string, entry: string) -> option<u32>;
+}

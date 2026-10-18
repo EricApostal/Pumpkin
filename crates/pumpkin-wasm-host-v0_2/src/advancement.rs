@@ -8,12 +8,7 @@ use pumpkin_wasm_host_common::state::PluginHostState;
 
 #[must_use]
 pub fn find_advancement(id: &str) -> Option<&'static Advancement> {
-    Advancement::from_name(id)
-        .or_else(|| Advancement::from_minecraft_name(id))
-        .or_else(|| {
-            id.strip_prefix("minecraft:")
-                .and_then(Advancement::from_name)
-        })
+    pumpkin_core::data::runtime_advancement::find(id)
 }
 
 #[must_use]
@@ -57,4 +52,22 @@ pub fn to_wasm_advancement_info(
             .collect(),
         display,
     })
+}
+
+impl crate::pumpkin::plugin::advancement::Host for PluginHostState {
+    fn register_criterion_trigger(&mut self, key: String) -> wasmtime::Result<Result<(), String>> {
+        Ok(pumpkin_core::data::runtime_advancement::register_trigger(&key))
+    }
+
+    fn register_advancement(
+        &mut self,
+        id: String,
+        json: String,
+    ) -> wasmtime::Result<Result<(), String>> {
+        Ok(pumpkin_core::data::runtime_advancement::add_plugin_advancement(&id, &json))
+    }
+
+    fn unregister_advancement(&mut self, id: String) -> wasmtime::Result<bool> {
+        Ok(pumpkin_core::data::runtime_advancement::remove_plugin_advancement(&id))
+    }
 }

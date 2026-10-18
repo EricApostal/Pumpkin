@@ -38,4 +38,21 @@ interface advancement {
         awarded-criteria: list<string>,
         remaining-criteria: list<string>,
     }
+
+    /// Registers a criterion trigger id, `namespace:path`, that `player.trigger-criterion` can
+    /// fire. Advancements (datapack or `register-advancement`) may use any trigger id; ones no
+    /// plugin registered are accepted but never fire. Registration can happen at any time.
+    register-criterion-trigger: func(key: string) -> result<_, string>;
+
+    /// Adds or replaces an advancement from JSON in the datapack advancement format (parent,
+    /// display with icon, title, description, frame, show_toast, announce_to_chat, hidden and
+    /// background, criteria with `trigger` and `conditions`, requirements, rewards.experience).
+    /// `id` is `namespace:path`. The host only reads the `plugin_tag` string of a criterion's
+    /// conditions (see `player.trigger-criterion`), other conditions are kept as data and not
+    /// evaluated. Online players get the updated tree. Plugin advancements stay through datapack
+    /// reloads, and datapack ones are replaced by them with the same id.
+    register-advancement: func(id: string, json: string) -> result<_, string>;
+
+    /// Removes an advancement added with `register-advancement`. Returns false if there is none.
+    unregister-advancement: func(id: string) -> bool;
 }

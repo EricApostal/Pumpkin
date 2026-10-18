@@ -29,7 +29,9 @@ pub mod loot;
 pub mod map;
 mod neighbor_updater;
 mod plugin_block_entity;
+pub mod plugin_feature;
 pub mod plugin_redstone;
+pub mod plugin_shapes;
 pub mod portal;
 pub mod raid;
 pub mod random_sequences;
@@ -68,6 +70,7 @@ pub use explosion::{
 };
 use pumpkin_config::BasicConfiguration;
 use pumpkin_data::block_properties::{blocks_movement, is_air};
+use pumpkin_data::block_registry::ShapeKind;
 use pumpkin_data::block_rotation::{Mirror, Rotation};
 use pumpkin_data::data_component_impl::EquipmentSlot;
 use pumpkin_data::dimension::Dimension;
@@ -167,6 +170,8 @@ use scoreboard::Scoreboard;
 use time::LevelTime;
 
 pub mod block_placer;
+pub mod bulk;
+pub mod structure_place;
 pub mod border;
 pub mod bossbar;
 pub mod custom_bossbar;
@@ -281,6 +286,8 @@ pub struct World {
     unsent_block_changes: std::sync::Mutex<HashMap<BlockPos, BlockStateId>>,
     /// Redstone output that plugins stored for their custom blocks.
     pub plugin_redstone: plugin_redstone::PluginRedstoneOutputs,
+    /// Shapes and physics values that plugins gave for their custom blocks, by position.
+    pub plugin_block_cache: plugin_shapes::PluginBlockCache,
     /// Persisted vanilla POI storage for portal and villager lookups.
     pub portal_poi: std::sync::Mutex<portal::PortalPoiStorage>,
     /// Villager job sites and their current owners.
@@ -423,6 +430,7 @@ impl World {
             synced_block_event_queue: std::sync::Mutex::new(Vec::new()),
             unsent_block_changes: std::sync::Mutex::new(HashMap::new()),
             plugin_redstone: plugin_redstone::PluginRedstoneOutputs::default(),
+            plugin_block_cache: plugin_shapes::PluginBlockCache::default(),
             portal_poi: std::sync::Mutex::new(portal_poi),
             villager_poi: std::sync::Mutex::new(villager_poi::VillagerPoiStorage::default()),
             raids: std::sync::Mutex::new(raid::Raids::default()),
@@ -1380,7 +1388,8 @@ impl World {
         let packet = CSoundEffect::new(
             pumpkin_protocol::IdOr::Value(pumpkin_protocol::SoundEvent {
                 sound_name: sound_name.into(),
-                range: None,
+                range: pumpkin_data::extra_registry::plugin_sound_by_key(sound_name)
+                    .and_then(|sound| sound.fixed_range),
             }),
             category,
             position,
@@ -1575,7 +1584,14 @@ impl World {
             .map(|player| {
                 let entity = player.get_entity();
                 let pos = entity.pos.load();
-                let bb = entity.bounding_box.load().expand(1.0, 0.5, 1.0);
+                let reach = entity
+                    .plugin_flags
+                    .pickup_box_override()
+                    .unwrap_or_else(|| Vector3::new(1.0, 0.5, 1.0));
+                let bb = entity
+                    .bounding_box
+                    .load()
+                    .expand(reach.x, reach.y, reach.z);
                 let chunk_pos = Vector2::new(
                     get_section_cord(pos.x.floor() as i32),
                     get_section_cord(pos.z.floor() as i32),
@@ -2412,6 +2428,16 @@ impl World {
                         collisions.push(shape);
                     }
                 }
+            } else if let Some(shapes) =
+                self.dynamic_block_shapes(&pos, state, ShapeKind::Collision)
+            {
+                for shape in shapes.iter() {
+                    let shape = shape.at_pos(pos);
+                    if shape.intersects(&bounding_box) {
+                        collided = true;
+                        collisions.push(shape);
+                    }
+                }
             } else {
                 for shape in state.get_block_collision_shapes_at(&pos) {
                     let shape = shape.at_pos(pos);
@@ -2436,7 +2462,12 @@ impl World {
 
         for pos in BlockPos::iterate(min, max) {
             let state = self.get_block_state(&pos);
-            let collided = Self::check_collision(&bounding_box, pos, state, false, |_| ());
+            let collided = match self.dynamic_block_shapes(&pos, state, ShapeKind::Collision) {
+                Some(shapes) => shapes
+                    .iter()
+                    .any(|shape| shape.at_pos(pos).intersects(&bounding_box)),
+                None => Self::check_collision(&bounding_box, pos, state, false, |_| ()),
+            };
 
             if collided {
                 return false;
@@ -2450,10 +2481,13 @@ impl World {
     /// or `f64::NEG_INFINITY` if no valid surface exists.
     pub fn get_dismount_height(&self, pos: &BlockPos) -> f64 {
         let state = self.get_block_state(pos);
-        let max_y = state
-            .get_block_collision_shapes_at(pos)
-            .map(|s| s.max.y)
-            .fold(f64::NEG_INFINITY, f64::max);
+        let max_y = match self.dynamic_block_shapes(pos, state, ShapeKind::Collision) {
+            Some(shapes) => shapes.iter().map(|s| s.max.y).fold(f64::NEG_INFINITY, f64::max),
+            None => state
+                .get_block_collision_shapes_at(pos)
+                .map(|s| s.max.y)
+                .fold(f64::NEG_INFINITY, f64::max),
+        };
         if max_y != f64::NEG_INFINITY {
             return max_y;
         }
@@ -3281,7 +3315,7 @@ impl World {
             client
                 .send_packet(&pumpkin_protocol::java::client::play::CCustomPayload::new(
                     crate::net::neoforge::channels::RECIPE_CONTENT,
-                    &crate::net::neoforge::channels::EMPTY_RECIPE_CONTENT,
+                    &crate::net::neoforge::recipe_sync::recipe_content(&server.recipe_manager),
                 ))
                 .await;
         }
@@ -3751,6 +3785,14 @@ impl World {
             if let Ok(data) = java_client.serialize_packet(&add_packet) {
                 java_client.send_packet_now(data).await;
             }
+        }
+        // Datapack dependent data went to the player.
+        {
+            let mut synced = crate::plugin::api::events::world::DatapackSyncEvent::new(
+                player.clone(),
+                false,
+            );
+            server.plugin_manager.fire(server, &mut synced).await;
         }
         let msg_comp = TextComponent::translate_cross(
             translation::java::MULTIPLAYER_PLAYER_JOINED,
@@ -5236,7 +5278,9 @@ impl World {
                     .insert(*position, block_state_id);
             }
 
-            if flags.contains(BlockFlags::NOTIFY_NEIGHBORS) {
+            if flags.contains(BlockFlags::NOTIFY_NEIGHBORS)
+                && !flags.contains(BlockFlags::DEFER_NEIGHBOR_UPDATES)
+            {
                 self.update_neighbors_at(position, old_block, None);
                 if crate::block::blocks::dynamic::has_analog_output(
                     new_block,
@@ -5246,7 +5290,11 @@ impl World {
                 }
             }
 
-            if !flags.intersects(BlockFlags::MOVED | BlockFlags::UPDATE_KNOWN_SHAPE) {
+            if !flags.intersects(
+                BlockFlags::MOVED
+                    | BlockFlags::UPDATE_KNOWN_SHAPE
+                    | BlockFlags::DEFER_NEIGHBOR_UPDATES,
+            ) {
                 let mut neighbour_update_flags = flags;
                 neighbour_update_flags.remove(BlockFlags::NOTIFY_NEIGHBORS);
                 neighbour_update_flags.remove(BlockFlags::SKIP_DROPS);
@@ -5289,9 +5337,11 @@ impl World {
 
         let old_state = replaced_block_state_id.to_state();
         let new_state = block_state_id.to_state();
-        if pumpkin_world::lighting::LightEngine::has_different_light_properties(
-            old_state, new_state,
-        ) {
+        if !flags.contains(BlockFlags::DEFER_NEIGHBOR_UPDATES)
+            && pumpkin_world::lighting::LightEngine::has_different_light_properties(
+                old_state, new_state,
+            )
+        {
             self.level
                 .light_engine
                 .update_lighting_at(&self.level, *position);
@@ -5305,6 +5355,17 @@ impl World {
         position: &BlockPos,
         cause: Option<&Arc<Player>>,
         flags: BlockFlags,
+    ) -> Option<BlockStateId> {
+        self.break_block_with_effects(position, cause, flags, true)
+    }
+
+    /// `break_block`, with the break particles and sound optional.
+    pub fn break_block_with_effects(
+        self: &Arc<Self>,
+        position: &BlockPos,
+        cause: Option<&Arc<Player>>,
+        flags: BlockFlags,
+        with_particles: bool,
     ) -> Option<BlockStateId> {
         if let Some(player) = cause
             && self.is_in_spawn_protection(player, position)
@@ -5346,6 +5407,18 @@ impl World {
             return None;
         }
 
+        if let Some(player) = cause
+            && !crate::block::blocks::dynamic::player_will_destroy(
+                self,
+                position,
+                broken_block,
+                broken_block_state,
+                player,
+            )
+        {
+            return None;
+        }
+
         if event.drop {
             flags.remove(BlockFlags::SKIP_DROPS);
         } else {
@@ -5375,7 +5448,8 @@ impl World {
 
         let broken_state_id = self.set_block_state(position, new_state_id, flags);
         let broken_block = Block::from_state_id(broken_state_id);
-        if !broken_block.is_air()
+        if with_particles
+            && !broken_block.is_air()
             && broken_state_id != new_state_id
             && broken_block != &Block::FIRE
             && broken_block != &Block::SOUL_FIRE
@@ -6537,9 +6611,19 @@ impl World {
         from: Vector3<f64>,
         to: Vector3<f64>,
     ) -> Option<(BlockDirection, Vector3<f64>)> {
+        Self::clip_shapes(state.get_block_outline_shapes_at(block_pos), block_pos, from, to)
+    }
+
+    /// Clips the segment against block local `shapes` of the block at `block_pos`.
+    fn clip_shapes(
+        shapes: impl Iterator<Item = BoundingBox>,
+        block_pos: &BlockPos,
+        from: Vector3<f64>,
+        to: Vector3<f64>,
+    ) -> Option<(BlockDirection, Vector3<f64>)> {
         let mut closest_hit: Option<(f64, BlockDirection, Vector3<f64>)> = None;
 
-        for shape in state.get_block_outline_shapes_at(block_pos) {
+        for shape in shapes {
             let world_min = shape.min.add(&block_pos.0.to_f64());
             let world_max = shape.max.add(&block_pos.0.to_f64());
 
@@ -6562,7 +6646,11 @@ impl World {
         from: Vector3<f64>,
         to: Vector3<f64>,
     ) -> Option<(BlockDirection, Vector3<f64>)> {
-        Self::clip_outline_shapes(self.get_block_state(block_pos), block_pos, from, to)
+        let state = self.get_block_state(block_pos);
+        if let Some(shapes) = self.dynamic_block_shapes(block_pos, state, ShapeKind::Selection) {
+            return Self::clip_shapes(shapes.iter().copied(), block_pos, from, to);
+        }
+        Self::clip_outline_shapes(state, block_pos, from, to)
     }
 
     fn ray_outline_check(
@@ -6575,7 +6663,10 @@ impl World {
             (true, Some(dir))
         } else {
             let state = self.get_block_state(block_pos);
-            if state.outline_shapes.is_empty() {
+            let shapeless = self
+                .dynamic_block_shapes(block_pos, state, ShapeKind::Selection)
+                .map_or(state.outline_shapes.is_empty(), |shapes| shapes.is_empty());
+            if shapeless {
                 (true, None)
             } else {
                 (false, None)
@@ -7273,6 +7364,15 @@ impl BlockAccessor for World {
             .unwrap_or(Block::AIR.default_state.id);
         BlockState::from_id_with_block(id)
     }
+
+    fn dynamic_shapes(
+        &self,
+        position: &BlockPos,
+        state: &BlockState,
+        kind: ShapeKind,
+    ) -> Option<Arc<[BoundingBox]>> {
+        self.dynamic_block_shapes(position, state, kind)
+    }
 }
 
 fn bedrock_block_breaking_rate(speed: f32) -> i32 {
@@ -7324,6 +7424,17 @@ impl WorldPortalExt for WorldPortal {
         chunk_z: i32,
     ) {
         natural_spawner::spawn_mobs_for_chunk_generation(&self.0, cache, biome, chunk_x, chunk_z);
+    }
+
+    fn place_plugin_feature(
+        &self,
+        feature_key: &str,
+        chunk: &mut pumpkin_world::ProtoChunk,
+        step: usize,
+        seed: u64,
+        positions: &[BlockPos],
+    ) {
+        plugin_feature::place(&self.0, feature_key, chunk, step, seed, positions);
     }
 
     fn spawn_structure_entities(&self, entities: Vec<NbtCompound>) {

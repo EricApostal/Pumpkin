@@ -60,6 +60,8 @@ world plugin {
     import inventory;
     /// Provides sided access to the items of container blocks and plugin inventories.
     import item-handler;
+    /// Provides sided access to the fluids of tanks, cauldrons, fluid blocks and fluid containing items.
+    import fluid-handler;
     /// Provides datapack inspection and management.
     import datapack;
     /// Provides custom enchantment registration and management.
@@ -72,8 +74,12 @@ world plugin {
     import entity-registry;
     /// Provides custom fluid registration.
     import fluid-registry;
+    /// Provides additive world generation: features that plugins add to existing biomes.
+    import worldgen;
     /// Declares what the host-run NeoForge client handshake needs to know about the plugin.
     import neoforge;
+    /// Provides structure templates: loading, saving, and placing them with rotation and mirroring.
+    import structures;
     /// Provides placement rules (property values chosen when a player places) for custom blocks.
     import block-placement;
     /// Provides opt-in callbacks (events) for the hooks of custom blocks.
@@ -82,12 +88,16 @@ world plugin {
     import plugin-block-entity;
     /// Provides opt-in ticking of the entities of a type.
     import entity-ticking;
+    /// Flags and overrides of entities, and opt-in item entity updates.
+    import entity-flags;
     /// Provides custom menu types and menus of plugin defined types.
     import menus;
     /// Provides custom data component types and their values on item stacks.
     import custom-components;
     /// Provides damage types.
     import damage-types;
+    /// Provides sound events, particle types, mob effects, map decorations and datapack registries.
+    import extra-registries;
     /// Provides screen / window types for GUIs and containers.
     import screens;
     /// Provides player statistics categories and types.

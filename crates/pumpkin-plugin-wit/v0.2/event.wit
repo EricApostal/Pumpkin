@@ -6,10 +6,12 @@ interface event {
     use screens.{screen};
     use player.{player};
     use text.{text-component};
-    use %world.{%world, block-direction};
+    use %world.{%world, block-direction, chunk-buffer};
+    use worldgen.{generation-step};
     use java-packets.{serverbound-packet as java-serverbound-packet, clientbound-packet as java-clientbound-packet};
     use bedrock-packets.{serverbound-packet as bedrock-serverbound-packet, clientbound-packet as bedrock-clientbound-packet};
     use uuid.{uuid};
+    use block-registry.{block-box};
     use java-dialogs.{dialog};
 
     variant serverbound-packet {
@@ -1890,7 +1892,13 @@ interface event {
 
     record prepare-smithing-event-data {
         player: player,
-        result-item: option<string>
+        /// The computed result. Change it to replace the result (the same item keeps its count,
+        /// another item gets a count of 1) or set none to strip it.
+        result-item: option<string>,
+        /// The items in the template, base and addition slots (none for an empty slot).
+        template-item: option<string>,
+        base-item: option<string>,
+        addition-item: option<string>
     }
 
     record smith-item-event-data {
@@ -2176,6 +2184,32 @@ interface event {
         tick: s32
     }
 
+    /// Fired during the feature step of chunk generation for every plugin feature (see
+    /// `worldgen.register-feature`) that a placement rule selected for the chunk, once per
+    /// feature and rule, after the vanilla features of the rule's step.
+    ///
+    /// It fires on a chunk generation worker thread and blocks it until the handlers returned,
+    /// so keep handlers cheap and never wait for the main thread or other chunks. `chunk` is the
+    /// chunk being generated and the only thing that can be written: blocks outside
+    /// `chunk-x`/`chunk-z` are out of reach, so features that cross chunk borders must clip.
+    /// The coordinates of `chunk` are local (0 to 15), `positions` are absolute. Derive all
+    /// randomness from `seed` so the result is the same for every generation of the chunk.
+    /// Cancelling is not possible.
+    record plugin-feature-place-event-data {
+        target-world: %world,
+        chunk-x: s32,
+        chunk-z: s32,
+        /// The key the feature was registered with.
+        feature-key: string,
+        /// Seed of the placement rule for this chunk.
+        seed: u64,
+        step: generation-step,
+        /// The origins the rule chose: absolute positions inside the chunk, with the height
+        /// already drawn from the rule's height range.
+        positions: list<block-pos>,
+        chunk: chunk-buffer
+    }
+
     /// Fired when a living entity dies, before its loot and equipment drop. `drops` can be
     /// changed (stacks removed, added, edited), cancelling drops nothing.
     record living-drops-event-data {
@@ -2221,6 +2255,115 @@ interface event {
         width: f32,
         height: f32,
         eye-height: f32
+    }
+
+    /// Fired when a player riding a plugin entity changes their input. Informational, the plugin
+    /// moves the vehicle (`entity.move-entity`).
+    record plugin-vehicle-input-event-data {
+        vehicle-id: s32,
+        player: player,
+        /// 1 forward, -1 backward, 0 neither.
+        forward: f32,
+        /// 1 left, -1 right, 0 neither.
+        sideways: f32,
+        jump: bool,
+        sneak: bool,
+        sprint: bool
+    }
+
+    /// Fired after an entity with the `fluid-movement-events` flag moved in a fluid. `velocity` is
+    /// the velocity after the move and can be changed (a lava or water drag of your own).
+    record entity-fluid-movement-event-data {
+        entity-id: s32,
+        /// `minecraft:water` or `minecraft:lava`.
+        fluid: string,
+        velocity: position
+    }
+
+    /// Fired every tick a player keeps using an item. Informational.
+    record item-use-tick-event-data {
+        player: player,
+        /// A copy of the stack in use.
+        stack: item-stack,
+        /// Ticks left until the use is done.
+        remaining-ticks: s32
+    }
+
+    /// Fired when a player swings an arm. Cancelling it stops the swing and the click that follows.
+    record item-swing-event-data {
+        player: player,
+        hand: hand,
+        /// A copy of the item in that hand.
+        stack: item-stack,
+        cancelled: bool
+    }
+
+    /// What a handler does with a right click on a block, before the block and the item act.
+    enum item-use-first-result {
+        /// The click goes on.
+        pass,
+        /// The click is done, the player does not swing.
+        consume,
+        /// The click is done and the player swings.
+        success,
+    }
+
+    /// Fired when a player right clicks a block, before the block handles the click. Set `use-result`
+    /// to take the click away from the block and the item.
+    record item-use-first-event-data {
+        player: player,
+        hand: hand,
+        /// A copy of the item in that hand.
+        stack: item-stack,
+        block-pos: block-pos,
+        face: block-direction,
+        use-result: item-use-first-result
+    }
+
+    /// Fired when a player starts to break a block, before it is damaged. Cancelling it keeps the
+    /// player from attacking the block.
+    record can-attack-block-event-data {
+        player: player,
+        /// A copy of the item in the main hand.
+        stack: item-stack,
+        block-pos: block-pos,
+        cancelled: bool
+    }
+
+    /// Fired after an item entity ticked, for the items set with
+    /// `entity-flags.set-item-entity-ticking`. Informational.
+    record entity-item-update-event-data {
+        entity-id: s32,
+        /// A copy of the stack of the item entity.
+        stack: item-stack,
+        position: position,
+        age: s32
+    }
+
+    /// Fired when a fake player is about to place a block item on a clicked block. Cancelling it
+    /// stops the placement and lets the click pass.
+    record fake-player-place-check-event-data {
+        player: player,
+        /// A copy of the item to place.
+        stack: item-stack,
+        block-pos: block-pos,
+        face: block-direction,
+        /// Whether the clicked block can be replaced by the placed block.
+        clicked-replaceable: bool,
+        cancelled: bool
+    }
+
+    /// Fired when flowing fluid wants to spread sideways into a block, only while a plugin
+    /// listens. Cancelling it keeps the fluid from passing.
+    record fluid-can-pass-through-event-data {
+        target-world: %world,
+        /// The block the fluid flows from.
+        block-pos: block-pos,
+        /// The direction it flows to.
+        direction: block-direction,
+        /// The fluid, like `minecraft:water`.
+        fluid: string,
+        cancelled: bool
     }
 
     /// Fired every tick for every player, after the player ticked.
@@ -2419,6 +2562,242 @@ interface event {
         face: block-direction,
         /// The analog output, none to start with.
         output: option<u8>
+    }
+
+    /// Which shape of a block is asked for.
+    enum block-shape-kind {
+        /// What stops entities.
+        collision,
+        /// The outline and what a ray hits.
+        selection,
+        /// What blocks sight and light.
+        visual,
+    }
+
+    /// The shape of a custom block that set `dynamic-shape` in `block-callbacks` is asked for.
+    /// Change `shapes` in a blocking handler: boxes in block units (`0..1` is the block), at most
+    /// 64, none for no shape. It starts as the registered shape of the state. The answer is cached
+    /// per position until `world.invalidate-block-shape` or until the block changes.
+    record custom-block-shape-event-data {
+        target-world: %world,
+        pos: block-pos,
+        /// The key of the block.
+        block: string,
+        state-index: u16,
+        kind: block-shape-kind,
+        shapes: list<block-box>
+    }
+
+    /// What a use of a block gives back.
+    enum block-use-result {
+        /// Handled, the hand swings.
+        success,
+        /// Handled, nothing else runs.
+        consume,
+        /// Not handled, the held item may still be used.
+        pass,
+        /// Not handled, other actions still run.
+        fail,
+        /// Only for a use with an item: not handled, try the use without an item.
+        try-empty-hand,
+    }
+
+    /// A player right clicked a custom block that set `use-without-item` (`with-item` false, fired
+    /// for any click that reaches the block without the held item having handled it, `hand` is the
+    /// main hand) or `use-with-item` (`with-item` true, fired before the item is used or placed) in
+    /// `block-callbacks`. Set `result` in a blocking handler: `pass` to start with for a use without
+    /// item, `try-empty-hand` with one.
+    record custom-block-use-event-data {
+        target-world: %world,
+        pos: block-pos,
+        /// The key of the block.
+        block: string,
+        state-index: u16,
+        player: player,
+        hand: hand,
+        with-item: bool,
+        /// A copy of the item in hand (an empty stack for an empty hand).
+        item: item-stack,
+        /// The face that was clicked.
+        face: block-direction,
+        /// Where on the block the click hit, `0..1` on each axis.
+        cursor: tuple<f32, f32, f32>,
+        sneaking: bool,
+        %result: block-use-result
+    }
+
+    /// A player left clicked (started digging) a custom block that set `attack` in
+    /// `block-callbacks`. Informational.
+    record custom-block-attack-event-data {
+        target-world: %world,
+        pos: block-pos,
+        /// The key of the block.
+        block: string,
+        state-index: u16,
+        player: player
+    }
+
+    /// A player picks a custom block (middle click) that set `get-clone-item` in `block-callbacks`.
+    /// Set `item` in a blocking handler, none picks nothing. It starts as the item linked with the
+    /// block (none without one).
+    record custom-block-clone-item-event-data {
+        target-world: %world,
+        pos: block-pos,
+        /// The key of the block.
+        block: string,
+        state-index: u16,
+        player: player,
+        item: option<item-stack>
+    }
+
+    /// A player is about to break a custom block that set `player-will-destroy` in
+    /// `block-callbacks`. Set `cancelled` in a blocking handler to keep the block.
+    record custom-block-player-will-destroy-event-data {
+        target-world: %world,
+        pos: block-pos,
+        /// The key of the block.
+        block: string,
+        state-index: u16,
+        player: player,
+        cancelled: bool
+    }
+
+    /// The physics value that is asked for.
+    enum block-physics-kind {
+        /// The slipperiness, 0.6 for most blocks.
+        friction,
+        /// The speed factor of entities in or on the block, 1.0 normally.
+        speed-factor,
+        /// The jump factor of entities in or on the block, 1.0 normally.
+        jump-factor,
+    }
+
+    /// The friction, speed factor or jump factor of a custom block that set `get-friction`,
+    /// `get-speed-factor` or `get-jump-factor` in `block-callbacks` is asked for. Set `value` in a
+    /// blocking handler, it starts as the default of the block. Cached per position (until
+    /// `world.invalidate-block-shape` or until the block changes).
+    record custom-block-physics-event-data {
+        target-world: %world,
+        pos: block-pos,
+        /// The key of the block.
+        block: string,
+        state-index: u16,
+        kind: block-physics-kind,
+        value: f32
+    }
+
+    /// An entity landed on a custom block that set `on-landed-upon` in `block-callbacks`. Set
+    /// `damage-multiplier` in a blocking handler: 1 to start with, 0 for no fall damage.
+    record custom-block-landed-event-data {
+        target-world: %world,
+        pos: block-pos,
+        /// The key of the block.
+        block: string,
+        state-index: u16,
+        entity-id: s32,
+        fall-distance: f32,
+        damage-multiplier: f32
+    }
+
+    /// The yes or no question that is asked about a block.
+    enum block-condition {
+        /// Whether an entity, or an explosion, can destroy the block.
+        entity-destroy,
+        pathfindable-land,
+        pathfindable-water,
+        pathfindable-air,
+        /// Whether redstone wire connects to the block.
+        redstone-connect,
+    }
+
+    /// A custom block that set `can-entity-destroy`, `is-pathfindable` or `can-connect-redstone` in
+    /// `block-callbacks` is asked a question. Set `value` in a blocking handler, it starts as the
+    /// default answer. Fires often, handle it very quickly.
+    record custom-block-condition-event-data {
+        target-world: %world,
+        pos: block-pos,
+        /// The key of the block.
+        block: string,
+        state-index: u16,
+        condition: block-condition,
+        /// The key of the entity type for `entity-destroy`, none for an explosion.
+        entity-type: option<string>,
+        /// The direction from the wire to the block for `redstone-connect`.
+        direction: option<block-direction>,
+        value: bool
+    }
+
+    /// The sound type of a custom block that set `get-sound-type` in `block-callbacks` is asked for.
+    /// Set `sound-type` in a blocking handler to a vanilla sound type name, like `stone`. It starts
+    /// as the one the block was registered with.
+    record custom-block-sound-type-event-data {
+        target-world: %world,
+        pos: block-pos,
+        /// The key of the block.
+        block: string,
+        state-index: u16,
+        sound-type: string
+    }
+
+    /// How fast a custom block that set `get-fire-spread` in `block-callbacks` catches fire and
+    /// burns. Set the chances (0 to 255, like vanilla `setFlammable`) in a blocking handler, both 0
+    /// to start with, which means the block does not burn.
+    record custom-block-fire-spread-event-data {
+        target-world: %world,
+        pos: block-pos,
+        /// The key of the block.
+        block: string,
+        state-index: u16,
+        /// The chance that fire next to the block spreads to it.
+        spread-chance: u8,
+        /// The chance that the block burns away.
+        burn-chance: u8
+    }
+
+    /// Fired after the datapacks were reloaded and the recipes and tags replaced. Plugins that
+    /// build lookup tables from recipes (query them with the recipe manager) rebuild them here.
+    record datapack-reload-event-data {
+        /// Dynamic recipes loaded (datapack recipes and the ones plugins registered).
+        recipe-count: u32,
+        /// Runtime tags (plugin and datapack tags).
+        tag-count: u32
+    }
+
+    /// Fired after the tags changed (a datapack reload). Informational.
+    record tags-updated-event-data {
+        tag-count: u32
+    }
+
+    /// Fired when datapack dependent data (recipes, the NeoForge recipe content) was sent to a
+    /// player: when the player joins (`reload` false) and after a datapack reload (`reload` true).
+    /// Informational.
+    record datapack-sync-event-data {
+        player: player,
+        reload: bool
+    }
+
+    /// Fired for the loot table stacks of a broken block or a dead entity, before they drop.
+    /// `loot` can be changed (stacks removed, added, edited), cancelling drops nothing from the
+    /// loot table. The equipment of a dying entity is not in it, `living-drops-event` has it.
+    record loot-modify-event-data {
+        /// `block` or `entity`.
+        source: string,
+        loot-table: option<string>,
+        /// The key of the damage type that killed the entity.
+        damage-source: option<string>,
+        killer-uuid: option<uuid>,
+        killer-id: option<s32>,
+        /// The tool the loot was rolled with.
+        tool: option<item-stack>,
+        looting-level: u32,
+        block-pos: option<block-pos>,
+        /// The state id of the broken block.
+        block-state: option<u32>,
+        entity-id: option<s32>,
+        entity-type: option<string>,
+        position: position,
+        loot: list<item-stack>,
+        cancelled: bool
     }
 
     enum event-type {
@@ -2713,6 +3092,7 @@ interface event {
         block-entity-unload-event,
         block-entity-tick-event,
         world-tick-event,
+        plugin-feature-place-event,
         living-drops-event,
         living-equipment-change-event,
         living-breathe-event,
@@ -2720,9 +3100,18 @@ interface event {
         entity-size-event,
         player-tick-event,
         entity-tick-event,
+        plugin-vehicle-input-event,
         entity-entering-section-event,
         entity-start-tracking-event,
         entity-stop-tracking-event,
+        entity-fluid-movement-event,
+        item-use-tick-event,
+        item-swing-event,
+        item-use-first-event,
+        can-attack-block-event,
+        entity-item-update-event,
+        fake-player-place-check-event,
+        fluid-can-pass-through-event,
         custom-block-neighbor-update-event,
         custom-block-placed-event,
         custom-block-state-replaced-event,
@@ -2735,6 +3124,20 @@ interface event {
         custom-block-update-shape-event,
         custom-block-redstone-power-event,
         custom-block-comparator-output-event,
+        custom-block-shape-event,
+        custom-block-use-event,
+        custom-block-attack-event,
+        custom-block-clone-item-event,
+        custom-block-player-will-destroy-event,
+        custom-block-physics-event,
+        custom-block-landed-event,
+        custom-block-condition-event,
+        custom-block-sound-type-event,
+        custom-block-fire-spread-event,
+        datapack-reload-event,
+        tags-updated-event,
+        datapack-sync-event,
+        loot-modify-event,
     }
 
     variant event {
@@ -3029,6 +3432,7 @@ interface event {
         block-entity-unload-event(block-entity-unload-event-data),
         block-entity-tick-event(block-entity-tick-event-data),
         world-tick-event(world-tick-event-data),
+        plugin-feature-place-event(plugin-feature-place-event-data),
         living-drops-event(living-drops-event-data),
         living-equipment-change-event(living-equipment-change-event-data),
         living-breathe-event(living-breathe-event-data),
@@ -3036,9 +3440,18 @@ interface event {
         entity-size-event(entity-size-event-data),
         player-tick-event(player-tick-event-data),
         entity-tick-event(entity-tick-event-data),
+        plugin-vehicle-input-event(plugin-vehicle-input-event-data),
         entity-entering-section-event(entity-entering-section-event-data),
         entity-start-tracking-event(entity-tracking-event-data),
         entity-stop-tracking-event(entity-tracking-event-data),
+        entity-fluid-movement-event(entity-fluid-movement-event-data),
+        item-use-tick-event(item-use-tick-event-data),
+        item-swing-event(item-swing-event-data),
+        item-use-first-event(item-use-first-event-data),
+        can-attack-block-event(can-attack-block-event-data),
+        entity-item-update-event(entity-item-update-event-data),
+        fake-player-place-check-event(fake-player-place-check-event-data),
+        fluid-can-pass-through-event(fluid-can-pass-through-event-data),
         custom-block-neighbor-update-event(custom-block-neighbor-update-event-data),
         custom-block-placed-event(custom-block-placed-event-data),
         custom-block-state-replaced-event(custom-block-state-replaced-event-data),
@@ -3051,5 +3464,19 @@ interface event {
         custom-block-update-shape-event(custom-block-update-shape-event-data),
         custom-block-redstone-power-event(custom-block-redstone-power-event-data),
         custom-block-comparator-output-event(custom-block-comparator-output-event-data),
+        custom-block-shape-event(custom-block-shape-event-data),
+        custom-block-use-event(custom-block-use-event-data),
+        custom-block-attack-event(custom-block-attack-event-data),
+        custom-block-clone-item-event(custom-block-clone-item-event-data),
+        custom-block-player-will-destroy-event(custom-block-player-will-destroy-event-data),
+        custom-block-physics-event(custom-block-physics-event-data),
+        custom-block-landed-event(custom-block-landed-event-data),
+        custom-block-condition-event(custom-block-condition-event-data),
+        custom-block-sound-type-event(custom-block-sound-type-event-data),
+        custom-block-fire-spread-event(custom-block-fire-spread-event-data),
+        datapack-reload-event(datapack-reload-event-data),
+        tags-updated-event(tags-updated-event-data),
+        datapack-sync-event(datapack-sync-event-data),
+        loot-modify-event(loot-modify-event-data),
     }
 }

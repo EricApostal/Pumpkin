@@ -62,6 +62,33 @@ interface block-registry {
         boxes(list<block-box>),
     }
 
+    /// Shapes for the states that have all of `when`. Rules are checked in order, per shape the
+    /// first rule that matches the state and sets that shape wins, else the block's
+    /// `collision-shape` or `selection-shape` applies.
+    record shape-rule {
+        /// Property values a state needs, empty matches every state. Unknown properties and values
+        /// fail the registration.
+        when: list<property-value>,
+        /// The collision shape of matching states, none leaves it to the later rules.
+        collision-shape: option<block-shape>,
+        /// The selection shape of matching states, none leaves it to the later rules.
+        selection-shape: option<block-shape>,
+    }
+
+    /// How pistons treat a block.
+    enum piston-behavior {
+        /// Can be pushed and pulled.
+        normal,
+        /// Breaks when pushed.
+        destroy,
+        /// Cannot be pushed or pulled, and stops the push.
+        block,
+        /// Pistons ignore it.
+        ignore,
+        /// Can only be pushed.
+        push-only,
+    }
+
     enum connect-direction {
         north,
         south,
@@ -131,6 +158,12 @@ interface block-registry {
         collision-shape: block-shape,
         /// The shape of the selection outline and the one a ray hits.
         selection-shape: block-shape,
+        /// Shapes per state, up to 64 rules, evaluated in order on top of the two shapes above
+        /// (see `shape-rule`). With the `dynamic-shape` callback the plugin can also decide the
+        /// shape per position, see `block-callbacks`.
+        shape-rules: list<shape-rule>,
+        /// How pistons treat the block, `normal` for vanilla `PushReaction.NORMAL`.
+        piston-behavior: piston-behavior,
         /// Properties that follow the neighbours. At most one rule per property.
         connect-rules: list<connect-rule>,
         drops: block-drops,

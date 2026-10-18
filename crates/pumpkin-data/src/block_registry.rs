@@ -33,6 +33,7 @@ const MAX_PROPERTIES: usize = 32;
 const MAX_ENUM_VALUES: usize = 256;
 const MAX_BOXES: usize = 64;
 const MAX_PLACEMENT_RULES: usize = 64;
+const MAX_SHAPE_RULES: usize = 64;
 const MAX_LUMINANCE: u8 = 15;
 /// Opacity of a block that occludes light, see `BlockState::opacity`.
 const OPAQUE_LIGHT_BLOCK: u8 = 15;
@@ -130,6 +131,39 @@ pub enum ShapeDefinition {
     FullCube,
     /// Boxes `[min x, min y, min z, max x, max y, max z]` in block units.
     Boxes(Vec<[f64; 6]>),
+}
+
+/// Which shape of a block is asked for.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ShapeKind {
+    /// What stops entities.
+    Collision,
+    /// The outline and what a ray hits.
+    Selection,
+    /// What blocks sight and light, the collision shape unless a plugin says otherwise.
+    Visual,
+}
+
+/// Shapes for the states that have all of the listed property values.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ShapeRule {
+    /// Property and value pairs a state needs, empty matches every state.
+    pub when: Vec<(String, String)>,
+    /// The collision shape of matching states, `None` leaves it to the later rules.
+    pub collision: Option<ShapeDefinition>,
+    /// The selection shape of matching states, `None` leaves it to the later rules.
+    pub selection: Option<ShapeDefinition>,
+}
+
+impl ShapeRule {
+    /// The shape this rule sets for `kind`, the visual shape follows the collision one.
+    #[must_use]
+    pub const fn shape(&self, kind: ShapeKind) -> Option<&ShapeDefinition> {
+        match kind {
+            ShapeKind::Collision | ShapeKind::Visual => self.collision.as_ref(),
+            ShapeKind::Selection => self.selection.as_ref(),
+        }
+    }
 }
 
 /// What a neighbour has to be for a connect rule to set its property.
@@ -319,13 +353,44 @@ impl BlockCallbacks {
     pub const STRONG_POWER: Self = Self(1 << 13);
     /// Comparators read the block, from the stored output or by asking the plugin.
     pub const COMPARATOR_OUTPUT: Self = Self(1 << 14);
+    /// The shape depends on more than the state: the plugin is asked for it and the answer is
+    /// cached per position until it is invalidated.
+    pub const DYNAMIC_SHAPE: Self = Self(1 << 15);
+    /// A player right clicks the block with an empty hand.
+    pub const USE_WITHOUT_ITEM: Self = Self(1 << 16);
+    /// A player right clicks the block with an item.
+    pub const USE_WITH_ITEM: Self = Self(1 << 17);
+    /// A player left clicks (starts digging) the block.
+    pub const ATTACK: Self = Self(1 << 18);
+    /// The plugin gives the item a player gets when picking the block.
+    pub const GET_CLONE_ITEM: Self = Self(1 << 19);
+    /// A player is about to break the block, the plugin can stop it.
+    pub const PLAYER_WILL_DESTROY: Self = Self(1 << 20);
+    /// The plugin overrides the friction (slipperiness) of the block.
+    pub const GET_FRICTION: Self = Self(1 << 21);
+    /// The plugin overrides the speed factor of the block.
+    pub const GET_SPEED_FACTOR: Self = Self(1 << 22);
+    /// The plugin overrides the jump factor of the block.
+    pub const GET_JUMP_FACTOR: Self = Self(1 << 23);
+    /// The plugin decides whether an entity (explosion, wither) can destroy the block.
+    pub const CAN_ENTITY_DESTROY: Self = Self(1 << 24);
+    /// An entity lands on the block after a fall, the plugin sets the fall damage factor.
+    pub const ON_LANDED_UPON: Self = Self(1 << 25);
+    /// The plugin overrides the sound type of the block.
+    pub const GET_SOUND_TYPE: Self = Self(1 << 26);
+    /// The plugin decides whether the block can be pathfound through.
+    pub const IS_PATHFINDABLE: Self = Self(1 << 27);
+    /// The plugin decides whether redstone wire connects to the block.
+    pub const CAN_CONNECT_REDSTONE: Self = Self(1 << 28);
+    /// The plugin sets how fast the block catches fire and burns.
+    pub const GET_FIRE_SPREAD: Self = Self(1 << 29);
 
     /// The callbacks that make a block a redstone signal source.
     pub const REDSTONE_SOURCE: Self =
         Self(Self::REDSTONE_OUTPUT.0 | Self::WEAK_POWER.0 | Self::STRONG_POWER.0);
 
     /// Every callback there is.
-    pub const ALL: Self = Self((1 << 15) - 1);
+    pub const ALL: Self = Self((1 << 30) - 1);
 
     /// `None` when `bits` has a bit that is not a callback.
     #[must_use]
@@ -396,6 +461,11 @@ pub struct BlockRegistration {
     pub map_color: u8,
     pub collision_shape: ShapeDefinition,
     pub selection_shape: ShapeDefinition,
+    /// Shapes per state, checked in order for each shape. The first rule that matches the state
+    /// and sets the shape wins, else the block's own shape applies.
+    pub shape_rules: Vec<ShapeRule>,
+    /// How pistons treat the block.
+    pub piston_behavior: PistonBehavior,
     pub connect_rules: Vec<ConnectRule>,
     pub drops: BlockDrops,
     /// Block tags the block joins, `namespace:path`.
@@ -674,6 +744,30 @@ fn normalize(mut reg: BlockRegistration) -> Result<BlockRegistration, BlockRegis
     }
     reg.default_state = defaults;
 
+    if reg.shape_rules.len() > MAX_SHAPE_RULES {
+        return Err(invalid(format!("more than {MAX_SHAPE_RULES} shape rules")));
+    }
+    for rule in &mut reg.shape_rules {
+        for (name, value) in &rule.when {
+            let Some(property) = reg.properties.iter().find(|property| property.name == *name)
+            else {
+                return Err(invalid(format!("shape rule names unknown property '{name}'")));
+            };
+            if property.kind.value_index(value).is_none() {
+                return Err(invalid(format!(
+                    "'{value}' is not a value of property '{name}' in a shape rule"
+                )));
+            }
+        }
+        rule.when.sort();
+        if rule.when.windows(2).any(|pair| pair[0].0 == pair[1].0) {
+            return Err(invalid("a shape rule lists a property twice"));
+        }
+        for shape in [&rule.collision, &rule.selection].into_iter().flatten() {
+            check_shape(shape)?;
+        }
+    }
+
     for rule in &mut reg.connect_rules {
         let Some(property) = reg
             .properties
@@ -929,6 +1023,32 @@ impl DynamicBlockInfo {
             index = self.with_value(index, name, value)?;
         }
         Some(index)
+    }
+
+    /// Whether a state has all the property values of a shape rule.
+    #[must_use]
+    pub fn shape_rule_matches(&self, rule: &ShapeRule, state_index: u16) -> bool {
+        rule.when
+            .iter()
+            .all(|(name, value)| self.value(state_index, name) == Some(value.as_str()))
+    }
+
+    /// The registered shape of a state: the first rule that matches and sets the shape, else the
+    /// shape of the block. The visual shape is the collision shape.
+    #[must_use]
+    pub fn shape_definition(&self, state_index: u16, kind: ShapeKind) -> &ShapeDefinition {
+        self.registration
+            .shape_rules
+            .iter()
+            .filter_map(|rule| rule.shape(kind).map(|shape| (rule, shape)))
+            .find(|(rule, _)| self.shape_rule_matches(rule, state_index))
+            .map_or(
+                match kind {
+                    ShapeKind::Collision | ShapeKind::Visual => &self.registration.collision_shape,
+                    ShapeKind::Selection => &self.registration.selection_shape,
+                },
+                |(_, shape)| shape,
+            )
     }
 
     /// Whether `neighbour` makes the rule's property true.
@@ -1247,9 +1367,9 @@ fn side_flags(boxes: &[BoundingBox]) -> u8 {
     result
 }
 
-/// The `state_flags`, `side_flags` and `opacity` that every state of a block shares.
-fn derive_state_data(reg: &BlockRegistration) -> (u16, u8, u8) {
-    let collision = shape_boxes(&reg.collision_shape);
+/// The `state_flags`, `side_flags` and `opacity` of a state with this collision shape.
+fn derive_state_data(reg: &BlockRegistration, shape: &ShapeDefinition) -> (u16, u8, u8) {
+    let collision = shape_boxes(shape);
     let has_collision = !collision.is_empty();
     let full_cube = is_full_cube(&collision);
     let solid_render = reg.can_occlude && full_cube;
@@ -1358,25 +1478,47 @@ impl DynamicBlockRegistry {
         info: &DynamicBlockInfo,
     ) -> Result<&'static [BlockState], BlockRegistrationError> {
         let reg = &info.registration;
-        let (state_flags, side_flags, opacity) = derive_state_data(reg);
-        let collision_shapes = self.shape_indices(&reg.collision_shape)?;
-        let outline_shapes = self.shape_indices(&reg.selection_shape)?;
+        // States mostly share their shapes, so work out each distinct pair once.
+        type Derived = (u16, u8, u8, &'static [u16], &'static [u16]);
+        let mut derived: Vec<(ShapeDefinition, ShapeDefinition, Derived)> = Vec::new();
 
-        let states: Vec<BlockState> = (0..info.state_count)
-            .map(|index| BlockState {
+        let mut states = Vec::with_capacity(usize::from(info.state_count));
+        for index in 0..info.state_count {
+            let collision = info.shape_definition(index, ShapeKind::Collision);
+            let selection = info.shape_definition(index, ShapeKind::Selection);
+            let known = derived
+                .iter()
+                .find(|(c, s, _)| c == collision && s == selection)
+                .map(|(_, _, data)| *data);
+            let (state_flags, side_flags, opacity, collision_shapes, outline_shapes) = match known {
+                Some(data) => data,
+                None => {
+                    let (state_flags, side_flags, opacity) = derive_state_data(reg, collision);
+                    let data = (
+                        state_flags,
+                        side_flags,
+                        opacity,
+                        self.shape_indices(collision)?,
+                        self.shape_indices(selection)?,
+                    );
+                    derived.push((collision.clone(), selection.clone(), data));
+                    data
+                }
+            };
+            states.push(BlockState {
                 id: BlockStateId::from_dynamic_raw(info.base_state_id + index),
                 state_flags,
                 side_flags,
                 instrument: NoteblockInstrument::Harp,
                 luminance: reg.luminance,
-                piston_behavior: PistonBehavior::Normal,
+                piston_behavior: reg.piston_behavior.clone(),
                 hardness: reg.hardness,
                 collision_shapes,
                 outline_shapes,
                 opacity,
                 block_entity_type: u16::MAX,
-            })
-            .collect();
+            });
+        }
         Ok(Box::leak(states.into_boxed_slice()))
     }
 
@@ -1892,6 +2034,8 @@ mod tests {
             map_color: 0,
             collision_shape: ShapeDefinition::FullCube,
             selection_shape: ShapeDefinition::FullCube,
+            shape_rules: Vec::new(),
+            piston_behavior: PistonBehavior::Normal,
             connect_rules: Vec::new(),
             drops: BlockDrops::SelfItem,
             tags: Vec::new(),
@@ -2664,7 +2808,7 @@ mod tests {
             registry.set_callbacks("test_callbacks:missing", callbacks),
             Err(BlockRegistrationError::UnknownBlock(_))
         ));
-        assert_eq!(BlockCallbacks::from_bits(1 << 15), None);
+        assert_eq!(BlockCallbacks::from_bits(1 << 30), None);
         assert!(BlockCallbacks::REDSTONE_SOURCE.intersects(BlockCallbacks::WEAK_POWER));
         assert!(!BlockCallbacks::REDSTONE_SOURCE.intersects(BlockCallbacks::COMPARATOR_OUTPUT));
         assert_eq!(
@@ -2749,5 +2893,132 @@ mod tests {
         // A 0..=15 integer next to four three-valued enums.
         assert_numbered_like_vanilla(&Block::REDSTONE_WIRE, "test_vanilla:wire");
         assert_numbered_like_vanilla(&Block::OAK_FENCE, "test_vanilla:fence");
+    }
+
+    fn ruled_block(key: &str) -> BlockRegistration {
+        BlockRegistration {
+            properties: vec![
+                bool_property("open"),
+                PropertyDefinition {
+                    name: "facing".to_string(),
+                    kind: PropertyKind::Enum(vec!["north".to_string(), "south".to_string()]),
+                },
+            ],
+            collision_shape: ShapeDefinition::FullCube,
+            selection_shape: ShapeDefinition::Boxes(vec![[0.0, 0.0, 0.0, 1.0, 0.5, 1.0]]),
+            shape_rules: vec![
+                ShapeRule {
+                    when: vec![("open".to_string(), "true".to_string())],
+                    collision: Some(ShapeDefinition::Empty),
+                    selection: None,
+                },
+                ShapeRule {
+                    when: vec![
+                        ("facing".to_string(), "south".to_string()),
+                        ("open".to_string(), "false".to_string()),
+                    ],
+                    collision: Some(ShapeDefinition::Boxes(vec![[0.0, 0.0, 0.5, 1.0, 1.0, 1.0]])),
+                    selection: Some(ShapeDefinition::FullCube),
+                },
+                ShapeRule {
+                    when: Vec::new(),
+                    collision: None,
+                    selection: Some(ShapeDefinition::Empty),
+                },
+            ],
+            piston_behavior: PistonBehavior::Block,
+            ..registration(key)
+        }
+    }
+
+    #[test]
+    fn shape_rules_pick_the_first_matching_rule_per_shape() {
+        let mut registry = DynamicBlockRegistry::new();
+        let block = registry.register(ruled_block("test_rules:door")).unwrap();
+        let info = registry.get_info(block.id.as_u16()).unwrap();
+        let index = |open: &str, facing: &str| {
+            info.strict_index_from_props(&[("open", open), ("facing", facing)])
+                .unwrap()
+        };
+        let state = |open: &str, facing: &str| &block.states[usize::from(index(open, facing))];
+
+        // Open: no collision from rule one, the selection falls through to the catch all rule.
+        assert!(state("true", "north").collision_shapes.is_empty());
+        assert!(state("true", "north").outline_shapes.is_empty());
+        assert!(!state("true", "north").is_solid());
+        // Closed south: rule two sets both.
+        assert_eq!(state("false", "south").collision_shapes.len(), 1);
+        assert_eq!(state("false", "south").outline_shapes, &[0]);
+        assert!(state("false", "south").is_solid());
+        // Closed north: no collision rule matches, so the block's own full cube stays.
+        assert_eq!(state("false", "north").collision_shapes, &[0]);
+        assert!(state("false", "north").outline_shapes.is_empty());
+        assert!(state("false", "north").is_full_cube());
+        // The registration is the same for every state.
+        assert!(
+            block
+                .states
+                .iter()
+                .all(|state| state.piston_behavior == PistonBehavior::Block)
+        );
+    }
+
+    #[test]
+    fn shape_rule_matching_and_defaults() {
+        let mut registry = DynamicBlockRegistry::new();
+        let block = registry.register(ruled_block("test_rules:match")).unwrap();
+        let info = registry.get_info(block.id.as_u16()).unwrap();
+        let rules = &info.registration.shape_rules;
+        let south_closed = info
+            .strict_index_from_props(&[("open", "false"), ("facing", "south")])
+            .unwrap();
+        let north_open = info
+            .strict_index_from_props(&[("open", "true"), ("facing", "north")])
+            .unwrap();
+        assert!(info.shape_rule_matches(&rules[1], south_closed));
+        assert!(!info.shape_rule_matches(&rules[1], north_open));
+        // An empty filter matches every state.
+        assert!(info.shape_rule_matches(&rules[2], north_open));
+        assert_eq!(
+            info.shape_definition(north_open, ShapeKind::Collision),
+            &ShapeDefinition::Empty
+        );
+        assert_eq!(
+            info.shape_definition(south_closed, ShapeKind::Selection),
+            &ShapeDefinition::FullCube
+        );
+        // The visual shape follows the collision shape.
+        assert_eq!(
+            info.shape_definition(north_open, ShapeKind::Visual),
+            info.shape_definition(north_open, ShapeKind::Collision)
+        );
+    }
+
+    #[test]
+    fn shape_rules_are_validated() {
+        let mut registry = DynamicBlockRegistry::new();
+        let mut unknown = ruled_block("test_rules:unknown");
+        unknown.shape_rules[0].when = vec![("missing".to_string(), "true".to_string())];
+        assert!(registry.register(unknown).is_err());
+
+        let mut bad_value = ruled_block("test_rules:value");
+        bad_value.shape_rules[0].when = vec![("facing".to_string(), "up".to_string())];
+        assert!(registry.register(bad_value).is_err());
+
+        let mut twice = ruled_block("test_rules:twice");
+        twice.shape_rules[0].when = vec![
+            ("open".to_string(), "true".to_string()),
+            ("open".to_string(), "false".to_string()),
+        ];
+        assert!(registry.register(twice).is_err());
+
+        let mut bad_box = ruled_block("test_rules:box");
+        bad_box.shape_rules[0].collision =
+            Some(ShapeDefinition::Boxes(vec![[0.5, 0.0, 0.0, 0.1, 1.0, 1.0]]));
+        assert!(registry.register(bad_box).is_err());
+
+        let mut many = ruled_block("test_rules:many");
+        many.shape_rules = vec![many.shape_rules[2].clone(); MAX_SHAPE_RULES + 1];
+        assert!(registry.register(many).is_err());
     }
 }

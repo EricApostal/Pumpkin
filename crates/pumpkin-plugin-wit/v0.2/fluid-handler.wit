@@ -1,0 +1,95 @@
+/// Fluid handlers: moving fluids into and out of tanks, like `item-handler` does for items.
+///
+/// A `fluid-handler` is a view of the tanks of the block at a position, numbered from 0. Amounts
+/// are millibuckets, a bucket holds 1000. Three kinds of blocks have a handler:
+///
+/// - plugin block entities with tanks made by `register-plugin-tank`, saved with the entity;
+/// - cauldrons, one tank of 1000: a lava cauldron is full or empty, water and powder snow
+///   cauldrons have 3 levels of 333 (a full one holds 1000). Filling and draining only
+///   moves whole levels, so `fill` takes less than offered and `drain` gives less than the
+///   maximum when the amount does not fit. Powder snow is the fluid `minecraft:powder_snow`;
+/// - every spot a source can be taken from or put into (fluid blocks, waterlogged blocks, air and
+///   replaceable blocks), one tank of 1000. `fill` places a source when at least 1000 is offered
+///   and the spot takes it (like `world.try-place-fluid`), `drain` picks a source up (like
+///   `world.try-pickup-fluid`) when the maximum is at least 1000. The side is ignored.
+///
+/// The items have handlers too (`get-item-fluid-handler`): buckets of vanilla and plugin fluids
+/// (1000, all or nothing), water bottles (250 millibuckets of `minecraft:water`, the amount Create
+/// uses) and the items registered with `register-fluid-container-item`, which keep their fluid in
+/// the custom data of the stack. Potions other than water are not fluids. A stack of more than one
+/// item has no tank, split it first. An item handler changes the stack it was made for, filling an
+/// empty bucket turns it into a full one.
+///
+/// A handler holds the view it was made for and keeps working after the block is gone, ask for a
+/// new one when the block may have changed. Using these functions needs the `containers`
+/// permission.
+interface fluid-handler {
+    use common.{block-pos};
+    use item-stack.{item-stack};
+    use fluid-registry.{fluid-stack};
+    use %world.{%world, block-direction};
+
+    resource fluid-handler {
+        /// The number of tanks.
+        tank-count: func() -> u32;
+
+        /// A copy of what a tank holds, none if it is empty or does not exist.
+        get-fluid: func(tank: u32) -> option<fluid-stack>;
+
+        /// The most millibuckets a tank holds. 0 if the tank does not exist.
+        get-tank-capacity: func(tank: u32) -> u32;
+
+        /// Whether the fluid (a full key, `minecraft:` optional for vanilla ones) may be put into
+        /// the tank, no matter what it holds or how full it is.
+        is-fluid-valid: func(tank: u32, fluid-key: string) -> bool;
+
+        /// Puts as much of the stack in as fits and returns the amount that went in. Fluids merge
+        /// when the fluid and the data are equal. With `simulate` nothing changes and the result is
+        /// what would be returned.
+        fill: func(stack: fluid-stack, simulate: bool) -> u32;
+
+        /// Takes up to `max-amount` of the fluid of the first tank that holds one (tanks with the
+        /// same fluid add up). None if there is nothing to take. With `simulate` nothing changes.
+        drain: func(max-amount: u32, simulate: bool) -> option<fluid-stack>;
+
+        /// Like `drain`, but only of the given fluid.
+        drain-fluid: func(fluid-key: string, max-amount: u32, simulate: bool) -> option<fluid-stack>;
+    }
+
+    /// The fluid handler of the item stack, one tank. It changes the stack it was made for. None
+    /// if the item holds no fluid, or the plugin lacks the `containers` permission.
+    resource item-fluid-handler {
+        tank-count: func() -> u32;
+        get-fluid: async func(tank: u32) -> option<fluid-stack>;
+        get-tank-capacity: async func(tank: u32) -> u32;
+        is-fluid-valid: async func(tank: u32, fluid-key: string) -> bool;
+        fill: async func(stack: fluid-stack, simulate: bool) -> u32;
+        drain: async func(max-amount: u32, simulate: bool) -> option<fluid-stack>;
+        drain-fluid: async func(fluid-key: string, max-amount: u32, simulate: bool) -> option<fluid-stack>;
+    }
+
+    /// The fluid handler of the block at a position. None if the chunk is not loaded, the block
+    /// holds no fluid and takes none (a solid block), or the plugin lacks the `containers`
+    /// permission.
+    get-fluid-handler: func(target-world: borrow<%world>, pos: block-pos, side: option<block-direction>) -> option<fluid-handler>;
+
+    /// The fluid handler of an item stack, see `item-fluid-handler`.
+    get-item-fluid-handler: func(stack: borrow<item-stack>) -> option<item-fluid-handler>;
+
+    /// Gives the plugin block entity at a position `tank-count` tanks (at most 256) that hold
+    /// `capacity-per-tank` millibuckets each, or resizes the ones it has. Growing keeps the
+    /// fluids, shrinking fails if a tank that would go is not empty or a tank holds more than the
+    /// new capacity. The tanks are saved with the entity and `get-fluid-handler` sees them. Fails
+    /// if there is no plugin block entity at the position.
+    register-plugin-tank: func(target-world: borrow<%world>, pos: block-pos, tank-count: u32, capacity-per-tank: u32) -> result<_, string>;
+
+    /// Takes the tanks away from the plugin block entity at a position and returns the fluids
+    /// that were in them. Fails if there is no such entity.
+    unregister-plugin-tank: func(target-world: borrow<%world>, pos: block-pos) -> result<list<fluid-stack>, string>;
+
+    /// Makes a registered item (plugin or vanilla, a full key) a fluid container of `capacity`
+    /// millibuckets. `allowed-fluids` are the fluid keys it takes, any fluid if empty. The fluid
+    /// is kept in the custom data of the stack. Registering an item again replaces the earlier
+    /// definition. Fails for an unknown item or fluid or a capacity of 0.
+    register-fluid-container-item: func(item-key: string, capacity: u32, allowed-fluids: list<string>) -> result<_, string>;
+}

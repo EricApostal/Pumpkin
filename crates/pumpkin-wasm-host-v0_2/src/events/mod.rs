@@ -21,6 +21,8 @@ use pumpkin_wasm_host_common::{plugin::WasmPlugin, state::PluginHostState};
 pub mod block;
 pub mod cleanup;
 pub mod custom_block;
+pub mod custom_block_ext;
+pub mod datapack_loot;
 pub mod dialog;
 pub mod enchantment;
 pub mod entity;
@@ -28,11 +30,14 @@ pub mod hanging;
 pub mod host_features;
 pub mod inventory;
 pub mod living_extra;
+pub mod mixins;
 pub mod player;
+pub mod plugin_vehicle;
 pub mod raid;
 pub mod server;
 pub mod vehicle;
 pub mod world;
+pub mod worldgen;
 
 pub use cleanup::*;
 

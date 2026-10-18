@@ -85,10 +85,31 @@ interface enchantments {
     exclusive-set: list<string>,
   }
 
+  /// An effect component of an enchantment, as in the `effects` of its registry data.
+  record enchantment-effect {
+    /// The effect component type, for example `minecraft:ammo_use` or one registered with
+    /// `register-enchantment-effect-type`.
+    component-key: string,
+    /// The component value as network NBT (the root tag type and its payload, no name).
+    value-nbt-bytes: list<u8>,
+  }
+
   /// Global manager for registering and querying custom enchantments.
   resource enchantment-manager {
     /// Registers a new custom enchantment with the server.
     register-enchantment: async func(enchantment: custom-enchantment) -> result<_, string>;
+
+    /// Sets the effect components of a registered enchantment. They are part of the
+    /// `minecraft:enchantment` registry data sent to every client. Replaces earlier effects.
+    set-enchantment-effects: async func(id: string, effects: list<enchantment-effect>) -> result<_, string>;
+
+    /// Sets the enchanting costs of a registered enchantment (`base + per-level * (level - 1)`).
+    /// Without it the minimum is 1 + 10 per level and the maximum 21 + 10 per level.
+    set-enchantment-costs: async func(id: string, min-base: s32, min-per-level: s32, max-base: s32, max-per-level: s32) -> result<_, string>;
+
+    /// Registers an enchantment effect component type and returns its id, after the vanilla
+    /// ones. NeoForge clients get it in `minecraft:enchantment_effect_component_type`.
+    register-enchantment-effect-type: async func(key: string) -> result<u32, string>;
 
     /// Gets an enchantment definition by its ID.
     get-enchantment: async func(id: string) -> option<custom-enchantment>;

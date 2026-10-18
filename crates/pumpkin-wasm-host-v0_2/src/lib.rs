@@ -29,6 +29,7 @@ pub mod damage_types;
 pub mod datapack;
 pub mod display;
 pub mod enchantment;
+pub mod extra_registries;
 pub mod entity;
 pub mod events;
 pub mod fake_player;
@@ -42,9 +43,13 @@ pub mod ipc;
 pub mod item_entity;
 pub mod item_handler;
 pub mod fluid_registry;
+pub mod fluid_handler;
 pub mod neoforge;
+pub mod bulk;
+pub mod structures;
 pub mod entity_registry;
 pub mod entity_ticking;
+pub mod entity_flags;
 pub mod item_registry;
 pub mod item_stack;
 pub mod java_dialogs;
@@ -64,6 +69,7 @@ pub mod status_effect;
 pub mod text;
 pub mod uuid;
 pub mod world;
+pub mod worldgen;
 
 pub use crate::bindings::{Plugin, pumpkin};
 
@@ -273,6 +279,12 @@ mod resource_with {
     }
     impl FromResource for plugin::item_handler::ItemHandler {
         type Internal = Arc<pumpkin_core::block::item_handler::ItemHandler>;
+    }
+    impl FromResource for plugin::fluid_handler::FluidHandler {
+        type Internal = Arc<pumpkin_core::block::fluid_handler::FluidHandler>;
+    }
+    impl FromResource for plugin::fluid_handler::ItemFluidHandler {
+        type Internal = crate::fluid_handler::ItemFluidTarget;
     }
     impl FromResource for plugin::recipe::RecipeManager {
         type Internal = Arc<RecipeManager>;
@@ -504,7 +516,6 @@ impl pumpkin::plugin::data_components::Host for PluginHostState {}
 impl pumpkin::plugin::enchantments::Host for PluginHostState {}
 impl pumpkin::plugin::biomes::Host for PluginHostState {}
 impl pumpkin::plugin::attributes::Host for PluginHostState {}
-impl pumpkin::plugin::advancement::Host for PluginHostState {}
 impl pumpkin::plugin::screens::Host for PluginHostState {}
 impl pumpkin::plugin::statistics::Host for PluginHostState {}
 impl pumpkin::plugin::game_rules::Host for PluginHostState {}

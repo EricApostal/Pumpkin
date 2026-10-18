@@ -753,6 +753,10 @@ pub fn cleanup_event(event: &Event, state: &mut PluginHostState) {
         Event::WorldTickEvent(data) => {
             cleanup_world(state, &data.target_world);
         }
+        Event::PluginFeaturePlaceEvent(data) => {
+            cleanup_world(state, &data.target_world);
+            state.discard_to_be_removed(&data.chunk);
+        }
         Event::CustomBlockNeighborUpdateEvent(data) => {
             cleanup_world(state, &data.target_world);
         }
@@ -789,6 +793,44 @@ pub fn cleanup_event(event: &Event, state: &mut PluginHostState) {
         Event::CustomBlockComparatorOutputEvent(data) => {
             cleanup_world(state, &data.target_world);
         }
+        Event::CustomBlockShapeEvent(data) => {
+            cleanup_world(state, &data.target_world);
+        }
+        Event::CustomBlockUseEvent(data) => {
+            cleanup_world(state, &data.target_world);
+            cleanup_player(state, &data.player);
+            cleanup_item_stack(state, &data.item);
+        }
+        Event::CustomBlockAttackEvent(data) => {
+            cleanup_world(state, &data.target_world);
+            cleanup_player(state, &data.player);
+        }
+        Event::CustomBlockCloneItemEvent(data) => {
+            cleanup_world(state, &data.target_world);
+            cleanup_player(state, &data.player);
+            if let Some(item) = &data.item {
+                cleanup_item_stack(state, item);
+            }
+        }
+        Event::CustomBlockPlayerWillDestroyEvent(data) => {
+            cleanup_world(state, &data.target_world);
+            cleanup_player(state, &data.player);
+        }
+        Event::CustomBlockPhysicsEvent(data) => {
+            cleanup_world(state, &data.target_world);
+        }
+        Event::CustomBlockLandedEvent(data) => {
+            cleanup_world(state, &data.target_world);
+        }
+        Event::CustomBlockConditionEvent(data) => {
+            cleanup_world(state, &data.target_world);
+        }
+        Event::CustomBlockSoundTypeEvent(data) => {
+            cleanup_world(state, &data.target_world);
+        }
+        Event::CustomBlockFireSpreadEvent(data) => {
+            cleanup_world(state, &data.target_world);
+        }
         Event::LivingDropsEvent(data) => {
             for res in &data.drops {
                 cleanup_item_stack(state, res);
@@ -801,6 +843,48 @@ pub fn cleanup_event(event: &Event, state: &mut PluginHostState) {
         Event::PlayerTickEvent(data) => {
             cleanup_player(state, &data.player);
         }
+        Event::PluginVehicleInputEvent(data) => {
+            cleanup_player(state, &data.player);
+        }
+        Event::ItemUseTickEvent(data) => {
+            cleanup_player(state, &data.player);
+            cleanup_item_stack(state, &data.stack);
+        }
+        Event::ItemSwingEvent(data) => {
+            cleanup_player(state, &data.player);
+            cleanup_item_stack(state, &data.stack);
+        }
+        Event::ItemUseFirstEvent(data) => {
+            cleanup_player(state, &data.player);
+            cleanup_item_stack(state, &data.stack);
+        }
+        Event::CanAttackBlockEvent(data) => {
+            cleanup_player(state, &data.player);
+            cleanup_item_stack(state, &data.stack);
+        }
+        Event::EntityItemUpdateEvent(data) => {
+            cleanup_item_stack(state, &data.stack);
+        }
+        Event::FakePlayerPlaceCheckEvent(data) => {
+            cleanup_player(state, &data.player);
+            cleanup_item_stack(state, &data.stack);
+        }
+        Event::FluidCanPassThroughEvent(data) => {
+            cleanup_world(state, &data.target_world);
+        }
+        Event::EntityFluidMovementEvent(_) => {}
+        Event::LootModifyEvent(data) => {
+            if let Some(tool) = &data.tool {
+                cleanup_item_stack(state, tool);
+            }
+            for res in &data.loot {
+                cleanup_item_stack(state, res);
+            }
+        }
+        Event::DatapackSyncEvent(data) => {
+            cleanup_player(state, &data.player);
+        }
+        Event::DatapackReloadEvent(_) | Event::TagsUpdatedEvent(_) => {}
         Event::LivingBreatheEvent(_)
         | Event::LivingVisibilityEvent(_)
         | Event::EntitySizeEvent(_)

@@ -707,10 +707,19 @@ pub fn adjust_spawn_position(
     ) {
         let below = pos.down();
         let (block, state) = world.get_block_and_state(&below);
-        if world
-            .block_registry
-            .is_pathfindable(block, state, PathComputationType::Land)
-        {
+        let pathfindable = crate::block::blocks::dynamic::pathfindable(
+            world,
+            &below,
+            block,
+            state,
+            PathComputationType::Land,
+        )
+        .unwrap_or_else(|| {
+            world
+                .block_registry
+                .is_pathfindable(block, state, PathComputationType::Land)
+        });
+        if pathfindable {
             return below;
         }
     }

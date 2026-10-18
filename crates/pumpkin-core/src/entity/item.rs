@@ -201,6 +201,48 @@ impl ItemEntity {
             .is_none_or(|res| damage_type.is_tagged_with(res.res_type.as_str()) != Some(true))
     }
 
+    /// Fires `EntityItemUpdateEvent` when a plugin opted the item in and listens.
+    fn fire_plugin_update(&self, server: &Server) {
+        if !crate::plugin::api::events::entity::any_item_entity_ticking() {
+            return;
+        }
+        let item_id = self
+            .item_stack
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .item
+            .id;
+        let interval = crate::plugin::api::events::entity::item_entity_tick_interval(item_id);
+        if interval == 0 {
+            return;
+        }
+        let age = self.entity.age.load(Ordering::Relaxed);
+        if interval > 1 && (age as u32).wrapping_add(self.entity.entity_id as u32) % interval != 0
+        {
+            return;
+        }
+        if !server
+            .plugin_manager
+            .has_handlers::<crate::plugin::api::events::entity::EntityItemUpdateEvent>()
+        {
+            return;
+        }
+        if let Some(server) = self.entity.world.load().server.upgrade() {
+            let stack = self
+                .item_stack
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .clone();
+            let mut event = crate::plugin::api::events::entity::EntityItemUpdateEvent::new(
+                self.entity.entity_id,
+                stack,
+                self.entity.pos.load(),
+                age,
+            );
+            server.plugin_manager.fire_blocking(&server, &mut event);
+        }
+    }
+
     /// Vanilla `ItemEntity.fireImmune`, cached since the item only changes on load.
     fn update_fire_immune(entity: &Entity, stack: &ItemStack) {
         entity.fire_immune.store(
@@ -515,8 +557,13 @@ impl ItemEntity {
 
         let mut velo = entity.velocity.load();
         if on_ground {
-            let block_affecting_velo = entity.get_block_with_y_offset(0.999_999).1;
-            friction *= f64::from(block_affecting_velo.slipperiness);
+            let (velo_pos, velo_block, velo_state) = entity.get_block_with_y_offset(0.999_999);
+            friction *= f64::from(entity.world.load().block_physics(
+                &velo_pos,
+                velo_block,
+                velo_state,
+                crate::plugin::block::CustomBlockPhysicsKind::Friction,
+            ));
         }
 
         velo = velo.multiply(friction, air_drag, friction);
@@ -617,6 +664,8 @@ impl EntityBase for ItemEntity {
         if self.process_age_and_merge() {
             self.mark_needs_sync(caller, original_velo);
         }
+
+        self.fire_plugin_update(server);
     }
 
     fn init_data_tracker(&self) {

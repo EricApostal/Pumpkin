@@ -21,8 +21,10 @@ use wasmtime::component::{Accessor, HasSelf, Resource};
 
 use super::common::{WitNbtTree, from_wit_nbt_tree, to_wit_nbt_tree};
 use pumpkin_data::Enchantment;
+use pumpkin_data::enchantment_registry::enchantment_from_key;
 use pumpkin_data::attributes::Attributes;
 use pumpkin_data::data_component::DataComponent;
+use pumpkin_data::data_component_impl::DataComponentImpl;
 use pumpkin_data::data_component_impl::combat::{Modifier, Operation};
 use pumpkin_data::data_component_impl::{
     AttributeModifiersImpl, CustomNameImpl, EnchantmentsImpl, LoreImpl,
@@ -49,6 +51,46 @@ pub(crate) fn to_wit_enchantment(id: &Enchantment) -> WitEnchantment {
 pub(crate) fn from_wit_enchantment(id: WitEnchantment) -> &'static Enchantment {
     // Safety: WIT enum is generated in the same order as the internal enum
     Enchantment::from_id(id as u8).expect("valid enchantment ID")
+}
+
+/// The enchantments in the enchantments component, vanilla and plugin ones.
+fn enchantment_list(stack: &pumpkin_data::item_stack::ItemStack) -> Vec<(&'static Enchantment, i32)> {
+    stack
+        .get_data_component::<EnchantmentsImpl>()
+        .map(|e| e.enchantment.clone().into_owned())
+        .unwrap_or_default()
+}
+
+fn set_enchantment_list(
+    stack: &mut pumpkin_data::item_stack::ItemStack,
+    encs: Vec<(&'static Enchantment, i32)>,
+) {
+    let component = Some(
+        EnchantmentsImpl {
+            enchantment: Cow::from(encs),
+        }
+        .to_dyn(),
+    );
+    if let Some((_, data)) = stack
+        .patch
+        .iter_mut()
+        .find(|(id, _)| *id == DataComponent::Enchantments)
+    {
+        *data = component;
+    } else {
+        stack.patch.push((DataComponent::Enchantments, component));
+    }
+}
+
+/// The level of an enchantment in the component, by vanilla or plugin key.
+fn component_level(stack: &pumpkin_data::item_stack::ItemStack, key: &str) -> Option<i32> {
+    let enchantment = enchantment_from_key(key)?;
+    stack
+        .get_data_component::<EnchantmentsImpl>()?
+        .enchantment
+        .iter()
+        .find(|(e, _)| e.id == enchantment.id)
+        .map(|(_, level)| *level)
 }
 
 #[must_use]
@@ -163,6 +205,10 @@ impl HostItemStackWithStore<PluginHostState> for HasSelf<PluginHostState> {
             && let Some(enc_impl) = data.as_any().downcast_ref::<EnchantmentsImpl>()
         {
             for (enc, level) in enc_impl.enchantment.iter() {
+                // Plugin enchantments have no variant in the WIT enum.
+                if usize::from(enc.id) >= Enchantment::ALL.len() {
+                    continue;
+                }
                 enchantments.push(WitEnchantmentValue {
                     enchantment: to_wit_enchantment(enc),
                     level: *level as u32,
@@ -239,6 +285,50 @@ impl HostItemStackWithStore<PluginHostState> for HasSelf<PluginHostState> {
         Ok(())
     }
 
+    async fn get_enchantment_level(
+        accessor: &Accessor<PluginHostState, Self>,
+        res: Resource<ItemStackHandle>,
+        enchantment_key: String,
+    ) -> wasmtime::Result<u32> {
+        let stack = accessor.get_res(&res)?;
+        let stack = stack.lock().await;
+        Ok(component_level(&stack, &enchantment_key).map_or(0, |level| level.max(0) as u32))
+    }
+
+    async fn get_enchantment_effect(
+        accessor: &Accessor<PluginHostState, Self>,
+        res: Resource<ItemStackHandle>,
+        component_key: String,
+    ) -> wasmtime::Result<Option<WitNbtTree>> {
+        let key = if component_key.contains(':') {
+            component_key
+        } else {
+            format!("minecraft:{component_key}")
+        };
+        let stack = accessor.get_res(&res)?;
+        let levels: Vec<(&'static Enchantment, i32)> = {
+            let stack = stack.lock().await;
+            stack
+                .get_data_component::<EnchantmentsImpl>()
+                .map(|e| e.enchantment.iter().map(|(e, l)| (*e, *l)).collect())
+                .unwrap_or_default()
+        };
+        let server = accessor.server()?;
+        let mut out = Vec::new();
+        for (enc, level) in levels {
+            for (effect_key, value) in server.enchantment_manager.effects_of(enc.name).await {
+                if effect_key == key {
+                    let mut entry = pumpkin_nbt::compound::NbtCompound::new();
+                    entry.put_string("enchantment", enc.name.to_string());
+                    entry.put_int("level", level);
+                    entry.put("value", value);
+                    out.push(NbtTag::Compound(entry));
+                }
+            }
+        }
+        Ok((!out.is_empty()).then(|| to_wit_nbt_tree(NbtTag::List(out))))
+    }
+
     async fn get_custom_enchantments(
         accessor: &Accessor<PluginHostState, Self>,
         res: Resource<ItemStackHandle>,
@@ -247,32 +337,28 @@ impl HostItemStackWithStore<PluginHostState> for HasSelf<PluginHostState> {
         let stack = stack.lock().await;
         let mut result = Vec::new();
 
+        if let Some(enc_impl) = stack.get_data_component::<EnchantmentsImpl>() {
+            for (enc, level) in enc_impl.enchantment.iter() {
+                result.push(WitCustomEnchantmentValue {
+                    enchantment_id: enc.name.to_string(),
+                    level: (*level).max(1) as u32,
+                });
+            }
+        }
+
+        // Levels stored before enchantments were real components, or for unregistered ids.
         if let Some(compound) = stack.custom_data_compound()
             && let Some(pumpkin_encs) = compound
                 .get("pumpkin:enchantments")
                 .and_then(NbtTag::extract_compound)
         {
             for (k, v) in &pumpkin_encs.child_tags {
-                if let Some(lvl) = v.extract_int() {
+                if let Some(lvl) = v.extract_int()
+                    && !result.iter().any(|e| e.enchantment_id == k.as_ref())
+                {
                     result.push(WitCustomEnchantmentValue {
                         enchantment_id: k.to_string(),
                         level: (lvl.max(1)) as u32,
-                    });
-                }
-            }
-        }
-
-        if let Some((_, Some(data))) = stack
-            .patch
-            .iter()
-            .find(|(id, _)| *id == DataComponent::Enchantments)
-            && let Some(enc_impl) = data.as_any().downcast_ref::<EnchantmentsImpl>()
-        {
-            for (enc, level) in enc_impl.enchantment.iter() {
-                if !result.iter().any(|e| e.enchantment_id == enc.name) {
-                    result.push(WitCustomEnchantmentValue {
-                        enchantment_id: enc.name.to_string(),
-                        level: (*level).max(1) as u32,
                     });
                 }
             }
@@ -290,47 +376,19 @@ impl HostItemStackWithStore<PluginHostState> for HasSelf<PluginHostState> {
         let stack = accessor.get_res(&res)?;
         let mut stack = stack.lock().await;
 
-        stack.set_custom_data(
-            "pumpkin:enchantments",
-            &enchantment_id,
-            NbtTag::Int(level as i32),
-        );
-
-        if let Some(vanilla) = super::enchantment::find_vanilla_enchantment(&enchantment_id) {
-            let mut current_encs = if let Some((_, Some(data))) = stack
-                .patch
-                .iter()
-                .find(|(id, _)| *id == DataComponent::Enchantments)
-            {
-                data.as_any()
-                    .downcast_ref::<EnchantmentsImpl>()
-                    .map(|e| e.enchantment.clone().into_owned())
-                    .unwrap_or_default()
-            } else {
-                Vec::new()
-            };
-
-            current_encs.retain(|(e, _)| e.id != vanilla.id);
-            current_encs.push((vanilla, level as i32));
-
-            if let Some((_, data)) = stack
-                .patch
-                .iter_mut()
-                .find(|(id, _)| *id == DataComponent::Enchantments)
-            {
-                *data = Some(Box::new(EnchantmentsImpl {
-                    enchantment: Cow::from(current_encs),
-                }));
-            } else {
-                stack.patch.push((
-                    DataComponent::Enchantments,
-                    Some(Box::new(EnchantmentsImpl {
-                        enchantment: Cow::from(current_encs),
-                    })),
-                ));
-            }
-        }
-
+        let Some(enchantment) = enchantment_from_key(&enchantment_id) else {
+            // Not a registered enchantment, keep the level where it was kept before.
+            stack.set_custom_data(
+                "pumpkin:enchantments",
+                &enchantment_id,
+                NbtTag::Int(level as i32),
+            );
+            return Ok(());
+        };
+        let mut encs = enchantment_list(&stack);
+        encs.retain(|(e, _)| e.id != enchantment.id);
+        encs.push((enchantment, level as i32));
+        set_enchantment_list(&mut stack, encs);
         Ok(())
     }
 
@@ -344,18 +402,14 @@ impl HostItemStackWithStore<PluginHostState> for HasSelf<PluginHostState> {
 
         stack.remove_custom_data("pumpkin:enchantments", &enchantment_id);
 
-        if let Some(vanilla) = super::enchantment::find_vanilla_enchantment(&enchantment_id)
-            && let Some((_, Some(data))) = stack
-                .patch
-                .iter_mut()
-                .find(|(id, _)| *id == DataComponent::Enchantments)
-            && let Some(enc_impl) = data.as_mut_any().downcast_mut::<EnchantmentsImpl>()
-        {
-            let mut encs = enc_impl.enchantment.clone().into_owned();
-            encs.retain(|(e, _)| e.id != vanilla.id);
-            enc_impl.enchantment = Cow::from(encs);
+        if let Some(enchantment) = enchantment_from_key(&enchantment_id) {
+            let mut encs = enchantment_list(&stack);
+            let before = encs.len();
+            encs.retain(|(e, _)| e.id != enchantment.id);
+            if encs.len() != before {
+                set_enchantment_list(&mut stack, encs);
+            }
         }
-
         Ok(())
     }
 
@@ -367,26 +421,14 @@ impl HostItemStackWithStore<PluginHostState> for HasSelf<PluginHostState> {
         let stack = accessor.get_res(&res)?;
         let stack = stack.lock().await;
 
+        if let Some(level) = component_level(&stack, &enchantment_id) {
+            return Ok(Some(level.max(1) as u32));
+        }
         if let Some(NbtTag::Int(level)) =
             stack.get_custom_data("pumpkin:enchantments", &enchantment_id)
         {
             return Ok(Some(level.max(1) as u32));
         }
-
-        if let Some(vanilla) = super::enchantment::find_vanilla_enchantment(&enchantment_id)
-            && let Some((_, Some(data))) = stack
-                .patch
-                .iter()
-                .find(|(id, _)| *id == DataComponent::Enchantments)
-            && let Some(enc_impl) = data.as_any().downcast_ref::<EnchantmentsImpl>()
-            && let Some((_, level)) = enc_impl
-                .enchantment
-                .iter()
-                .find(|(e, _)| e.id == vanilla.id)
-        {
-            return Ok(Some((*level).max(1) as u32));
-        }
-
         Ok(None)
     }
 
@@ -398,21 +440,8 @@ impl HostItemStackWithStore<PluginHostState> for HasSelf<PluginHostState> {
         let stack = accessor.get_res(&res)?;
         let stack = stack.lock().await;
 
-        if stack.has_custom_data("pumpkin:enchantments", &enchantment_id) {
-            return Ok(true);
-        }
-
-        if let Some(vanilla) = super::enchantment::find_vanilla_enchantment(&enchantment_id)
-            && let Some((_, Some(data))) = stack
-                .patch
-                .iter()
-                .find(|(id, _)| *id == DataComponent::Enchantments)
-            && let Some(enc_impl) = data.as_any().downcast_ref::<EnchantmentsImpl>()
-        {
-            return Ok(enc_impl.enchantment.iter().any(|(e, _)| e.id == vanilla.id));
-        }
-
-        Ok(false)
+        Ok(component_level(&stack, &enchantment_id).is_some()
+            || stack.has_custom_data("pumpkin:enchantments", &enchantment_id))
     }
 
     async fn get_attribute_modifiers(

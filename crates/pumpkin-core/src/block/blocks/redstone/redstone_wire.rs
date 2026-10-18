@@ -470,7 +470,9 @@ fn get_connecting_side(
         let is_placeable_above =
             is_trapdoor(relative_block) || can_survive_on(relative_block, relative_state);
         let (above_block, above_state) = world.get_block_and_state(&relative_pos.up());
-        if is_placeable_above && should_connect_to(world, above_block, above_state, None) {
+        if is_placeable_above
+            && should_connect_to(world, &relative_pos.up(), above_block, above_state, None)
+        {
             if relative_state.is_side_solid(direction.opposite()) {
                 return WireConnection::Up;
             }
@@ -478,10 +480,16 @@ fn get_connecting_side(
         }
     }
 
-    let connects_to_relative =
-        should_connect_to(world, relative_block, relative_state, Some(direction));
-    let (below_block, below_state) = world.get_block_and_state(&relative_pos.down());
-    let connects_to_below = should_connect_to(world, below_block, below_state, None);
+    let connects_to_relative = should_connect_to(
+        world,
+        &relative_pos,
+        relative_block,
+        relative_state,
+        Some(direction),
+    );
+    let below_pos = relative_pos.down();
+    let (below_block, below_state) = world.get_block_and_state(&below_pos);
+    let connects_to_below = should_connect_to(world, &below_pos, below_block, below_state, None);
 
     if !connects_to_relative && (relative_state.is_solid_block() || !connects_to_below) {
         WireConnection::None
@@ -492,6 +500,7 @@ fn get_connecting_side(
 
 fn should_connect_to(
     world: &World,
+    pos: &BlockPos,
     block: &Block,
     state: &BlockState,
     direction: Option<BlockDirection>,
@@ -509,6 +518,12 @@ fn should_connect_to(
         let observer_props = ObserverLikeProperties::from_state_id(state.id);
         let observer_facing = observer_props.facing;
         return direction.is_some_and(|dir| dir.to_facing() == observer_facing);
+    }
+    // Custom blocks can decide for themselves.
+    if let Some(connects) =
+        crate::block::blocks::dynamic::connects_redstone(world, pos, block, state, direction)
+    {
+        return connects;
     }
     direction.is_some_and(|dir| world.block_registry.emits_redstone_power(block, state, dir))
 }

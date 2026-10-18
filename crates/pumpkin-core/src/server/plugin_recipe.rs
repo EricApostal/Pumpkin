@@ -21,6 +21,8 @@ const MAX_RECIPE_TYPES: usize = 4096;
 pub const MAX_RECIPE_ENTRIES: usize = 64;
 /// Most bytes of the extra blob of one recipe.
 pub const MAX_EXTRA_BYTES: usize = 64 * 1024;
+/// Most bytes of the network encoding of one recipe.
+pub const MAX_NETWORK_BYTES: usize = 32 * 1024;
 
 /// A recipe type a plugin registered.
 pub struct PluginRecipeType {
@@ -74,6 +76,8 @@ struct Inner {
     types: PluginRegistry<PluginRecipeType>,
     recipes: Vec<Arc<PluginRecipe>>,
     by_id: HashMap<String, usize>,
+    /// The network encoding of a recipe for NeoForge clients, set by the plugin.
+    network_data: HashMap<String, Vec<u8>>,
 }
 
 /// The recipe types and recipes of the plugins.
@@ -95,6 +99,7 @@ impl PluginRecipeRegistry {
                 types: PluginRegistry::new(MAX_RECIPE_TYPES),
                 recipes: Vec::new(),
                 by_id: HashMap::new(),
+                network_data: HashMap::new(),
             }),
         }
     }
@@ -169,6 +174,35 @@ impl PluginRecipeRegistry {
             .filter(|recipe| recipe.type_key == type_key)
             .cloned()
             .collect()
+    }
+
+    /// Sets the network encoding (the recipe serializer's stream codec body) that is sent to
+    /// NeoForge clients for the recipe. Fails for an unknown recipe or an oversized blob.
+    pub fn set_network_data(&self, id: &str, data: Vec<u8>) -> Result<(), RegistryError> {
+        if data.len() > MAX_NETWORK_BYTES {
+            return Err(RegistryError::InvalidDefinition(format!(
+                "the network data of a recipe is at most {MAX_NETWORK_BYTES} bytes"
+            )));
+        }
+        let mut inner = self.inner.write().unwrap_or_else(PoisonError::into_inner);
+        if !inner.by_id.contains_key(id) {
+            return Err(RegistryError::InvalidDefinition(format!(
+                "recipe '{id}' is not registered"
+            )));
+        }
+        inner.network_data.insert(id.to_string(), data);
+        Ok(())
+    }
+
+    /// The network encoding of a recipe, if the plugin supplied one.
+    #[must_use]
+    pub fn network_data(&self, id: &str) -> Option<Vec<u8>> {
+        self.inner
+            .read()
+            .unwrap_or_else(PoisonError::into_inner)
+            .network_data
+            .get(id)
+            .cloned()
     }
 
     #[must_use]
@@ -274,5 +308,23 @@ mod tests {
         assert!(registry.recipes_of_type("test:other").is_empty());
         assert_eq!(registry.get("test:a").unwrap().id, "test:a");
         assert_eq!(registry.type_keys(), vec!["test:pressing"]);
+    }
+
+    #[test]
+    fn network_data_needs_a_recipe() {
+        let registry = PluginRecipeRegistry::new();
+        registry.register_type("test:pressing").unwrap();
+        assert!(registry.set_network_data("test:a", vec![1]).is_err());
+        registry
+            .add_recipe(recipe("test:a", "test:pressing"))
+            .unwrap();
+        registry.set_network_data("test:a", vec![1, 2]).unwrap();
+        assert_eq!(registry.network_data("test:a"), Some(vec![1, 2]));
+        assert_eq!(registry.network_data("test:b"), None);
+        assert!(
+            registry
+                .set_network_data("test:a", vec![0; MAX_NETWORK_BYTES + 1])
+                .is_err()
+        );
     }
 }

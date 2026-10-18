@@ -108,6 +108,13 @@ impl TargetPredicate {
                 && (!can_be_seen_as_enemy(target)
                     || world.level_info.load().difficulty == Difficulty::Peaceful));
         };
+        if target
+            .get_entity()
+            .plugin_flags
+            .has(crate::entity::plugin_flags::FLAG_IGNORED_BY_MOBS)
+        {
+            return false;
+        }
         let Some(tester_living) = tester.get_living_entity() else {
             return false;
         };

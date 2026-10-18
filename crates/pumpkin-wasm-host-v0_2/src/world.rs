@@ -2,6 +2,7 @@ use super::{AccessorExt, in_active_context, run_blocking};
 use crate::LockIgnorePoison;
 
 use pumpkin_data::block_properties::NoteblockInstrument as InternalNoteblockInstrument;
+use pumpkin_data::block_registry::ShapeKind;
 use pumpkin_data::block_state::PistonBehavior;
 use pumpkin_data::tag::Taggable;
 use pumpkin_data::{BlockDirection as InternalBlockDirection, BlockId, BlockStateId};
@@ -106,7 +107,7 @@ pub(crate) const fn from_wit_game_rule_value(value: WitGameRuleValue) -> GameRul
     }
 }
 
-fn from_wit_block_flags(flags: WitBlockFlags) -> BlockFlags {
+pub(crate) fn from_wit_block_flags(flags: WitBlockFlags) -> BlockFlags {
     let mut internal = BlockFlags::empty();
     if flags.contains(WitBlockFlags::NOTIFY_NEIGHBORS) {
         internal |= BlockFlags::NOTIFY_NEIGHBORS;
@@ -131,6 +132,12 @@ fn from_wit_block_flags(flags: WitBlockFlags) -> BlockFlags {
     }
     if flags.contains(WitBlockFlags::SKIP_BLOCK_ADDED_CALLBACK) {
         internal |= BlockFlags::SKIP_BLOCK_ADDED_CALLBACK;
+    }
+    if flags.contains(WitBlockFlags::SKIP_SHAPE_UPDATE) {
+        internal |= BlockFlags::UPDATE_KNOWN_SHAPE;
+    }
+    if flags.contains(WitBlockFlags::UPDATE_INDIRECT_NEIGHBOURS) {
+        internal |= BlockFlags::UPDATE_INDIRECT_NEIGHBORS;
     }
     internal
 }
@@ -710,7 +717,18 @@ impl pumpkin::plugin::world::HostWorld for PluginHostState {
         let world_ref = self.get(&world)?;
         let internal_pos = BlockPos::new(pos.x, pos.y, pos.z);
         let state = world_ref.get_block_state(&internal_pos);
-        Ok(to_wit_block_state(state, Some(&internal_pos)))
+        let mut wit_state = to_wit_block_state(state, Some(&internal_pos));
+        // Blocks with a dynamic shape: what is cached for the position, the plugin is not asked
+        // from inside one of its own calls.
+        if let Some(shapes) = world_ref.cached_block_shapes(&internal_pos, state, ShapeKind::Collision)
+        {
+            wit_state.collision_shapes = shapes.iter().copied().map(to_wit_bounding_box).collect();
+        }
+        if let Some(shapes) = world_ref.cached_block_shapes(&internal_pos, state, ShapeKind::Selection)
+        {
+            wit_state.outline_shapes = shapes.iter().copied().map(to_wit_bounding_box).collect();
+        }
+        Ok(wit_state)
     }
 
     fn get_block(
@@ -885,6 +903,16 @@ impl pumpkin::plugin::world::HostWorld for PluginHostState {
         Ok(())
     }
 
+    fn invalidate_block_shape(
+        &mut self,
+        world: Resource<World>,
+        pos: WitBlockPos,
+    ) -> wasmtime::Result<()> {
+        self.get(&world)?
+            .invalidate_block_shape(&BlockPos::new(pos.x, pos.y, pos.z));
+        Ok(())
+    }
+
     fn get_dimension(&mut self, world: Resource<World>) -> wasmtime::Result<String> {
         Ok(self.get(&world)?.dimension.minecraft_name.to_string())
     }
@@ -1009,6 +1037,32 @@ impl pumpkin::plugin::world::HostWorld for PluginHostState {
             particle_data,
         );
         Ok(())
+    }
+
+    fn spawn_plugin_particle(
+        &mut self,
+        world: Resource<World>,
+        key: String,
+        pos: pumpkin::plugin::common::Position,
+        delta: pumpkin::plugin::common::Position,
+        speed: f32,
+        count: i32,
+        options: Vec<u8>,
+    ) -> wasmtime::Result<Result<(), String>> {
+        let world_ref = self.get(&world)?;
+        Ok(crate::extra_registries::spawn_plugin_particle(
+            world_ref,
+            &key,
+            pumpkin_util::math::vector3::Vector3::new(pos.0, pos.1, pos.2),
+            pumpkin_util::math::vector3::Vector3::new(
+                delta.0 as f32,
+                delta.1 as f32,
+                delta.2 as f32,
+            ),
+            speed,
+            count,
+            &options,
+        ))
     }
 
     fn get_sea_level(&mut self, world: Resource<World>) -> wasmtime::Result<i32> {
@@ -1582,6 +1636,64 @@ impl pumpkin::plugin::world::HostWorldWithStore<PluginHostState> for HasSelf<Plu
         update_flags: WitBlockFlags,
     ) -> wasmtime::Result<()> {
         set_block_state_with_store(accessor, world, pos, state, update_flags).await
+    }
+
+    async fn set_blocks(
+        accessor: &Accessor<PluginHostState, Self>,
+        world: Resource<World>,
+        changes: Vec<crate::pumpkin::plugin::world::BlockChange>,
+        update_flags: WitBlockFlags,
+    ) -> wasmtime::Result<Result<u32, String>> {
+        crate::bulk::set_blocks(accessor, world, changes, update_flags).await
+    }
+
+    async fn remove_blocks(
+        accessor: &Accessor<PluginHostState, Self>,
+        world: Resource<World>,
+        positions: Vec<WitBlockPos>,
+        update_flags: WitBlockFlags,
+    ) -> wasmtime::Result<u32> {
+        crate::bulk::remove_blocks(accessor, world, positions, update_flags).await
+    }
+
+    async fn destroy_block(
+        accessor: &Accessor<PluginHostState, Self>,
+        world: Resource<World>,
+        pos: WitBlockPos,
+        drop: bool,
+        player: Option<Resource<pumpkin::plugin::world::Entity>>,
+        with_particles: bool,
+    ) -> wasmtime::Result<bool> {
+        crate::bulk::destroy_block(accessor, world, pos, drop, player, with_particles).await
+    }
+
+    async fn update_shape_around(
+        accessor: &Accessor<PluginHostState, Self>,
+        world: Resource<World>,
+        pos: WitBlockPos,
+    ) -> wasmtime::Result<()> {
+        crate::bulk::update_shape_around(accessor, world, pos).await
+    }
+
+    async fn mark_and_notify(
+        accessor: &Accessor<PluginHostState, Self>,
+        world: Resource<World>,
+        pos: WitBlockPos,
+        old_state: u16,
+        new_state: u16,
+        update_flags: WitBlockFlags,
+    ) -> wasmtime::Result<()> {
+        crate::bulk::mark_and_notify(accessor, world, pos, old_state, new_state, update_flags)
+            .await
+    }
+
+    async fn spawn_entity_from_nbt(
+        accessor: &Accessor<PluginHostState, Self>,
+        world: Resource<World>,
+        nbt: Vec<u8>,
+        pos: WitPosition,
+    ) -> wasmtime::Result<Option<Resource<pumpkin::plugin::world::Entity>>> {
+        crate::bulk::spawn_entity_from_nbt(accessor, world, nbt, pos).await
     }
 
     async fn get_redstone_power(

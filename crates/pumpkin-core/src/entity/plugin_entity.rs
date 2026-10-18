@@ -10,7 +10,17 @@
 //!   has one, to every client that starts to track the entity.
 //!
 //! Both are saved with the entity.
+//!
+//! The synced data can also be set entry by entry ([`PluginEntity::set_synced_entry`]), the
+//! entries are sent in their own packet and follow the blob when a client starts to track.
+//! Spawn data goes to NeoForge clients in the `neoforge:advanced_add_entity` payload, to the
+//! other clients in the `spawn_data_channel` payload of the type (a plugin must handle it).
+//!
+//! Plugin entities have no physics of their own: the plugin moves them with [`PluginEntity::move_by`]
+//! and the like. Riders are placed at their offset from the entity every tick.
 
+use std::collections::{BTreeMap, HashMap};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
 
 use bytes::BufMut;
@@ -21,15 +31,23 @@ use pumpkin_protocol::{
     codec::var_int::VarInt,
     java::client::play::{CCustomPayload, CSetEntityMetadata, Metadata},
     ser::NetworkWriteExt,
+    ConnectionFlavour,
 };
 use pumpkin_util::math::boundingbox::{BoundingBox, EntityDimensions};
+use pumpkin_util::math::vector3::Vector3;
 use pumpkin_util::version::JavaMinecraftVersion;
 
 use crate::{
     entity::{Entity, EntityBase, living::LivingEntity},
     net::java::JavaClient,
+    server::Server,
     world::World,
 };
+
+/// The payload NeoForge clients take the spawn data of an entity from.
+const ADVANCED_ADD_ENTITY: &str = "neoforge:advanced_add_entity";
+/// Key of the entries of the synced data in the saved entity.
+const SYNCED_ENTRIES_KEY: &str = "PluginSyncedEntries";
 
 /// Key of the synced data in the saved entity.
 const SYNCED_DATA_KEY: &str = "PluginSyncedData";
@@ -57,7 +75,16 @@ pub struct PluginEntity {
     pub entity: Entity,
     plugin_type: &'static PluginEntityType,
     synced_data: Mutex<Vec<u8>>,
+    /// Entries set one by one: index to serializer id and value. They follow the blob.
+    synced_entries: Mutex<BTreeMap<u8, Vec<u8>>>,
     spawn_data: Mutex<Vec<u8>>,
+    /// Where riders sit, relative to the entity, by passenger entity id.
+    passenger_offsets: Mutex<HashMap<i32, Vector3<f64>>>,
+    /// Overrides of the tracking of the type: update interval (0 = the type's) and track deltas.
+    update_interval: AtomicU32,
+    track_deltas: Mutex<Option<bool>>,
+    /// Whether vehicle moves of the client driving the entity are applied.
+    client_movement: AtomicBool,
 }
 
 impl PluginEntity {
@@ -67,7 +94,12 @@ impl PluginEntity {
             entity,
             plugin_type,
             synced_data: Mutex::new(plugin_type.definition.default_synced_data.clone()),
+            synced_entries: Mutex::new(BTreeMap::new()),
             spawn_data: Mutex::new(Vec::new()),
+            passenger_offsets: Mutex::new(HashMap::new()),
+            update_interval: AtomicU32::new(0),
+            track_deltas: Mutex::new(None),
+            client_movement: AtomicBool::new(false),
         })
     }
 
@@ -86,13 +118,45 @@ impl PluginEntity {
         *lock(&self.synced_data) = data;
     }
 
-    /// Replaces the synced data and sends it to the Java clients that track the entity.
+    /// Replaces the synced data (and drops the entries set one by one) and sends it to the Java
+    /// clients that track the entity.
     pub fn set_synced_data(&self, data: Vec<u8>) {
         *lock(&self.synced_data) = data.clone();
-        if data.is_empty() {
+        lock(&self.synced_entries).clear();
+        self.send_metadata(data);
+    }
+
+    /// Sets one entry of the synced data: `data` is the serializer id (`VarInt`) and the value.
+    /// Empty data forgets the entry on the server (clients keep what they got). The entry is sent
+    /// to the clients that track the entity.
+    pub fn set_synced_entry(&self, index: u8, data: Vec<u8>) {
+        if index == 255 {
             return;
         }
-        let mut buffer = data;
+        if data.is_empty() {
+            lock(&self.synced_entries).remove(&index);
+            return;
+        }
+        lock(&self.synced_entries).insert(index, data.clone());
+        let mut entry = vec![index];
+        entry.extend_from_slice(&data);
+        self.send_metadata(entry);
+    }
+
+    /// The blob and the entries as one run of entries, without the end marker.
+    fn full_synced_data(&self) -> Vec<u8> {
+        let mut out = lock(&self.synced_data).clone();
+        for (index, data) in lock(&self.synced_entries).iter() {
+            out.push(*index);
+            out.extend_from_slice(data);
+        }
+        out
+    }
+
+    fn send_metadata(&self, mut buffer: Vec<u8>) {
+        if buffer.is_empty() {
+            return;
+        }
         buffer.put_u8(255);
 
         let entity = &self.entity;
@@ -108,6 +172,101 @@ impl PluginEntity {
                 for recipient in recipients {
                     recipient.try_enqueue_packet(packet_data.clone());
                 }
+            }
+        }
+    }
+
+    /// Sets where a rider sits, relative to the entity. The server places the rider there every
+    /// tick, clients get the offset from the plugin's synced data.
+    pub fn set_passenger_offset(&self, passenger_id: i32, offset: Vector3<f64>) {
+        lock(&self.passenger_offsets).insert(passenger_id, offset);
+    }
+
+    #[must_use]
+    pub fn passenger_offset(&self, passenger_id: i32) -> Option<Vector3<f64>> {
+        lock(&self.passenger_offsets).get(&passenger_id).copied()
+    }
+
+    /// Overrides the update interval (0 = the one of the type) and the delta tracking (`None` =
+    /// the one of the type) the position updates of this entity use. A short interval makes
+    /// clients interpolate in smaller steps.
+    pub fn set_tracking(&self, update_interval: u32, track_deltas: Option<bool>) {
+        self.update_interval.store(update_interval, Ordering::Relaxed);
+        *lock(&self.track_deltas) = track_deltas;
+    }
+
+    /// The update interval and delta tracking in use, the arguments are the ones of the type.
+    #[must_use]
+    pub fn effective_tracking(&self, update_interval: u32, track_deltas: bool) -> (u32, bool) {
+        let interval = self.update_interval.load(Ordering::Relaxed);
+        (
+            if interval == 0 { update_interval } else { interval },
+            lock(&self.track_deltas).unwrap_or(track_deltas),
+        )
+    }
+
+    pub fn set_accepts_client_movement(&self, accept: bool) {
+        self.client_movement.store(accept, Ordering::Relaxed);
+    }
+
+    #[must_use]
+    pub fn accepts_client_movement(&self) -> bool {
+        self.client_movement.load(Ordering::Relaxed)
+    }
+
+    /// Moves the entity by `delta`, stopped by blocks when `collide` is set. Returns the movement
+    /// that happened.
+    pub fn move_by(&self, delta: Vector3<f64>, collide: bool) -> Vector3<f64> {
+        let entity = &self.entity;
+        if !collide {
+            entity.move_pos(delta);
+            return delta;
+        }
+        let before = entity.pos.load();
+        entity.move_entity(self, delta);
+        entity.pos.load().sub(&before)
+    }
+
+    /// Whether projectiles fly through `other`: a plugin entity that cannot be targeted, or a
+    /// rider of one that ignores its riders' hits.
+    #[must_use]
+    pub fn projectiles_pass_through(other: &dyn EntityBase) -> bool {
+        if let Some(plugin_entity) = other.get_plugin_entity() {
+            return !plugin_entity.plugin_type.definition.pickable;
+        }
+        other.get_entity().get_vehicle().is_some_and(|vehicle| {
+            vehicle
+                .get_plugin_entity()
+                .is_some_and(|plugin| plugin.plugin_type.definition.ignore_riders_hit)
+        })
+    }
+
+    /// Puts the riders at their offsets from the entity.
+    fn place_passengers(&self) {
+        let entity = &self.entity;
+        let passengers = entity
+            .passengers
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone();
+        if passengers.is_empty() {
+            return;
+        }
+        let pos = entity.pos.load();
+        for passenger in passengers {
+            let offset = self
+                .passenger_offset(passenger.get_entity().entity_id)
+                .unwrap_or_default();
+            let target = pos + offset;
+            let rider = passenger.get_entity();
+            if rider.pos.load() == target {
+                continue;
+            }
+            rider.set_pos(target);
+            if passenger.get_player().is_some()
+                && let Some(player) = entity.world.load().get_player_by_id(rider.entity_id)
+            {
+                crate::world::chunker::update_position(&player);
             }
         }
     }
@@ -170,19 +329,49 @@ impl EntityBase for PluginEntity {
         if !synced.is_empty() {
             nbt.put(SYNCED_DATA_KEY, to_nbt_bytes(&synced));
         }
+        drop(synced);
+        let entries = lock(&self.synced_entries);
+        if !entries.is_empty() {
+            let mut compound = NbtCompound::new();
+            for (index, data) in entries.iter() {
+                compound.put(&index.to_string(), to_nbt_bytes(data));
+            }
+            nbt.put(SYNCED_ENTRIES_KEY, NbtTag::Compound(compound));
+        }
+        drop(entries);
         let spawn = lock(&self.spawn_data);
         if !spawn.is_empty() {
             nbt.put(SPAWN_DATA_KEY, to_nbt_bytes(&spawn));
         }
+        drop(spawn);
     }
 
     fn read_custom_nbt(&self, nbt: &NbtCompound) {
         if let Some(data) = from_nbt_bytes(nbt, SYNCED_DATA_KEY) {
             *lock(&self.synced_data) = data;
         }
+        if let Some(compound) = nbt.get_compound(SYNCED_ENTRIES_KEY) {
+            let mut entries = lock(&self.synced_entries);
+            for (key, _) in &compound.child_tags {
+                if let (Ok(index), Some(data)) =
+                    (key.parse::<u8>(), from_nbt_bytes(compound, key))
+                {
+                    entries.insert(index, data);
+                }
+            }
+        }
         if let Some(data) = from_nbt_bytes(nbt, SPAWN_DATA_KEY) {
             *lock(&self.spawn_data) = data;
         }
+    }
+
+    fn tick(&self, caller: &dyn EntityBase, server: &Server) {
+        self.entity.tick(caller, server);
+        self.place_passengers();
+    }
+
+    fn is_pushable(&self) -> bool {
+        self.plugin_type.definition.pushable
     }
 
     fn is_collidable(&self, _entity: Option<Box<dyn EntityBase>>) -> bool {
@@ -206,7 +395,7 @@ impl EntityBase for PluginEntity {
             )
             .write(&mut buffer, &version);
         }
-        buffer.extend_from_slice(&lock(&self.synced_data));
+        buffer.extend_from_slice(&self.full_synced_data());
         if buffer.is_empty() {
             return None;
         }
@@ -220,7 +409,17 @@ impl EntityBase for PluginEntity {
         if let Ok(data) = client.serialize_packet(&spawn_packet) {
             client.try_enqueue_packet(data);
         }
-        if let Some(channel) = &self.plugin_type.definition.spawn_data_channel {
+        // NeoForge clients read the spawn data from their own payload, others from the channel
+        // of the type, if it has one.
+        let channel = if client.flavour.load() == ConnectionFlavour::NeoForge
+            && (self.plugin_type.definition.spawn_data_channel.is_some()
+                || !lock(&self.spawn_data).is_empty())
+        {
+            Some(ADVANCED_ADD_ENTITY)
+        } else {
+            self.plugin_type.definition.spawn_data_channel.as_deref()
+        };
+        if let Some(channel) = channel {
             let payload = self.spawn_payload();
             let packet = CCustomPayload::new(channel, &payload);
             if let Ok(data) = client.serialize_packet(&packet) {

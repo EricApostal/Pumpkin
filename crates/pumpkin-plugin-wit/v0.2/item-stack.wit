@@ -53,6 +53,13 @@ interface item-stack {
         /// Removes an enchantment from this item stack.
         remove-enchantment: async func(enchantment: enchantment);
 
+        /// Returns the level of an enchantment on this item stack by key, vanilla (`minecraft:`
+        /// prefix optional) or plugin. 0 if it is not there.
+        get-enchantment-level: async func(enchantment-key: string) -> u32;
+        /// Returns the effects of the plugin enchantments on this stack for an effect component
+        /// type: a list of compounds `{enchantment, level, value}`, none if there are none.
+        get-enchantment-effect: async func(component-key: string) -> option<nbt-tree>;
+
         /// Returns all custom enchantments on this item stack.
         get-custom-enchantments: async func() -> list<custom-enchantment-value>;
         /// Adds a custom enchantment to this item stack.

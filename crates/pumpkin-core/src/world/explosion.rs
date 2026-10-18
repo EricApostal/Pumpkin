@@ -336,6 +336,9 @@ impl Explosion {
                             if h > 0.0
                                 && !protects_rail
                                 && calc.should_block_explode(self, world, &block_pos, block, h)
+                                && crate::block::blocks::dynamic::entity_can_destroy(
+                                    world, &block_pos, block, state, None,
+                                )
                             {
                                 map.insert(block_pos, (block, state));
                             }

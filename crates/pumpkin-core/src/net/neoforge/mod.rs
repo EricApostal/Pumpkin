@@ -20,9 +20,12 @@
 pub mod buf;
 pub mod channels;
 pub mod declaration;
+pub mod extra_registries;
 pub mod handshake;
 pub mod ident;
 pub mod nbt_text;
 pub mod negotiation;
 pub mod payloads;
+pub mod play_sync;
+pub mod recipe_sync;
 pub mod registries;

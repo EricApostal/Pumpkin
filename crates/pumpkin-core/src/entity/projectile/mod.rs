@@ -272,6 +272,30 @@ impl ThrownItemEntity {
             return true;
         }
 
+        // Plugin entities that cannot be targeted and the riders of some are not hit
+        if crate::entity::plugin_entity::PluginEntity::projectiles_pass_through(other.as_ref()) {
+            return true;
+        }
+
+        // Vanilla: a rider does not hit the other riders of its own vehicle, unless a plugin
+        // flagged the vehicle to let projectiles hit its riders.
+        if other_ent.get_vehicle().is_some()
+            && let Some(owner) = self
+                .owner_id
+                .and_then(|id| self_ent.world.load().get_entity_by_id(id))
+            && owner.get_entity().get_vehicle().is_some()
+        {
+            let other_root = root_vehicle(other.clone());
+            if root_vehicle(owner).get_entity().entity_id == other_root.get_entity().entity_id
+                && !other_root
+                    .get_entity()
+                    .plugin_flags
+                    .has(super::plugin_flags::FLAG_PROJECTILES_HIT_RIDERS)
+            {
+                return true;
+            }
+        }
+
         // Projectiles should pass through lingering clouds
         if *other_ent.entity_type == EntityType::AREA_EFFECT_CLOUD {
             return true;
@@ -279,6 +303,18 @@ impl ThrownItemEntity {
 
         // Projectile vs projectile logic
         if !self.collides_with_projectiles && is_projectile(other_ent.entity_type) {
+            return true;
+        }
+
+        // Riders of a vehicle a plugin flagged cannot be hit.
+        if super::plugin_flags::any_vehicle_flag()
+            && other_ent.get_vehicle().is_some_and(|vehicle| {
+                vehicle
+                    .get_entity()
+                    .plugin_flags
+                    .has(super::plugin_flags::FLAG_IGNORE_RIDERS_HIT)
+            })
+        {
             return true;
         }
 
@@ -296,6 +332,14 @@ impl ThrownItemEntity {
     const fn get_gravity(&self) -> f64 {
         self.gravity
     }
+}
+
+/// The vehicle at the bottom of a stack of riders, or the entity itself.
+fn root_vehicle(mut entity: Arc<dyn EntityBase>) -> Arc<dyn EntityBase> {
+    while let Some(vehicle) = entity.get_entity().get_vehicle() {
+        entity = vehicle;
+    }
+    entity
 }
 
 /// Ray intersection algorithm for AABBs, returning a t value

@@ -15,6 +15,9 @@ use pumpkin_data::{
     data_component::DataComponent,
     data_component_registry::plugin_component_types,
     entity::EntityType,
+    entity_data_serializer_registry::{
+        VANILLA_ENTITY_DATA_SERIALIZERS, plugin_entity_data_serializers,
+    },
     entity_registry::{plugin_entity_types, vanilla_entity_type_count},
     fluid::Fluid,
     item::Item,
@@ -28,6 +31,7 @@ pub const ENTITY_TYPE: &str = "minecraft:entity_type";
 pub const BLOCK_ENTITY_TYPE: &str = "minecraft:block_entity_type";
 pub const MENU: &str = "minecraft:menu";
 pub const DATA_COMPONENT_TYPE: &str = "minecraft:data_component_type";
+pub const ENTITY_DATA_SERIALIZERS: &str = "neoforge:entity_data_serializers";
 
 /// One registry to synchronise: the key and every entry in id order.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -68,7 +72,7 @@ const VANILLA_MENUS: [&str; 25] = [
 /// How many entries plugins registered per synced registry, in the order of [`host_registries`].
 /// A change means the cached handshake data is stale.
 #[must_use]
-pub fn plugin_entry_counts() -> [usize; 7] {
+pub fn plugin_entry_counts() -> [usize; 8] {
     [
         Block::dynamic_blocks().len(),
         Item::dynamic_items().len(),
@@ -77,6 +81,7 @@ pub fn plugin_entry_counts() -> [usize; 7] {
         plugin_block_entity_types().len(),
         plugin_menu_types().len(),
         plugin_component_types().len(),
+        plugin_entity_data_serializers().len() + super::extra_registries::entry_count(),
     ]
 }
 
@@ -214,6 +219,30 @@ pub fn host_registries() -> Vec<SyncedRegistry> {
                 .collect(),
             &mut out,
         );
+    }
+
+    let serializers = plugin_entity_data_serializers();
+    if !serializers.is_empty() {
+        let vanilla = VANILLA_ENTITY_DATA_SERIALIZERS
+            .iter()
+            .map(|name| format!("minecraft:{name}"));
+        with_plugin_entries(
+            ENTITY_DATA_SERIALIZERS,
+            prefixed(vanilla),
+            serializers
+                .iter()
+                .map(|serializer| serializer.key.to_string())
+                .collect(),
+            &mut out,
+        );
+    }
+
+    // Sounds, particles, mob effects, map decorations and plugin owned registries.
+    out.extend(super::extra_registries::registries());
+
+    // The recipe types and serializers the plugins sync recipes for.
+    for (key, entries) in super::recipe_sync::registry_extras() {
+        out.push(SyncedRegistry { key, entries });
     }
 
     out

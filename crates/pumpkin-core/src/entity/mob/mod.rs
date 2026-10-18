@@ -663,7 +663,13 @@ impl MobEntity {
     }
 
     fn get_attack_box(&self, attack_range: f64) -> BoundingBox {
-        let vehicle_opt = self.living_entity.entity.get_vehicle();
+        let vehicle_opt = self.living_entity.entity.get_vehicle().filter(|vehicle| {
+            !(super::plugin_flags::any_vehicle_flag()
+                && vehicle
+                    .get_entity()
+                    .plugin_flags
+                    .has(super::plugin_flags::FLAG_IGNORE_VEHICLE_BOX))
+        });
 
         let base_box = vehicle_opt.as_ref().map_or_else(
             || self.living_entity.entity.bounding_box.load(),

@@ -143,6 +143,11 @@ impl TridentEntity {
             return true;
         }
 
+        // Untargetable plugin entities and riders of some are not hit
+        if crate::entity::plugin_entity::PluginEntity::projectiles_pass_through(other.as_ref()) {
+            return true;
+        }
+
         // Skip other projectiles and item entities
         if other_ent.entity_type == &pumpkin_data::entity::EntityType::ARROW
             || other_ent.entity_type == &pumpkin_data::entity::EntityType::TRIDENT

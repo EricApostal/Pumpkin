@@ -41,7 +41,12 @@ impl FireBlock {
             return false;
         }
 
+        // A custom block that sets its own flammability may burn, the exact odds come later.
         block.flammable.as_ref().is_some_and(|f| f.burn_chance > 0)
+            || block.dynamic_info().is_some_and(|info| {
+                info.callbacks()
+                    .contains(pumpkin_data::block_registry::BlockCallbacks::GET_FIRE_SPREAD)
+            })
     }
 
     fn are_blocks_around_flammable(block_accessor: &dyn BlockAccessor, pos: &BlockPos) -> bool {
@@ -93,12 +98,20 @@ impl FireBlock {
         let mut total_burn_chance = 0;
 
         for dir in BlockDirection::all() {
-            let neighbor_block = world.get_block(&pos.offset(dir.to_offset()));
-            if *world.get_fluid(&pos.offset(dir.to_offset())) != Fluid::EMPTY {
+            let neighbor_pos = pos.offset(dir.to_offset());
+            let (neighbor_block, neighbor_state) = world.get_block_and_state(&neighbor_pos);
+            if *world.get_fluid(&neighbor_pos) != Fluid::EMPTY {
                 continue; // Skip if there is a fluid
             }
             if let Some(flammable) = &neighbor_block.flammable {
                 total_burn_chance = total_burn_chance.max(i32::from(flammable.spread_chance));
+            } else if let Some((spread_chance, _)) = crate::block::blocks::dynamic::flammability(
+                world,
+                &neighbor_pos,
+                neighbor_block,
+                neighbor_state,
+            ) {
+                total_burn_chance = total_burn_chance.max(i32::from(spread_chance));
             }
         }
 
@@ -141,8 +154,9 @@ impl FireBlock {
     }
 
     fn try_spreading_fire(&self, world: &Arc<World>, pos: &BlockPos, chance: i32, age: u8) {
-        let block = world.get_block(pos);
-        let odds = Self::get_burn_odds(block);
+        let (block, state) = world.get_block_and_state(pos);
+        let odds = crate::block::blocks::dynamic::flammability(world, pos, block, state)
+            .map_or_else(|| Self::get_burn_odds(block), |(_, burn)| i32::from(burn));
         if rand::rng().random_range(0..chance) < odds {
             if let Some(server) = world.server.upgrade() {
                 let mut event = crate::plugin::api::events::block::block_burn::BlockBurnEvent {

@@ -1,6 +1,7 @@
 use super::AccessorExt;
 use crate::pumpkin::plugin::enchantments::{
     AttributeModifierSlot as WitAttributeModifierSlot, CustomEnchantment as WitCustomEnchantment,
+    EnchantmentEffect as WitEnchantmentEffect,
     EnchantmentManager as WitEnchantmentManager, HostEnchantmentManager,
     HostEnchantmentManagerWithStore,
 };
@@ -36,6 +37,48 @@ impl HostEnchantmentManagerWithStore<PluginHostState> for HasSelf<PluginHostStat
 
         let server = accessor.server()?;
         Ok(server.enchantment_manager.register(entry).await)
+    }
+
+    async fn set_enchantment_effects(
+        accessor: &Accessor<PluginHostState, Self>,
+        _res: Resource<WitEnchantmentManager>,
+        id: String,
+        effects: Vec<WitEnchantmentEffect>,
+    ) -> wasmtime::Result<Result<(), String>> {
+        let server = accessor.server()?;
+        let effects = effects
+            .into_iter()
+            .map(|effect| (effect.component_key, effect.value_nbt_bytes))
+            .collect();
+        Ok(server.enchantment_manager.set_effects(&id, effects).await)
+    }
+
+    async fn set_enchantment_costs(
+        accessor: &Accessor<PluginHostState, Self>,
+        _res: Resource<WitEnchantmentManager>,
+        id: String,
+        min_base: i32,
+        min_per_level: i32,
+        max_base: i32,
+        max_per_level: i32,
+    ) -> wasmtime::Result<Result<(), String>> {
+        let server = accessor.server()?;
+        Ok(server
+            .enchantment_manager
+            .set_costs(&id, (min_base, min_per_level), (max_base, max_per_level))
+            .await)
+    }
+
+    async fn register_enchantment_effect_type(
+        _accessor: &Accessor<PluginHostState, Self>,
+        _res: Resource<WitEnchantmentManager>,
+        key: String,
+    ) -> wasmtime::Result<Result<u32, String>> {
+        Ok(
+            pumpkin_data::enchantment_registry::register_plugin_enchantment_effect_type(&key)
+                .map(|id| id as u32)
+                .map_err(|err| err.to_string()),
+        )
     }
 
     async fn get_enchantment(

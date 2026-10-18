@@ -136,6 +136,15 @@ pub fn replace_datapack_tags(
     publish(overlay);
 }
 
+/// How many runtime tags (plugin and datapack layers, over all registries) are defined.
+#[must_use]
+pub fn runtime_tag_count() -> usize {
+    let guard = OVERLAY.read().unwrap_or_else(PoisonError::into_inner);
+    guard
+        .as_ref()
+        .map_or(0, |overlay| overlay.plugin.len() + overlay.datapack.len())
+}
+
 /// Publishes the tags again so entries registered after their tag resolve. Called when the item
 /// and block registries close.
 pub fn refresh() {

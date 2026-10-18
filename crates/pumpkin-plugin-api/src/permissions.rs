@@ -74,6 +74,10 @@ pub const REGISTRY_BLOCKS: &str = "registry.blocks";
 /// Allows the plugin to register custom fluids with `fluid_registry` while the server starts.
 pub const REGISTRY_FLUIDS: &str = "registry.fluids";
 
+/// Allows the plugin to register worldgen features and add them to biomes with `worldgen`
+/// before the first chunk generates.
+pub const REGISTRY_WORLDGEN: &str = "registry.worldgen";
+
 /// Allows the plugin to register custom block entity types with `plugin_block_entity`.
 ///
 /// Registration is only possible while the server starts, before players can connect.
@@ -99,6 +103,12 @@ pub const REGISTRY_DAMAGE_TYPES: &str = "registry.damage-types";
 /// Registration is only possible while the server starts, before players can connect.
 pub const REGISTRY_ENTITIES: &str = "registry.entities";
 
+/// Allows the plugin to register custom sound events, particle types, mob effects, map decoration
+/// types, datapack registry entries and plugin owned registries while the server starts.
+///
+/// Most of these are registries that clients synchronise, their ids are handed to clients.
+pub const REGISTRY_EXTRA: &str = "registry.extra";
+
 /// Allows the plugin to register custom recipe types and add recipes of those types with `recipe`.
 ///
 /// Recipe types are plugin side data, they are not sent to clients and can be added at any time.
@@ -115,3 +125,7 @@ pub const CONTAINERS: &str = "containers";
 /// Allows the plugin to declare mods, channels and registries for the NeoForge client handshake
 /// with `neoforge`. Declarations are only possible while the server starts.
 pub const NEOFORGE: &str = "neoforge";
+
+/// Allows the plugin to set entity flags and overrides (size, pickup box, pose, item entity
+/// ticking) with `entity_flags`.
+pub const ENTITY_FLAGS: &str = "entity-flags";

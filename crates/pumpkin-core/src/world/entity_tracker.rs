@@ -143,8 +143,13 @@ impl TrackedEntity {
         self.send_bedrock_move(entity, world);
         let tick = self.tick_count.fetch_add(1, Relaxed);
         let needs_sync = entity.velocity_dirty.swap(false, Ordering::SeqCst);
+        // Plugin entities can override the tracking of their type.
+        let (update_interval, track_deltas) = self.entity.get_plugin_entity().map_or(
+            (self.update_interval, self.track_deltas),
+            |plugin| plugin.effective_tracking(self.update_interval, self.track_deltas),
+        );
         // Head yaw stays live every tick, only position/rotation sync is throttled.
-        if tick.is_multiple_of(self.update_interval.max(1))
+        if tick.is_multiple_of(update_interval.max(1))
             || needs_sync
             || entity.synched_data.is_dirty()
         {
@@ -165,7 +170,7 @@ impl TrackedEntity {
             } else {
                 let pos = entity.pos.load();
                 let sync = self.pick_move(entity, pos, tick, rot_changed);
-                if needs_sync || self.track_deltas || entity.is_fall_flying() {
+                if needs_sync || track_deltas || entity.is_fall_flying() {
                     self.send_motion(entity, world);
                 }
                 if let Some(sync) = sync {

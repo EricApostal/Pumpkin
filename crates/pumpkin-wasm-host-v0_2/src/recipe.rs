@@ -121,6 +121,28 @@ impl HostRecipeManager for PluginHostState {
             .map_err(|error| format!("recipe '{id}': {error}")))
     }
 
+    fn register_custom_recipe_with_network_data(
+        &mut self,
+        res: Resource<WitRecipeManager>,
+        recipe_type: String,
+        recipe: WitCustomRecipe,
+        network_data: Option<Vec<u8>>,
+    ) -> wasmtime::Result<Result<(), String>> {
+        let manager = Arc::clone(self.get(&res)?);
+        let id = recipe.id.clone();
+        let registered = self.register_custom_recipe(res, recipe_type, recipe)?;
+        if registered.is_err() {
+            return Ok(registered);
+        }
+        if let Some(data) = network_data {
+            return Ok(manager
+                .plugin_recipes()
+                .set_network_data(&id, data)
+                .map_err(|error| format!("recipe '{id}': {error}")));
+        }
+        Ok(Ok(()))
+    }
+
     fn find_recipes(
         &mut self,
         res: Resource<WitRecipeManager>,

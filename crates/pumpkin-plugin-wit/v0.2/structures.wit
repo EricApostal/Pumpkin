@@ -1,0 +1,87 @@
+/// Vanilla structure templates (the `.nbt` structure format).
+///
+/// A template is a size, a block palette, the blocks (position, palette entry and optional block
+/// entity data) and entities. Template positions are relative to the template origin, the (0, 0, 0)
+/// corner. Placing mirrors first and then rotates around that corner, so the origin block stays at
+/// the target position and a rotated template extends to the other sides of it.
+interface structures {
+    use common.{block-pos, position};
+    use %world.{%world, block-flags};
+
+    /// A rotation around the Y axis.
+    enum rotation {
+        none,
+        clockwise-90,
+        rotate-180,
+        counter-clockwise-90,
+    }
+
+    /// A mirroring of the template.
+    enum mirror {
+        none,
+        /// Flips the Z axis (north and south swap).
+        left-right,
+        /// Flips the X axis (east and west swap).
+        front-back,
+    }
+
+    /// A block state of the palette: a block key and its properties, such as `facing` = `north`.
+    record palette-entry {
+        name: string,
+        properties: list<tuple<string, string>>,
+    }
+
+    /// A block of a template.
+    record structure-block {
+        pos: block-pos,
+        /// The index into the palette.
+        palette-index: u32,
+        /// Block entity data as binary NBT with an `id`, without a position.
+        nbt: option<list<u8>>,
+    }
+
+    /// An entity of a template.
+    record structure-entity {
+        /// The position relative to the origin.
+        pos: position,
+        block-pos: block-pos,
+        /// The saved entity as binary NBT.
+        nbt: list<u8>,
+    }
+
+    /// A loaded structure template.
+    resource structure-template {
+        /// The size in blocks.
+        get-size: func() -> block-pos;
+
+        /// The author, empty if none was saved.
+        get-author: func() -> string;
+
+        /// The distinct block states of the first palette.
+        get-palette: func() -> list<palette-entry>;
+
+        /// The blocks of the first palette.
+        get-blocks: func() -> list<structure-block>;
+
+        /// The entities.
+        get-entities: func() -> list<structure-entity>;
+
+        /// The template in the `.nbt` format, gzip compressed if `compress`.
+        to-bytes: func(compress: bool) -> result<list<u8>, string>;
+    }
+
+    /// Reads a template from `.nbt` bytes, gzip compressed or raw.
+    load-structure-nbt: func(bytes: list<u8>) -> result<structure-template, string>;
+
+    /// Saves the box between `min` and `max` (inclusive, any order) of a world as `.nbt` bytes, gzip
+    /// compressed. The template origin is the minimum corner. Fails for an area of more than 16
+    /// million blocks.
+    save-structure-from-world: async func(target: borrow<%world>, min: block-pos, max: block-pos, include-entities: bool) -> result<list<u8>, string>;
+
+    /// Places a template with its origin at `origin`, mirrored and then rotated around it. Blocks go
+    /// through the bulk path of `world.set-blocks`, with `update-flags`, block entities are created from the
+    /// template data, and its entities are spawned. Structure voids are never placed, air only when
+    /// `ignore-air` is false. An `integrity` below 1 keeps each block with that chance. Returns the
+    /// number of blocks that changed.
+    place-structure: async func(template: borrow<structure-template>, target: borrow<%world>, origin: block-pos, rotation: rotation, mirror: mirror, update-flags: block-flags, ignore-air: bool, integrity: option<f32>) -> result<u32, string>;
+}

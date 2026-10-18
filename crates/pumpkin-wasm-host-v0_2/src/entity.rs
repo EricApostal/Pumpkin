@@ -788,6 +788,110 @@ impl HostEntity for PluginHostState {
         Ok(super::entity_registry::set_size(entity.as_ref(), width, height))
     }
 
+    fn set_plugin_synced_entry(
+        &mut self,
+        this: Resource<Entity>,
+        index: u8,
+        data: Vec<u8>,
+    ) -> wasmtime::Result<Result<(), String>> {
+        let entity = self.get(&this)?;
+        Ok(super::entity_registry::set_synced_entry(
+            entity.as_ref(),
+            index,
+            data,
+        ))
+    }
+
+    fn set_passenger_offset(
+        &mut self,
+        this: Resource<Entity>,
+        passenger: Resource<Entity>,
+        x: f64,
+        y: f64,
+        z: f64,
+    ) -> wasmtime::Result<Result<(), String>> {
+        let entity = self.get(&this)?.clone();
+        let passenger_id = self.get(&passenger)?.get_entity().entity_id;
+        Ok(super::entity_registry::plugin_entity_of(entity.as_ref()).map(|plugin| {
+            plugin.set_passenger_offset(passenger_id, Vector3::new(x, y, z));
+        }))
+    }
+
+    fn set_plugin_tracking(
+        &mut self,
+        this: Resource<Entity>,
+        update_interval: u32,
+        track_deltas: Option<bool>,
+    ) -> wasmtime::Result<Result<(), String>> {
+        let entity = self.get(&this)?;
+        Ok(
+            super::entity_registry::plugin_entity_of(entity.as_ref()).map(|plugin| {
+                plugin.set_tracking(update_interval, track_deltas);
+            }),
+        )
+    }
+
+    fn set_plugin_accept_client_movement(
+        &mut self,
+        this: Resource<Entity>,
+        accept: bool,
+    ) -> wasmtime::Result<Result<(), String>> {
+        let entity = self.get(&this)?;
+        Ok(
+            super::entity_registry::plugin_entity_of(entity.as_ref()).map(|plugin| {
+                plugin.set_accepts_client_movement(accept);
+            }),
+        )
+    }
+
+    fn move_entity(
+        &mut self,
+        this: Resource<Entity>,
+        delta: Position,
+        collide: bool,
+    ) -> wasmtime::Result<Position> {
+        let entity = self.get(&this)?.clone();
+        let delta = Vector3::new(delta.0, delta.1, delta.2);
+        let moved = if let Some(plugin) = entity.get_plugin_entity() {
+            plugin.move_by(delta, collide)
+        } else if entity.get_player().is_some() {
+            Vector3::default()
+        } else if collide {
+            let before = entity.get_entity().pos.load();
+            entity.get_entity().move_entity(entity.as_ref(), delta);
+            entity.get_entity().pos.load().sub(&before)
+        } else {
+            entity.get_entity().move_pos(delta);
+            delta
+        };
+        Ok((moved.x, moved.y, moved.z))
+    }
+
+    fn set_on_ground(&mut self, this: Resource<Entity>, on_ground: bool) -> wasmtime::Result<()> {
+        let entity = self.get(&this)?;
+        entity
+            .get_entity()
+            .on_ground
+            .store(on_ground, std::sync::atomic::Ordering::Relaxed);
+        Ok(())
+    }
+
+    fn set_position_rotation_delta(
+        &mut self,
+        this: Resource<Entity>,
+        pos: Position,
+        yaw: f32,
+        pitch: f32,
+        velocity: Position,
+    ) -> wasmtime::Result<()> {
+        let entity = self.get(&this)?;
+        let base = entity.get_entity();
+        base.set_pos(Vector3::new(pos.0, pos.1, pos.2));
+        base.set_rotation(yaw, pitch);
+        base.set_velocity(Vector3::new(velocity.0, velocity.1, velocity.2));
+        Ok(())
+    }
+
     fn is_living(&mut self, this: Resource<Entity>) -> wasmtime::Result<bool> {
         let entity = self.get(&this)?;
         Ok(entity.get_living_entity().is_some())

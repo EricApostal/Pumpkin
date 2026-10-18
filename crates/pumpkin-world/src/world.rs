@@ -41,6 +41,12 @@ bitflags! {
         /// change. Used when a multi-block structure such as a nether portal is written in
         /// one go, so the blocks are not removed again while the structure is incomplete.
         const UPDATE_KNOWN_SHAPE                    = 0b001_0000_0000;
+        /// Internal to bulk placement: skips the neighbour, shape and light updates of this
+        /// change, the caller runs them once after all writes.
+        const DEFER_NEIGHBOR_UPDATES                = 0b010_0000_0000;
+        /// Also updates the neighbours of the neighbours of the changed block, which strong
+        /// redstone power needs. Only bulk block changes honour it.
+        const UPDATE_INDIRECT_NEIGHBORS             = 0b100_0000_0000;
     }
 }
 
@@ -83,6 +89,20 @@ pub trait WorldPortalExt: Send + Sync {
     );
 
     fn spawn_structure_entities(&self, _entities: Vec<NbtCompound>) {}
+
+    /// Places a plugin feature (see `generation::feature::additive`) in the chunk being
+    /// generated. `positions` are the origins the placement rule chose, `seed` is the decorator
+    /// seed of the rule. Runs on a generation worker thread, writes only reach `chunk`. The
+    /// default does nothing.
+    fn place_plugin_feature(
+        &self,
+        _feature_key: &str,
+        _chunk: &mut crate::ProtoChunk,
+        _step: usize,
+        _seed: u64,
+        _positions: &[BlockPos],
+    ) {
+    }
 }
 
 pub trait BlockAccessor: Send + Sync {
@@ -93,6 +113,18 @@ pub trait BlockAccessor: Send + Sync {
     fn get_block_state_id(&self, position: &BlockPos) -> BlockStateId;
 
     fn get_block_and_state(&self, position: &BlockPos) -> (&'static Block, &'static BlockState);
+
+    /// The shape that a plugin gives for the block at `position` when its shape depends on more
+    /// than the state, in block units. `None` for every block without that, the shapes of the
+    /// state apply then.
+    fn dynamic_shapes(
+        &self,
+        _position: &BlockPos,
+        _state: &BlockState,
+        _kind: pumpkin_data::block_registry::ShapeKind,
+    ) -> Option<std::sync::Arc<[pumpkin_util::math::boundingbox::BoundingBox]>> {
+        None
+    }
 
     /// Clips a ray segment against the block and fluid shapes in this accessor.
     fn clip(&self, context: &crate::clip::ClipContext) -> crate::clip::BlockHitResult {

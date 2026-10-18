@@ -48,6 +48,29 @@ impl JavaClient {
 
                     let inventory = player.inventory();
                     let held = inventory.held_item();
+                    if let Some(server) = world.server.upgrade()
+                        && server
+                            .plugin_manager
+                            .has_handlers::<crate::plugin::api::events::entity::CanAttackBlockEvent>()
+                    {
+                        let mut attack_event =
+                            crate::plugin::api::events::entity::CanAttackBlockEvent::new(
+                                player.clone(),
+                                held.clone(),
+                                position,
+                            );
+                        server
+                            .plugin_manager
+                            .fire_blocking(&server, &mut attack_event);
+                        if attack_event.cancelled {
+                            player.try_send_client_packet(&CBlockUpdate::new(
+                                position,
+                                VarInt(i32::from(state.id.as_u16())),
+                            ));
+                            self.update_sequence(player_action.sequence.0);
+                            return;
+                        }
+                    }
                     if !server.item_registry.can_mine(held.item, player) {
                         player.try_send_client_packet(&CBlockUpdate::new(
                             position,

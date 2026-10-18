@@ -1384,6 +1384,69 @@ fn register_host_feature_event(
     }
 }
 
+fn register_custom_block_ext_event(
+    resource: &Context,
+    handler: &Arc<WasmPluginEventHandler>,
+    priority: pumpkin_core::plugin::EventPriority,
+    blocking: bool,
+    event_type: EventType,
+) {
+    use pumpkin_core::plugin::block::{
+        CustomBlockAttackEvent, CustomBlockCloneItemEvent, CustomBlockConditionEvent,
+        CustomBlockFireSpreadEvent, CustomBlockLandedEvent, CustomBlockPhysicsEvent,
+        CustomBlockPlayerWillDestroyEvent, CustomBlockShapeEvent, CustomBlockSoundTypeEvent,
+        CustomBlockUseEvent,
+    };
+
+    match event_type {
+        EventType::CustomBlockShapeEvent => {
+            register_typed_event::<CustomBlockShapeEvent>(resource, handler, priority, blocking);
+        }
+        EventType::CustomBlockUseEvent => {
+            register_typed_event::<CustomBlockUseEvent>(resource, handler, priority, blocking);
+        }
+        EventType::CustomBlockAttackEvent => {
+            register_typed_event::<CustomBlockAttackEvent>(resource, handler, priority, blocking);
+        }
+        EventType::CustomBlockCloneItemEvent => {
+            register_typed_event::<CustomBlockCloneItemEvent>(
+                resource, handler, priority, blocking,
+            );
+        }
+        EventType::CustomBlockPlayerWillDestroyEvent => {
+            register_typed_event::<CustomBlockPlayerWillDestroyEvent>(
+                resource, handler, priority, blocking,
+            );
+        }
+        EventType::CustomBlockPhysicsEvent => {
+            register_typed_event::<CustomBlockPhysicsEvent>(resource, handler, priority, blocking);
+        }
+        EventType::CustomBlockLandedEvent => {
+            register_typed_event::<CustomBlockLandedEvent>(resource, handler, priority, blocking);
+        }
+        EventType::CustomBlockConditionEvent => {
+            register_typed_event::<CustomBlockConditionEvent>(
+                resource, handler, priority, blocking,
+            );
+        }
+        EventType::CustomBlockSoundTypeEvent => {
+            register_typed_event::<CustomBlockSoundTypeEvent>(
+                resource, handler, priority, blocking,
+            );
+        }
+        EventType::CustomBlockFireSpreadEvent => {
+            register_typed_event::<CustomBlockFireSpreadEvent>(
+                resource, handler, priority, blocking,
+            );
+        }
+        _ => {
+            tracing::error!(
+                "non-custom-block-ext event should not be routed to register_custom_block_ext_event"
+            );
+        }
+    }
+}
+
 fn register_custom_block_event(
     resource: &Context,
     handler: &Arc<WasmPluginEventHandler>,
@@ -1862,6 +1925,26 @@ impl pumpkin::plugin::context::HostContext for PluginHostState {
             | EventType::CustomBlockComparatorOutputEvent) => {
                 register_custom_block_event(ctx, &handler, priority, blocking, event_type);
             }
+            event_type @ (EventType::CustomBlockShapeEvent
+            | EventType::CustomBlockUseEvent
+            | EventType::CustomBlockAttackEvent
+            | EventType::CustomBlockCloneItemEvent
+            | EventType::CustomBlockPlayerWillDestroyEvent
+            | EventType::CustomBlockPhysicsEvent
+            | EventType::CustomBlockLandedEvent
+            | EventType::CustomBlockConditionEvent
+            | EventType::CustomBlockSoundTypeEvent
+            | EventType::CustomBlockFireSpreadEvent) => {
+                register_custom_block_ext_event(ctx, &handler, priority, blocking, event_type);
+            }
+            event_type @ (EventType::DatapackReloadEvent
+            | EventType::TagsUpdatedEvent
+            | EventType::DatapackSyncEvent
+            | EventType::LootModifyEvent) => {
+                crate::events::datapack_loot::register_datapack_loot_event(
+                    ctx, &handler, priority, blocking, event_type,
+                );
+            }
             event_type @ (EventType::LivingDropsEvent
             | EventType::LivingEquipmentChangeEvent
             | EventType::LivingBreatheEvent
@@ -1873,6 +1956,28 @@ impl pumpkin::plugin::context::HostContext for PluginHostState {
             | EventType::EntityStartTrackingEvent
             | EventType::EntityStopTrackingEvent) => {
                 crate::events::living_extra::register_living_extra_event(
+                    ctx, &handler, priority, blocking, event_type,
+                );
+            }
+            event_type @ (EventType::EntityFluidMovementEvent
+            | EventType::ItemUseTickEvent
+            | EventType::ItemSwingEvent
+            | EventType::ItemUseFirstEvent
+            | EventType::CanAttackBlockEvent
+            | EventType::EntityItemUpdateEvent
+            | EventType::FakePlayerPlaceCheckEvent
+            | EventType::FluidCanPassThroughEvent) => {
+                crate::events::mixins::register_mixin_event(
+                    ctx, &handler, priority, blocking, event_type,
+                );
+            }
+            EventType::PluginVehicleInputEvent => {
+                ctx.register_event::<pumpkin_core::plugin::api::events::entity::PluginVehicleInputEvent, _>(
+                    handler, priority, blocking,
+                );
+            }
+            event_type @ EventType::PluginFeaturePlaceEvent => {
+                crate::events::worldgen::register_worldgen_event(
                     ctx, &handler, priority, blocking, event_type,
                 );
             }

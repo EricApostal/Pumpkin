@@ -17,6 +17,8 @@ use std::sync::Arc;
 pub mod blocks;
 pub mod entities;
 pub mod fluid;
+pub mod fluid_handler;
+pub mod item_fluid_handler;
 pub mod item_handler;
 pub mod registry;
 pub mod viewer;
@@ -60,7 +62,11 @@ pub(crate) fn bounce_entity_after_fall(entity: &dyn EntityBase, bounce_multiplie
     let base_entity = entity.get_entity();
     let mut velocity = base_entity.velocity.load();
 
-    if base_entity.is_sneaking() {
+    if base_entity.is_sneaking()
+        || base_entity
+            .plugin_flags
+            .has(crate::entity::plugin_flags::FLAG_NO_FALL_BOUNCE)
+    {
         velocity.y = 0.0;
     } else if velocity.y < 0.0 {
         let entity_factor = if entity.get_living_entity().is_some() {
@@ -364,6 +370,8 @@ pub struct PlayerPlacedArgs<'a> {
 
 pub struct OnLandedUponArgs<'a> {
     pub world: &'a Arc<World>,
+    pub block: &'a Block,
+    pub position: &'a BlockPos,
     pub fall_distance: f32,
     pub entity: &'a dyn EntityBase,
 }
@@ -550,7 +558,11 @@ pub fn drop_loot(
     experience: bool,
     params: &LootContextParameters,
 ) {
-    let items = block_loot(world, block, params);
+    let mut items = block_loot(world, block, params);
+    if !items.is_empty() && crate::world::loot::has_loot_modify_handlers(world) {
+        let event = crate::world::loot::block_loot_event(block.loot_table, pos, params, items);
+        items = crate::world::loot::fire_loot_modify(world, event);
+    }
     if !items.is_empty() {
         let mut event = crate::plugin::block::block_drop_item::BlockDropItemEvent {
             block_pos: *pos,

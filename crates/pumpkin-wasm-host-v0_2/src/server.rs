@@ -500,6 +500,11 @@ impl pumpkin::plugin::server::HostServer for PluginHostState {
         let ids = pumpkin_data::Advancement::get_identifier_list()
             .iter()
             .map(ToString::to_string)
+            .chain(
+                pumpkin_core::data::runtime_advancement::all()
+                    .into_iter()
+                    .map(|advancement| advancement.id.to_string()),
+            )
             .collect();
         Ok(ids)
     }

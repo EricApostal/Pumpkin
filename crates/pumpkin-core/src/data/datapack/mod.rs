@@ -8,6 +8,7 @@ pub mod recipe_loader;
 pub mod structure_loader;
 pub mod test_loader;
 pub mod trade_loader;
+pub mod worldgen_feature_loader;
 
 use std::collections::HashMap;
 use std::fs;
@@ -128,6 +129,8 @@ impl DatapackManager {
     ) {
         let datapacks_dir = world_path.join("datapacks");
         structure_loader::clear_dynamic_worldgen_data();
+        worldgen_feature_loader::clear();
+        crate::data::runtime_advancement::clear();
         let mut loaded_packs_vec = Vec::new();
         let mut all_recipes: Vec<DynamicRecipe> = Vec::new();
         let mut all_functions: HashMap<String, Vec<String>> = HashMap::new();
@@ -179,6 +182,9 @@ impl DatapackManager {
             &mut acc,
             &mut loaded_packs_vec,
         );
+
+        worldgen_feature_loader::finish();
+        crate::data::runtime_advancement::finish();
 
         let damage_type_registry = build_damage_type_registry(all_damage_type_defs.clone());
         *self
@@ -1517,6 +1523,10 @@ fn load_pack_contents(
                         structure_loader::load_processor_lists_from_dir(&namespace, &proc_dir);
                 }
             }
+
+            // Load additive worldgen features and biome modifiers
+            worldgen_feature_loader::load_namespace(&namespace, &ns_path);
+            crate::data::runtime_advancement::load_namespace(&namespace, &ns_path);
 
             // Load dynamic registry entries (wolf_variant, cat_variant, frog_variant, instrument,
             // trim_material, trim_pattern, banner_pattern, decorated_pot_pattern, chat_type, etc.)

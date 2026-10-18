@@ -12,17 +12,25 @@ impl JavaClient {
         }
 
         let world = player.world();
-        let block = world.get_block(&pick_item.pos);
+        let (block, state) = world.get_block_and_state(&pick_item.pos);
 
-        if block.item_id == 0 {
-            // Invalid block id (blocks such as tall seagrass)
-            return;
-        }
-
-        let Some(item) = Item::from_id(block.item_id) else {
+        let default_stack = (block.item_id != 0)
+            .then(|| Item::from_id(block.item_id))
+            .flatten()
+            .map(|item| ItemStack::new(1, item));
+        // Custom blocks can give another item, or none.
+        let picked = crate::block::blocks::dynamic::clone_item(
+            &world,
+            &pick_item.pos,
+            block,
+            state,
+            player,
+            default_stack.clone(),
+        );
+        // Invalid block ids (blocks such as tall seagrass) have no item.
+        let Some(stack) = picked.unwrap_or(default_stack) else {
             return;
         };
-        let stack = ItemStack::new(1, item);
 
         let slot_with_stack = player.inventory().get_slot_with_stack(&stack);
 

@@ -6,7 +6,13 @@ use pumpkin_inventory::player::player_inventory::PlayerInventory;
 use pumpkin_inventory::screen_handler::{
     InventoryPlayer, ScreenHandlerFactory, SharedScreenHandler,
 };
-use pumpkin_inventory::smithing_table_screen_handler::SmithingTableScreenHandler;
+use crate::entity::player::Player;
+use crate::plugin::api::events::inventory::prepare_smithing::PrepareSmithingEvent;
+use pumpkin_data::item::Item;
+use pumpkin_data::item_stack::ItemStack;
+use pumpkin_inventory::smithing_table_screen_handler::{
+    SmithingContext, SmithingTableScreenHandler, set_smithing_result_hook,
+};
 use pumpkin_macros::pumpkin_block;
 use pumpkin_util::text::TextComponent;
 use std::sync::Arc;
@@ -44,6 +50,34 @@ impl BlockBehaviour for SmithingTableBlock {
     }
 }
 
+/// Fires `PrepareSmithingEvent` for a computed result and applies what plugins changed.
+fn smithing_result_hook(context: &SmithingContext<'_>) -> Option<ItemStack> {
+    let player = context.player?.as_any().downcast_ref::<Player>()?;
+    let server = player.world().server.upgrade()?;
+    if !server.plugin_manager.has_handlers::<PrepareSmithingEvent>() {
+        return None;
+    }
+    let player = server.get_player_by_uuid(player.gameprofile.id)?;
+    let key = |stack: &ItemStack| (!stack.is_empty()).then(|| stack.item.registry_key.to_string());
+    let before = key(context.result);
+    let mut event = PrepareSmithingEvent::new(
+        player,
+        before.clone(),
+        key(context.template),
+        key(context.base),
+        key(context.addition),
+    );
+    server.plugin_manager.fire_blocking(&server, &mut event);
+    if event.result_item == before {
+        return None;
+    }
+    let Some(item_key) = event.result_item else {
+        return Some(ItemStack::EMPTY.clone());
+    };
+    let item = Item::from_registry_key(item_key.strip_prefix("minecraft:").unwrap_or(&item_key))?;
+    Some(ItemStack::new(1, item))
+}
+
 struct SmithingTableScreenFactory;
 
 impl ScreenHandlerFactory for SmithingTableScreenFactory {
@@ -53,6 +87,7 @@ impl ScreenHandlerFactory for SmithingTableScreenFactory {
         player_inventory: &Arc<PlayerInventory>,
         _player: &dyn InventoryPlayer,
     ) -> Option<SharedScreenHandler> {
+        set_smithing_result_hook(smithing_result_hook);
         let handler: SharedScreenHandler = Arc::new(Mutex::new(SmithingTableScreenHandler::new(
             sync_id,
             player_inventory,

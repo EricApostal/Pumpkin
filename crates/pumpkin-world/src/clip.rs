@@ -1,3 +1,4 @@
+use pumpkin_data::block_registry::ShapeKind;
 use pumpkin_data::fluid::Fluid;
 use pumpkin_data::tag::Taggable;
 use pumpkin_data::{Block, BlockDirection, BlockState};
@@ -288,20 +289,36 @@ fn check_block(
     let state = accessor.get_block_state(block_pos);
 
     let block_hit = match context.block {
-        ClipBlock::Collider | ClipBlock::Visual => clip_block_shapes(
-            state.get_block_collision_shapes_at(block_pos),
-            state,
-            block_pos,
-            from,
-            to,
-        ),
-        ClipBlock::Outline => clip_block_shapes(
-            state.get_block_outline_shapes_at(block_pos),
-            state,
-            block_pos,
-            from,
-            to,
-        ),
+        ClipBlock::Collider | ClipBlock::Visual => {
+            let kind = if context.block == ClipBlock::Visual {
+                ShapeKind::Visual
+            } else {
+                ShapeKind::Collision
+            };
+            match accessor.dynamic_shapes(block_pos, state, kind) {
+                Some(shapes) => {
+                    clip_block_shapes(shapes.iter().copied(), state, block_pos, from, to)
+                }
+                None => clip_block_shapes(
+                    state.get_block_collision_shapes_at(block_pos),
+                    state,
+                    block_pos,
+                    from,
+                    to,
+                ),
+            }
+        }
+        ClipBlock::Outline => match accessor.dynamic_shapes(block_pos, state, ShapeKind::Selection)
+        {
+            Some(shapes) => clip_block_shapes(shapes.iter().copied(), state, block_pos, from, to),
+            None => clip_block_shapes(
+                state.get_block_outline_shapes_at(block_pos),
+                state,
+                block_pos,
+                from,
+                to,
+            ),
+        },
         ClipBlock::FallDamageResetting => {
             if Block::from_state_id(state.id)
                 .has_tag(&pumpkin_data::tag::Block::MINECRAFT_FALL_DAMAGE_RESETTING)
