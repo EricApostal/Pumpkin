@@ -1340,7 +1340,8 @@ fn register_host_feature_event(
         BlockEntityLoadEvent, BlockEntityTickEvent, BlockEntityUnloadEvent,
     };
     use pumpkin_core::plugin::player::{
-        MenuClickEvent, MenuClosedEvent, PlayerUseBlockEvent, PlayerUseItemEvent,
+        MenuButtonClickEvent, MenuClickEvent, MenuClosedEvent, MenuSlotChangedEvent,
+        PlayerUseBlockEvent, PlayerUseItemEvent,
     };
     use pumpkin_core::plugin::world::WorldTickEvent;
 
@@ -1356,6 +1357,12 @@ fn register_host_feature_event(
         }
         EventType::MenuClosedEvent => {
             register_typed_event::<MenuClosedEvent>(resource, handler, priority, blocking);
+        }
+        EventType::MenuSlotChangedEvent => {
+            register_typed_event::<MenuSlotChangedEvent>(resource, handler, priority, blocking);
+        }
+        EventType::MenuButtonClickEvent => {
+            register_typed_event::<MenuButtonClickEvent>(resource, handler, priority, blocking);
         }
         EventType::BlockEntityLoadEvent => {
             register_typed_event::<BlockEntityLoadEvent>(resource, handler, priority, blocking);
@@ -1432,9 +1439,7 @@ fn register_custom_block_event(
             );
         }
         EventType::CustomBlockCanPlaceEvent => {
-            register_typed_event::<CustomBlockCanPlaceEvent>(
-                resource, handler, priority, blocking,
-            );
+            register_typed_event::<CustomBlockCanPlaceEvent>(resource, handler, priority, blocking);
         }
         EventType::CustomBlockUpdateShapeEvent => {
             register_typed_event::<CustomBlockUpdateShapeEvent>(
@@ -1835,6 +1840,8 @@ impl pumpkin::plugin::context::HostContext for PluginHostState {
             | EventType::PlayerUseBlockEvent
             | EventType::MenuClickEvent
             | EventType::MenuClosedEvent
+            | EventType::MenuSlotChangedEvent
+            | EventType::MenuButtonClickEvent
             | EventType::BlockEntityLoadEvent
             | EventType::BlockEntityUnloadEvent
             | EventType::BlockEntityTickEvent

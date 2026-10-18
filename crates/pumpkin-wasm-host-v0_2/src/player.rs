@@ -2926,6 +2926,25 @@ impl pumpkin::plugin::player::HostPlayerWithStore<PluginHostState> for HasSelf<P
         .await
     }
 
+    async fn damage_by_key(
+        accessor: &Accessor<PluginHostState, Self>,
+        player: Resource<Player>,
+        amount: f32,
+        damage_type_key: String,
+    ) -> wasmtime::Result<Result<(), String>> {
+        let Some(damage_type) = pumpkin_data::damage_type_registry::damage_type_from_key(
+            &damage_type_key,
+        ) else {
+            return Ok(Err(format!("unknown damage type '{damage_type_key}'")));
+        };
+        let player = accessor.get_res(&player)?;
+        run_blocking(accessor, move || {
+            player.damage(&*player, amount, damage_type);
+        })
+        .await?;
+        Ok(Ok(()))
+    }
+
     async fn kill(
         accessor: &Accessor<PluginHostState, Self>,
         player: Resource<Player>,

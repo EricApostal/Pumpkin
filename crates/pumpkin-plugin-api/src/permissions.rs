@@ -95,3 +95,7 @@ pub const REGISTRY_DAMAGE_TYPES: &str = "registry.damage-types";
 ///
 /// Recipe types are plugin side data, they are not sent to clients and can be added at any time.
 pub const REGISTRY_RECIPES: &str = "registry.recipes";
+
+/// Allows the plugin to create fake players with `fake_player`: server side actors that behave like
+/// players (break blocks, use items, attack) without a connection.
+pub const FAKE_PLAYERS: &str = "fake-players";

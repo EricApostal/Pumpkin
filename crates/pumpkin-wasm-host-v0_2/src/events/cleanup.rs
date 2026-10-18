@@ -725,6 +725,18 @@ pub fn cleanup_event(event: &Event, state: &mut PluginHostState) {
         }
         Event::MenuClickEvent(data) => {
             cleanup_player(state, &data.player);
+            cleanup_item_stack(state, &data.cursor_stack);
+        }
+        Event::MenuSlotChangedEvent(data) => {
+            cleanup_player(state, &data.player);
+            for change in &data.changes {
+                cleanup_item_stack(state, &change.previous);
+                cleanup_item_stack(state, &change.stack);
+            }
+            cleanup_item_stack(state, &data.cursor_stack);
+        }
+        Event::MenuButtonClickEvent(data) => {
+            cleanup_player(state, &data.player);
         }
         Event::MenuClosedEvent(data) => {
             cleanup_player(state, &data.player);

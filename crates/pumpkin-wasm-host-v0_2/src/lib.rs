@@ -25,6 +25,7 @@ pub mod commands;
 pub mod common;
 pub mod context;
 pub mod custom_components;
+pub mod damage_types;
 pub mod datapack;
 pub mod display;
 pub mod enchantment;
@@ -496,7 +497,6 @@ impl pumpkin::plugin::enchantments::Host for PluginHostState {}
 impl pumpkin::plugin::biomes::Host for PluginHostState {}
 impl pumpkin::plugin::attributes::Host for PluginHostState {}
 impl pumpkin::plugin::advancement::Host for PluginHostState {}
-impl pumpkin::plugin::damage_types::Host for PluginHostState {}
 impl pumpkin::plugin::screens::Host for PluginHostState {}
 impl pumpkin::plugin::statistics::Host for PluginHostState {}
 impl pumpkin::plugin::game_rules::Host for PluginHostState {}

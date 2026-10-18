@@ -22,10 +22,10 @@ use crate::pumpkin::plugin::world::{
     BlockFlags as WitBlockFlags, BlockPos as WitBlockPos, BlockState as WitBlockState,
     BlockStateInfo as WitBlockStateInfo, BoundingBox as WitBoundingBox, Chunk as WitChunk,
     Flammable as WitFlammable, FluidState as WitFluidState,
-    NoteblockInstrument as WitNoteblockInstrument,
-    PistonBehavior as WitPistonBehavior, RayTraceBlockResult as WitRayTraceBlockResult,
-    RayTraceEntityResult as WitRayTraceEntityResult, TickPriority as WitTickPriority,
-    WorldBorder as WitWorldBorder, WorldSpawnLocation as WitWorldSpawnLocation,
+    NoteblockInstrument as WitNoteblockInstrument, PistonBehavior as WitPistonBehavior,
+    RayTraceBlockResult as WitRayTraceBlockResult, RayTraceEntityResult as WitRayTraceEntityResult,
+    TickPriority as WitTickPriority, WorldBorder as WitWorldBorder,
+    WorldSpawnLocation as WitWorldSpawnLocation,
 };
 use crate::pumpkin::{self, plugin::world::World};
 use pumpkin_core::block::entities::banner::BannerBlockEntity as InternalBannerBlockEntity;

@@ -10,7 +10,10 @@ use tokio::sync::Mutex;
 
 use pumpkin_core::plugin::{
     block::{BlockEntityLoadEvent, BlockEntityTickEvent, BlockEntityUnloadEvent},
-    player::{MenuClickEvent, MenuClosedEvent, PlayerUseBlockEvent, PlayerUseItemEvent},
+    player::{
+        MenuButtonClickEvent, MenuClickEvent, MenuClickMode, MenuClosedEvent, MenuSlotChange,
+        MenuSlotChangedEvent, PlayerUseBlockEvent, PlayerUseItemEvent,
+    },
     world::WorldTickEvent,
 };
 use pumpkin_wasm_host_common::state::PluginHostState;
@@ -25,7 +28,9 @@ use crate::{
     mob::{from_wit_block_direction, to_wit_block_direction},
     pumpkin::plugin::event::{
         BlockEntityLoadEventData, BlockEntityTickEventData, BlockEntityUnloadEventData, Event,
-        MenuChangedSlot, MenuClickEventData, MenuClosedEventData, PlayerUseBlockEventData,
+        MenuButtonClickEventData, MenuChangedSlot, MenuClickEventData,
+        MenuClickMode as WitMenuClickMode, MenuClosedEventData,
+        MenuSlotChange as WitMenuSlotChange, MenuSlotChangedEventData, PlayerUseBlockEventData,
         PlayerUseItemEventData, WorldTickEventData,
     },
 };
@@ -132,6 +137,10 @@ impl ToFromWasmEvent for MenuClickEvent {
             .add(self.player.clone())
             .expect("failed to add player resource");
 
+        let cursor_stack = state
+            .add(Arc::new(Mutex::new(self.cursor_stack.clone())))
+            .expect("failed to add item stack resource");
+
         Event::MenuClickEvent(MenuClickEventData {
             player,
             container_id: self.container_id,
@@ -150,22 +159,157 @@ impl ToFromWasmEvent for MenuClickEvent {
                 .collect(),
             carried_item_id: self.carried_item_id,
             carried_count: self.carried_count,
+            mode: to_wasm_click_mode(self.mode),
+            cursor_stack,
+            cancelled: self.cancelled,
         })
     }
 
     /// The event only reports what the client did, the host never reads it back.
     fn from_wasm_event(event: Event, state: &mut PluginHostState) -> Self {
         match event {
-            Event::MenuClickEvent(data) => Self {
+            Event::MenuClickEvent(data) => {
+                state.discard_to_be_removed(&data.cursor_stack);
+                Self {
+                    player: consume_player(state, &data.player),
+                    container_id: data.container_id,
+                    menu_type: data.menu_type,
+                    slot: data.slot,
+                    button: data.button,
+                    click_type: pumpkin_inventory::screen_handler::ClickType::Unknown,
+                    changed_slots: Vec::new(),
+                    carried_item_id: data.carried_item_id,
+                    carried_count: data.carried_count,
+                    mode: from_wasm_click_mode(data.mode),
+                    cursor_stack: ItemStack::EMPTY.clone(),
+                    cancelled: data.cancelled,
+                }
+            }
+            _ => panic!("unexpected event type"),
+        }
+    }
+
+    /// The click is the host's, a handler can only cancel it.
+    fn apply_wasm_event(&mut self, event: Event, state: &mut PluginHostState) {
+        cleanup_event(&event, state);
+        if let Event::MenuClickEvent(data) = event {
+            self.cancelled = data.cancelled;
+        }
+    }
+}
+
+const fn to_wasm_click_mode(mode: MenuClickMode) -> WitMenuClickMode {
+    match mode {
+        MenuClickMode::Pickup => WitMenuClickMode::Pickup,
+        MenuClickMode::QuickMove => WitMenuClickMode::QuickMove,
+        MenuClickMode::Swap => WitMenuClickMode::Swap,
+        MenuClickMode::Clone => WitMenuClickMode::Clone,
+        MenuClickMode::Throw => WitMenuClickMode::Throw,
+        MenuClickMode::QuickCraft => WitMenuClickMode::QuickCraft,
+        MenuClickMode::PickupAll => WitMenuClickMode::PickupAll,
+    }
+}
+
+const fn from_wasm_click_mode(mode: WitMenuClickMode) -> MenuClickMode {
+    match mode {
+        WitMenuClickMode::Pickup => MenuClickMode::Pickup,
+        WitMenuClickMode::QuickMove => MenuClickMode::QuickMove,
+        WitMenuClickMode::Swap => MenuClickMode::Swap,
+        WitMenuClickMode::Clone => MenuClickMode::Clone,
+        WitMenuClickMode::Throw => MenuClickMode::Throw,
+        WitMenuClickMode::QuickCraft => MenuClickMode::QuickCraft,
+        WitMenuClickMode::PickupAll => MenuClickMode::PickupAll,
+    }
+}
+
+impl ToFromWasmEvent for MenuSlotChangedEvent {
+    fn to_wasm_event(&self, state: &mut PluginHostState) -> Event {
+        let player = state
+            .add(self.player.clone())
+            .expect("failed to add player resource");
+        let changes = self
+            .changes
+            .iter()
+            .map(|change| WitMenuSlotChange {
+                slot: change.slot,
+                previous: state
+                    .add(Arc::new(Mutex::new(change.previous.clone())))
+                    .expect("failed to add item stack resource"),
+                stack: state
+                    .add(Arc::new(Mutex::new(change.stack.clone())))
+                    .expect("failed to add item stack resource"),
+            })
+            .collect();
+        let cursor_stack = state
+            .add(Arc::new(Mutex::new(self.cursor_stack.clone())))
+            .expect("failed to add item stack resource");
+
+        Event::MenuSlotChangedEvent(MenuSlotChangedEventData {
+            player,
+            container_id: self.container_id,
+            menu_type: self.menu_type.clone(),
+            changes,
+            cursor_stack,
+        })
+    }
+
+    /// The event only reports what changed, the host never reads it back.
+    fn from_wasm_event(event: Event, state: &mut PluginHostState) -> Self {
+        match event {
+            Event::MenuSlotChangedEvent(data) => {
+                let changes = data
+                    .changes
+                    .iter()
+                    .map(|change| {
+                        state.discard_to_be_removed(&change.previous);
+                        state.discard_to_be_removed(&change.stack);
+                        MenuSlotChange {
+                            slot: change.slot,
+                            previous: ItemStack::EMPTY.clone(),
+                            stack: ItemStack::EMPTY.clone(),
+                        }
+                    })
+                    .collect();
+                state.discard_to_be_removed(&data.cursor_stack);
+                Self {
+                    player: consume_player(state, &data.player),
+                    container_id: data.container_id,
+                    menu_type: data.menu_type,
+                    changes,
+                    cursor_stack: ItemStack::EMPTY.clone(),
+                }
+            }
+            _ => panic!("unexpected event type"),
+        }
+    }
+
+    /// Informational only.
+    fn apply_wasm_event(&mut self, event: Event, state: &mut PluginHostState) {
+        cleanup_event(&event, state);
+    }
+}
+
+impl ToFromWasmEvent for MenuButtonClickEvent {
+    fn to_wasm_event(&self, state: &mut PluginHostState) -> Event {
+        let player = state
+            .add(self.player.clone())
+            .expect("failed to add player resource");
+
+        Event::MenuButtonClickEvent(MenuButtonClickEventData {
+            player,
+            container_id: self.container_id,
+            menu_type: self.menu_type.clone(),
+            button_id: self.button_id,
+        })
+    }
+
+    fn from_wasm_event(event: Event, state: &mut PluginHostState) -> Self {
+        match event {
+            Event::MenuButtonClickEvent(data) => Self {
                 player: consume_player(state, &data.player),
                 container_id: data.container_id,
                 menu_type: data.menu_type,
-                slot: data.slot,
-                button: data.button,
-                click_type: pumpkin_inventory::screen_handler::ClickType::Unknown,
-                changed_slots: Vec::new(),
-                carried_item_id: data.carried_item_id,
-                carried_count: data.carried_count,
+                button_id: data.button_id,
             },
             _ => panic!("unexpected event type"),
         }

@@ -16,7 +16,7 @@ use pumpkin_util::Hand;
 use pumpkin_util::math::{position::BlockPos, vector3::Vector3};
 use pumpkin_wasm_host_common::state::PluginHostState;
 use std::sync::Arc;
-use wasmtime::component::{Accessor, HasSelf, Resource};
+use wasmtime::component::{Access, Accessor, HasSelf, Resource};
 
 const fn from_wit_hand(hand: WitHand) -> Hand {
     match hand {
@@ -38,12 +38,26 @@ const fn block_pos(pos: &WitBlockPos) -> BlockPos {
 }
 
 fn permission_error(state: &PluginHostState) -> Option<String> {
-    (!state.permissions.iter().any(|p| p == permissions::FAKE_PLAYERS)).then(|| {
+    (!state
+        .permissions
+        .iter()
+        .any(|p| p == permissions::FAKE_PLAYERS))
+    .then(|| {
         format!(
             "fake players need the '{}' permission",
             permissions::FAKE_PLAYERS
         )
     })
+}
+
+fn plugin_of(
+    state: &PluginHostState,
+) -> wasmtime::Result<Arc<pumpkin_wasm_host_common::plugin::WasmPlugin>> {
+    state
+        .plugin
+        .as_ref()
+        .and_then(std::sync::Weak::upgrade)
+        .ok_or_else(|| wasmtime::Error::msg("Plugin instance not available"))
 }
 
 /// The fake player of a resource, or the error to hand to the plugin.
@@ -100,36 +114,48 @@ impl Host for PluginHostState {
     }
 }
 
-impl HostWithStore for HasSelf<PluginHostState> {
+impl HostWithStore<PluginHostState> for HasSelf<PluginHostState> {
     async fn create_fake_player(
-        accessor: &Accessor<PluginHostState, Self>,
+        mut host: Access<'_, PluginHostState, Self>,
         world: Resource<WitWorld>,
         profile_name: String,
         id: Option<WitUuid>,
     ) -> wasmtime::Result<Result<Resource<WitPlayer>, String>> {
-        let denied = accessor.with(|mut host| permission_error(host.get()));
-        if let Some(error) = denied {
-            return Ok(Err(error));
-        }
-        let world = accessor.get_res(&world)?;
+        let (world, plugin) = {
+            let state = host.get();
+            if let Some(error) = permission_error(state) {
+                return Ok(Err(error));
+            }
+            (Arc::clone(state.get(&world)?), plugin_of(state)?)
+        };
         let id = id.as_ref().map(WitUuid::from_wit);
-        let created =
-            run_blocking(accessor, move || Player::create_fake(&world, &profile_name, id)).await?;
+        let created = plugin
+            .store
+            .pump_blocking(&mut host, move || {
+                Player::create_fake(&world, &profile_name, id)
+            })
+            .await?;
         match created {
-            Ok(player) => Ok(Ok(accessor.add_res(player)?)),
+            Ok(player) => Ok(Ok(host.get().add(player)?)),
             Err(error) => Ok(Err(error)),
         }
     }
 
     async fn remove_fake_player(
-        accessor: &Accessor<PluginHostState, Self>,
+        mut host: Access<'_, PluginHostState, Self>,
         player: Resource<WitPlayer>,
     ) -> wasmtime::Result<Result<(), String>> {
-        let player = match fake_player(accessor, &player)? {
-            Ok(player) => player,
-            Err(error) => return Ok(Err(error)),
+        let (player, plugin) = {
+            let state = host.get();
+            if let Some(error) = permission_error(state) {
+                return Ok(Err(error));
+            }
+            (Arc::clone(state.get(&player)?), plugin_of(state)?)
         };
-        run_blocking(accessor, move || player.remove_fake()).await
+        plugin
+            .store
+            .pump_blocking(&mut host, move || player.remove_fake())
+            .await
     }
 
     async fn use_item_on_block(
@@ -205,9 +231,11 @@ impl HostWithStore for HasSelf<PluginHostState> {
         };
         let pos = block_pos(&pos);
         let face = from_wit_block_direction(face);
-        Ok(run_blocking(accessor, move || player.fake_start_break(pos, face))
-            .await?
-            .map(to_wit_progress))
+        Ok(
+            run_blocking(accessor, move || player.fake_start_break(pos, face))
+                .await?
+                .map(to_wit_progress),
+        )
     }
 
     async fn continue_break_block(

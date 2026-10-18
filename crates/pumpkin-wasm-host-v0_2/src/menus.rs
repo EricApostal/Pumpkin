@@ -1,15 +1,22 @@
 use std::sync::Arc;
 
 use crate::pumpkin::plugin::item_stack::ItemStack as WitItemStack;
-use crate::pumpkin::plugin::menus::{Host, HostWithStore, MenuTypeEntry, OpenMenuInfo};
+use crate::pumpkin::plugin::menus::{
+    Host, HostWithStore, MenuClickRules, MenuOptions, MenuSlotKind, MenuTypeEntry, OpenMenuInfo,
+};
 use crate::pumpkin::plugin::player::Player as WitPlayer;
 use crate::pumpkin::plugin::text::TextComponent as WitTextComponent;
+use pumpkin_core::plugin::api::menu::{
+    MenuClickRules as CoreClickRules, MenuSlotKind as CoreSlotKind, MenuSlotRule as CoreSlotRule,
+    PluginMenuOptions,
+};
 use pumpkin_core::plugin::permissions;
 use pumpkin_data::item_stack::ItemStack;
 use pumpkin_data::menu_registry::{
     plugin_menu_type_by_key, plugin_menu_types, register_plugin_menu_type, vanilla_menu_type_count,
 };
 use pumpkin_wasm_host_common::state::PluginHostState;
+use tokio::sync::Mutex;
 use tracing::info;
 use wasmtime::component::{Access, HasSelf, Resource};
 
@@ -106,6 +113,64 @@ impl Host for PluginHostState {
         };
         Ok(player.set_plugin_menu_data(id, value))
     }
+
+    fn set_menu_click_rules(
+        &mut self,
+        player: Resource<WitPlayer>,
+        rules: MenuClickRules,
+    ) -> wasmtime::Result<Result<(), String>> {
+        let player = Arc::clone(self.get(&player)?);
+        Ok(player.set_plugin_menu_rules(&from_wit_rules(rules)))
+    }
+
+    fn get_menu_cursor(
+        &mut self,
+        player: Resource<WitPlayer>,
+    ) -> wasmtime::Result<Option<Resource<WitItemStack>>> {
+        let player = Arc::clone(self.get(&player)?);
+        match player.plugin_menu_cursor() {
+            Some(stack) if !stack.is_empty() => Ok(Some(self.add(Arc::new(Mutex::new(stack)))?)),
+            _ => Ok(None),
+        }
+    }
+
+    async fn set_menu_cursor(
+        &mut self,
+        player: Resource<WitPlayer>,
+        stack: Option<Resource<WitItemStack>>,
+    ) -> wasmtime::Result<Result<(), String>> {
+        let player = Arc::clone(self.get(&player)?);
+        let stack = match stack {
+            Some(stack) => self.take(stack)?.lock().await.clone(),
+            None => ItemStack::EMPTY.clone(),
+        };
+        Ok(player.set_plugin_menu_cursor(stack))
+    }
+}
+
+fn from_wit_rules(rules: MenuClickRules) -> CoreClickRules {
+    CoreClickRules {
+        slot_rules: rules
+            .slot_rules
+            .into_iter()
+            .map(|rule| CoreSlotRule {
+                slot: rule.slot as usize,
+                kind: match rule.kind {
+                    MenuSlotKind::Normal => CoreSlotKind::Normal,
+                    MenuSlotKind::OutputOnly => CoreSlotKind::OutputOnly,
+                    MenuSlotKind::Locked => CoreSlotKind::Locked,
+                    MenuSlotKind::Ghost => CoreSlotKind::Ghost,
+                    MenuSlotKind::Filter(keys) => CoreSlotKind::Filter(keys),
+                },
+                max_stack_size: rule.max_stack_size,
+            })
+            .collect(),
+        quick_move_targets: rules
+            .quick_move_targets
+            .into_iter()
+            .map(|range| range.start as usize..range.end as usize)
+            .collect(),
+    }
 }
 
 async fn open_menu_with_store(
@@ -115,6 +180,7 @@ async fn open_menu_with_store(
     title: Resource<WitTextComponent>,
     extra_data: Option<Vec<u8>>,
     slot_count: u32,
+    options: PluginMenuOptions,
 ) -> wasmtime::Result<Result<u32, String>> {
     let (player, title, plugin) = {
         let state = host.get();
@@ -136,11 +202,12 @@ async fn open_menu_with_store(
     plugin
         .store
         .pump_blocking(&mut host, move || {
-            player.open_plugin_menu(
+            player.open_plugin_menu_with_options(
                 menu_type,
                 &title,
                 extra_data.as_deref(),
                 slot_count as usize,
+                &options,
             )
         })
         .await
@@ -154,7 +221,16 @@ impl HostWithStore<PluginHostState> for HasSelf<PluginHostState> {
         title: Resource<WitTextComponent>,
         extra_data: Option<Vec<u8>>,
     ) -> wasmtime::Result<Result<u32, String>> {
-        open_menu_with_store(host, player, menu_type_key, title, extra_data, 0).await
+        open_menu_with_store(
+            host,
+            player,
+            menu_type_key,
+            title,
+            extra_data,
+            0,
+            PluginMenuOptions::default(),
+        )
+        .await
     }
 
     async fn open_menu_with_slots(
@@ -165,7 +241,42 @@ impl HostWithStore<PluginHostState> for HasSelf<PluginHostState> {
         extra_data: Option<Vec<u8>>,
         slot_count: u32,
     ) -> wasmtime::Result<Result<u32, String>> {
-        open_menu_with_store(host, player, menu_type_key, title, extra_data, slot_count).await
+        open_menu_with_store(
+            host,
+            player,
+            menu_type_key,
+            title,
+            extra_data,
+            slot_count,
+            PluginMenuOptions::default(),
+        )
+        .await
+    }
+
+    async fn open_menu_with_options(
+        host: Access<'_, PluginHostState, Self>,
+        player: Resource<WitPlayer>,
+        menu_type_key: String,
+        title: Resource<WitTextComponent>,
+        extra_data: Option<Vec<u8>>,
+        slot_count: u32,
+        options: MenuOptions,
+    ) -> wasmtime::Result<Result<u32, String>> {
+        let options = PluginMenuOptions {
+            apply_vanilla_clicks: options.apply_vanilla_clicks,
+            player_inventory: options.player_inventory,
+            rules: from_wit_rules(options.rules),
+        };
+        open_menu_with_store(
+            host,
+            player,
+            menu_type_key,
+            title,
+            extra_data,
+            slot_count,
+            options,
+        )
+        .await
     }
 
     async fn close_menu(

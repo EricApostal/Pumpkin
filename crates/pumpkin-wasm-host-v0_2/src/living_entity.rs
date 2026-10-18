@@ -18,6 +18,7 @@ use crate::pumpkin::plugin::{
         LivingEntity as WitLivingEntity, Mob as WitMob,
     },
 };
+use pumpkin_data::damage_type_registry::damage_type_from_key;
 use pumpkin_wasm_host_common::state::PluginHostState;
 
 #[must_use]
@@ -458,5 +459,22 @@ impl HostLivingEntityWithStore<PluginHostState> for HasSelf<PluginHostState> {
             entity.damage(&*entity, amount, damage_type);
         })
         .await
+    }
+
+    async fn damage_by_key(
+        accessor: &Accessor<PluginHostState, Self>,
+        this: Resource<WitLivingEntity>,
+        amount: f32,
+        damage_type_key: String,
+    ) -> wasmtime::Result<Result<(), String>> {
+        let Some(damage_type) = damage_type_from_key(&damage_type_key) else {
+            return Ok(Err(format!("unknown damage type '{damage_type_key}'")));
+        };
+        let entity = accessor.get_res(&this)?;
+        run_blocking(accessor, move || {
+            entity.damage(&*entity, amount, damage_type);
+        })
+        .await?;
+        Ok(Ok(()))
     }
 }
