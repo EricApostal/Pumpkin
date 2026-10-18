@@ -3,7 +3,7 @@ use pumpkin_data::recipes::RecipeCategoryTypes;
 use pumpkin_data::item::Item;
 use pumpkin_data::tag::Taggable;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum OwnedRecipeIngredient {
     Simple(String),
     Tagged(String),

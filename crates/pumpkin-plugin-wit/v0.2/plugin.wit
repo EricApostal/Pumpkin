@@ -68,6 +68,8 @@ world plugin {
     import block-registry;
     /// Provides placement rules (property values chosen when a player places) for custom blocks.
     import block-placement;
+    /// Provides opt-in callbacks (events) for the hooks of custom blocks.
+    import block-callbacks;
     /// Provides custom block entity types and the block entities of plugin blocks.
     import plugin-block-entity;
     /// Provides custom menu types and menus of plugin defined types.
@@ -90,6 +92,8 @@ world plugin {
     import potions;
     /// Provides entity status / animation event types.
     import entity-statuses;
+    /// Provides fake players: actors that use items, attack and break blocks without a connection.
+    import fake-player;
     /// Provides gametest framework for automated testing.
     import gametest;
 

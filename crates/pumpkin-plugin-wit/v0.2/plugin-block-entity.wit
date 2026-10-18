@@ -31,6 +31,17 @@
 ///
 /// Placing a block does not create its entity: the plugin calls `set-block-entity-data` once the
 /// block is in the world.
+///
+/// # Ticking
+///
+/// The server does not tick plugin block entities unless the plugin opts a type in with
+/// `set-block-entity-ticking`. Then, every server tick and for every world, the server collects the
+/// entities of that type that are loaded, in a chunk that ticks (near players, like the vanilla
+/// block entities), and due, and fires one `block-entity-tick-event` per world and type with all
+/// their positions, so a thousand machines cost one call into the plugin. An entity is due every
+/// `interval` ticks, offset by its position so that the entities of a type do not all fall due in
+/// the same tick. Nothing is fired for a type without due entities, and nothing is collected while
+/// no type has an interval or nobody listens to the event.
 interface plugin-block-entity {
     use common.{block-pos, nbt-tree};
     use %world.{%world};
@@ -72,6 +83,13 @@ interface plugin-block-entity {
 
     /// Returns all plugin block entity types in id order.
     get-registered-block-entity-types: func() -> list<block-entity-type-entry>;
+
+    /// Sets how often the entities of a type are ticked, in ticks: 1 is every tick, 20 about once a
+    /// second. 0 stops ticking the type, which is also the default. The entities of the type are
+    /// reported to `block-entity-tick-event`, see "Ticking". Can be called at any time, a later
+    /// call replaces the interval. Needs the `registry.block-entities` permission. Fails if the type
+    /// is not registered.
+    set-block-entity-ticking: func(type-key: string, interval: u32) -> result<_, string>;
 
     /// Returns the data of the plugin block entity at a position, none if there is none (also when
     /// the chunk is not loaded).

@@ -9,8 +9,9 @@ use pumpkin_util::math::vector3::Vector3;
 use tokio::sync::Mutex;
 
 use pumpkin_core::plugin::{
-    block::{BlockEntityLoadEvent, BlockEntityUnloadEvent},
+    block::{BlockEntityLoadEvent, BlockEntityTickEvent, BlockEntityUnloadEvent},
     player::{MenuClickEvent, MenuClosedEvent, PlayerUseBlockEvent, PlayerUseItemEvent},
+    world::WorldTickEvent,
 };
 use pumpkin_wasm_host_common::state::PluginHostState;
 
@@ -23,8 +24,9 @@ use crate::{
     },
     mob::{from_wit_block_direction, to_wit_block_direction},
     pumpkin::plugin::event::{
-        BlockEntityLoadEventData, BlockEntityUnloadEventData, Event, MenuChangedSlot,
-        MenuClickEventData, MenuClosedEventData, PlayerUseBlockEventData, PlayerUseItemEventData,
+        BlockEntityLoadEventData, BlockEntityTickEventData, BlockEntityUnloadEventData, Event,
+        MenuChangedSlot, MenuClickEventData, MenuClosedEventData, PlayerUseBlockEventData,
+        PlayerUseItemEventData, WorldTickEventData,
     },
 };
 
@@ -267,6 +269,75 @@ impl ToFromWasmEvent for BlockEntityUnloadEvent {
                 type_key: data.type_key,
                 removed: data.removed,
                 save_data: pumpkin_nbt::compound::NbtCompound::new(),
+            },
+            _ => panic!("unexpected event type"),
+        }
+    }
+
+    /// Informational only.
+    fn apply_wasm_event(&mut self, event: Event, state: &mut PluginHostState) {
+        cleanup_event(&event, state);
+    }
+}
+
+impl ToFromWasmEvent for BlockEntityTickEvent {
+    fn to_wasm_event(&self, state: &mut PluginHostState) -> Event {
+        let target_world = state
+            .add(self.world.clone())
+            .expect("failed to add world resource");
+
+        Event::BlockEntityTickEvent(BlockEntityTickEventData {
+            target_world,
+            type_key: self.type_key.clone(),
+            tick: self.tick,
+            positions: self
+                .positions
+                .iter()
+                .map(|position| to_wasm_block_position(*position))
+                .collect(),
+        })
+    }
+
+    /// The event only reports what is due, the host never reads it back.
+    fn from_wasm_event(event: Event, state: &mut PluginHostState) -> Self {
+        match event {
+            Event::BlockEntityTickEvent(data) => Self {
+                world: consume_world(state, &data.target_world),
+                type_key: data.type_key,
+                tick: data.tick,
+                positions: data
+                    .positions
+                    .into_iter()
+                    .map(from_wasm_block_position)
+                    .collect(),
+            },
+            _ => panic!("unexpected event type"),
+        }
+    }
+
+    /// Informational only.
+    fn apply_wasm_event(&mut self, event: Event, state: &mut PluginHostState) {
+        cleanup_event(&event, state);
+    }
+}
+
+impl ToFromWasmEvent for WorldTickEvent {
+    fn to_wasm_event(&self, state: &mut PluginHostState) -> Event {
+        let target_world = state
+            .add(self.world.clone())
+            .expect("failed to add world resource");
+
+        Event::WorldTickEvent(WorldTickEventData {
+            target_world,
+            tick: self.tick,
+        })
+    }
+
+    fn from_wasm_event(event: Event, state: &mut PluginHostState) -> Self {
+        match event {
+            Event::WorldTickEvent(data) => Self {
+                world: consume_world(state, &data.target_world),
+                tick: data.tick,
             },
             _ => panic!("unexpected event type"),
         }

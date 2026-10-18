@@ -1336,10 +1336,13 @@ fn register_host_feature_event(
     blocking: bool,
     event_type: EventType,
 ) {
-    use pumpkin_core::plugin::block::{BlockEntityLoadEvent, BlockEntityUnloadEvent};
+    use pumpkin_core::plugin::block::{
+        BlockEntityLoadEvent, BlockEntityTickEvent, BlockEntityUnloadEvent,
+    };
     use pumpkin_core::plugin::player::{
         MenuClickEvent, MenuClosedEvent, PlayerUseBlockEvent, PlayerUseItemEvent,
     };
+    use pumpkin_core::plugin::world::WorldTickEvent;
 
     match event_type {
         EventType::PlayerUseItemEvent => {
@@ -1360,9 +1363,97 @@ fn register_host_feature_event(
         EventType::BlockEntityUnloadEvent => {
             register_typed_event::<BlockEntityUnloadEvent>(resource, handler, priority, blocking);
         }
+        EventType::BlockEntityTickEvent => {
+            register_typed_event::<BlockEntityTickEvent>(resource, handler, priority, blocking);
+        }
+        EventType::WorldTickEvent => {
+            register_typed_event::<WorldTickEvent>(resource, handler, priority, blocking);
+        }
         _ => {
             tracing::error!(
                 "non-host-feature event should not be routed to register_host_feature_event"
+            );
+        }
+    }
+}
+
+fn register_custom_block_event(
+    resource: &Context,
+    handler: &Arc<WasmPluginEventHandler>,
+    priority: pumpkin_core::plugin::EventPriority,
+    blocking: bool,
+    event_type: EventType,
+) {
+    use pumpkin_core::plugin::block::{
+        CustomBlockBrokenEvent, CustomBlockCanPlaceEvent, CustomBlockEntityCollisionEvent,
+        CustomBlockEntityStepEvent, CustomBlockNeighborUpdateEvent, CustomBlockPlacedEvent,
+        CustomBlockRandomTickEvent, CustomBlockScheduledTickEvent, CustomBlockStateReplacedEvent,
+        CustomBlockUpdateShapeEvent,
+    };
+    use pumpkin_core::plugin::block::{
+        CustomBlockComparatorOutputEvent, CustomBlockRedstonePowerEvent,
+    };
+
+    match event_type {
+        EventType::CustomBlockNeighborUpdateEvent => {
+            register_typed_event::<CustomBlockNeighborUpdateEvent>(
+                resource, handler, priority, blocking,
+            );
+        }
+        EventType::CustomBlockPlacedEvent => {
+            register_typed_event::<CustomBlockPlacedEvent>(resource, handler, priority, blocking);
+        }
+        EventType::CustomBlockStateReplacedEvent => {
+            register_typed_event::<CustomBlockStateReplacedEvent>(
+                resource, handler, priority, blocking,
+            );
+        }
+        EventType::CustomBlockBrokenEvent => {
+            register_typed_event::<CustomBlockBrokenEvent>(resource, handler, priority, blocking);
+        }
+        EventType::CustomBlockScheduledTickEvent => {
+            register_typed_event::<CustomBlockScheduledTickEvent>(
+                resource, handler, priority, blocking,
+            );
+        }
+        EventType::CustomBlockRandomTickEvent => {
+            register_typed_event::<CustomBlockRandomTickEvent>(
+                resource, handler, priority, blocking,
+            );
+        }
+        EventType::CustomBlockEntityCollisionEvent => {
+            register_typed_event::<CustomBlockEntityCollisionEvent>(
+                resource, handler, priority, blocking,
+            );
+        }
+        EventType::CustomBlockEntityStepEvent => {
+            register_typed_event::<CustomBlockEntityStepEvent>(
+                resource, handler, priority, blocking,
+            );
+        }
+        EventType::CustomBlockCanPlaceEvent => {
+            register_typed_event::<CustomBlockCanPlaceEvent>(
+                resource, handler, priority, blocking,
+            );
+        }
+        EventType::CustomBlockUpdateShapeEvent => {
+            register_typed_event::<CustomBlockUpdateShapeEvent>(
+                resource, handler, priority, blocking,
+            );
+        }
+        EventType::CustomBlockRedstonePowerEvent => {
+            register_typed_event::<CustomBlockRedstonePowerEvent>(
+                resource, handler, priority, blocking,
+            );
+        }
+        EventType::CustomBlockComparatorOutputEvent => {
+            register_typed_event::<CustomBlockComparatorOutputEvent>(
+                resource, handler, priority, blocking,
+            );
+        }
+        _ => {
+            tracing::error!(
+                "non-custom-block event should not be routed to register_custom_block_event"
             );
         }
     }
@@ -1745,8 +1836,24 @@ impl pumpkin::plugin::context::HostContext for PluginHostState {
             | EventType::MenuClickEvent
             | EventType::MenuClosedEvent
             | EventType::BlockEntityLoadEvent
-            | EventType::BlockEntityUnloadEvent) => {
+            | EventType::BlockEntityUnloadEvent
+            | EventType::BlockEntityTickEvent
+            | EventType::WorldTickEvent) => {
                 register_host_feature_event(ctx, &handler, priority, blocking, event_type);
+            }
+            event_type @ (EventType::CustomBlockNeighborUpdateEvent
+            | EventType::CustomBlockPlacedEvent
+            | EventType::CustomBlockStateReplacedEvent
+            | EventType::CustomBlockBrokenEvent
+            | EventType::CustomBlockScheduledTickEvent
+            | EventType::CustomBlockRandomTickEvent
+            | EventType::CustomBlockEntityCollisionEvent
+            | EventType::CustomBlockEntityStepEvent
+            | EventType::CustomBlockCanPlaceEvent
+            | EventType::CustomBlockUpdateShapeEvent
+            | EventType::CustomBlockRedstonePowerEvent
+            | EventType::CustomBlockComparatorOutputEvent) => {
+                register_custom_block_event(ctx, &handler, priority, blocking, event_type);
             }
             event_type => {
                 register_player_event(ctx, &handler, priority, blocking, event_type);

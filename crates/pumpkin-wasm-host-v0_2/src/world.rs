@@ -3,10 +3,12 @@ use crate::LockIgnorePoison;
 
 use pumpkin_data::block_properties::NoteblockInstrument as InternalNoteblockInstrument;
 use pumpkin_data::block_state::PistonBehavior;
+use pumpkin_data::tag::Taggable;
 use pumpkin_data::{BlockDirection as InternalBlockDirection, BlockId, BlockStateId};
 use pumpkin_util::math::position::BlockPos;
 use pumpkin_world::chunk::ChunkHeightmapType;
 use pumpkin_world::chunk::io::Dirtiable;
+use pumpkin_world::tick::TickPriority;
 use pumpkin_world::world::BlockFlags;
 use std::sync::{Arc, Mutex as StdMutex};
 use wasmtime::component::{Accessor, HasSelf, Resource};
@@ -19,10 +21,11 @@ use crate::pumpkin::plugin::world::{
     Block as WitBlock, BlockDirection as WitBlockDirection, BlockEntityType,
     BlockFlags as WitBlockFlags, BlockPos as WitBlockPos, BlockState as WitBlockState,
     BlockStateInfo as WitBlockStateInfo, BoundingBox as WitBoundingBox, Chunk as WitChunk,
-    Flammable as WitFlammable, NoteblockInstrument as WitNoteblockInstrument,
+    Flammable as WitFlammable, FluidState as WitFluidState,
+    NoteblockInstrument as WitNoteblockInstrument,
     PistonBehavior as WitPistonBehavior, RayTraceBlockResult as WitRayTraceBlockResult,
-    RayTraceEntityResult as WitRayTraceEntityResult, WorldBorder as WitWorldBorder,
-    WorldSpawnLocation as WitWorldSpawnLocation,
+    RayTraceEntityResult as WitRayTraceEntityResult, TickPriority as WitTickPriority,
+    WorldBorder as WitWorldBorder, WorldSpawnLocation as WitWorldSpawnLocation,
 };
 use crate::pumpkin::{self, plugin::world::World};
 use pumpkin_core::block::entities::banner::BannerBlockEntity as InternalBannerBlockEntity;
@@ -579,9 +582,58 @@ impl pumpkin::plugin::world::Host for PluginHostState {
             to_wit_block_state(state, None)
         }))
     }
+
+    fn block_has_tag(&mut self, block_key: String, tag: String) -> wasmtime::Result<bool> {
+        Ok(pumpkin_data::Block::from_name(&block_key)
+            .and_then(|block| Taggable::is_tagged_with(block, &tag))
+            .unwrap_or(false))
+    }
+
+    fn block_state_has_tag(&mut self, state_id: u16, tag: String) -> wasmtime::Result<bool> {
+        Ok(BlockStateId::from_raw(state_id)
+            .and_then(|id| Taggable::is_tagged_with(pumpkin_data::Block::from_state_id(id), &tag))
+            .unwrap_or(false))
+    }
+
+    fn item_has_tag(&mut self, item_key: String, tag: String) -> wasmtime::Result<bool> {
+        Ok(pumpkin_data::item::Item::from_registry_key(&item_key)
+            .and_then(|item| Taggable::is_tagged_with(item, &tag))
+            .unwrap_or(false))
+    }
+
+    fn fluid_has_tag(&mut self, fluid_key: String, tag: String) -> wasmtime::Result<bool> {
+        let key = fluid_key.strip_prefix("minecraft:").unwrap_or(&fluid_key);
+        Ok(pumpkin_data::fluid::Fluid::from_registry_key(key)
+            .and_then(|fluid| Taggable::is_tagged_with(fluid, &tag))
+            .unwrap_or(false))
+    }
+
+    fn entity_type_has_tag(
+        &mut self,
+        entity_type_key: String,
+        tag: String,
+    ) -> wasmtime::Result<bool> {
+        Ok(
+            pumpkin_data::entity::EntityType::from_name(&entity_type_key)
+                .and_then(|entity_type| Taggable::is_tagged_with(entity_type, &tag))
+                .unwrap_or(false),
+        )
+    }
 }
 impl pumpkin::plugin::particles::Host for PluginHostState {}
 impl pumpkin::plugin::sounds::Host for PluginHostState {}
+
+const fn from_wit_tick_priority(priority: WitTickPriority) -> TickPriority {
+    match priority {
+        WitTickPriority::ExtremelyHigh => TickPriority::ExtremelyHigh,
+        WitTickPriority::VeryHigh => TickPriority::VeryHigh,
+        WitTickPriority::High => TickPriority::High,
+        WitTickPriority::Normal => TickPriority::Normal,
+        WitTickPriority::Low => TickPriority::Low,
+        WitTickPriority::VeryLow => TickPriority::VeryLow,
+        WitTickPriority::ExtremelyLow => TickPriority::ExtremelyLow,
+    }
+}
 
 impl pumpkin::plugin::world::HostWorld for PluginHostState {
     fn get_id(&mut self, world: Resource<World>) -> wasmtime::Result<String> {
@@ -679,6 +731,58 @@ impl pumpkin::plugin::world::HostWorld for PluginHostState {
         Ok(pumpkin_data::BlockId::from_state_id(state.id).as_u16())
     }
 
+    fn is_loaded(&mut self, world: Resource<World>, pos: WitBlockPos) -> wasmtime::Result<bool> {
+        Ok(self
+            .get(&world)?
+            .is_loaded(&BlockPos::new(pos.x, pos.y, pos.z)))
+    }
+
+    fn is_area_loaded(
+        &mut self,
+        world: Resource<World>,
+        min: WitBlockPos,
+        max: WitBlockPos,
+    ) -> wasmtime::Result<bool> {
+        let world = self.get(&world)?;
+        let (min_x, max_x) = (min.x.min(max.x) >> 4, min.x.max(max.x) >> 4);
+        let (min_z, max_z) = (min.z.min(max.z) >> 4, min.z.max(max.z) >> 4);
+        // Stops at the first chunk that is missing, so a huge box costs at most the loaded chunks.
+        Ok((min_x..=max_x).all(|x| {
+            (min_z..=max_z).all(|z| {
+                world
+                    .level
+                    .is_chunk_loaded(&pumpkin_util::math::vector2::Vector2::new(x, z))
+            })
+        }))
+    }
+
+    fn get_fluid_state(
+        &mut self,
+        world: Resource<World>,
+        pos: WitBlockPos,
+    ) -> wasmtime::Result<Option<WitFluidState>> {
+        let (fluid, state) = self
+            .get(&world)?
+            .get_fluid_and_fluid_state(&BlockPos::new(pos.x, pos.y, pos.z));
+        if state.is_empty {
+            return Ok(None);
+        }
+        let key = if fluid.matches_type(&pumpkin_data::fluid::Fluid::WATER) {
+            "minecraft:water"
+        } else if fluid.matches_type(&pumpkin_data::fluid::Fluid::LAVA) {
+            "minecraft:lava"
+        } else {
+            return Ok(None);
+        };
+        Ok(Some(WitFluidState {
+            fluid: key.to_string(),
+            level: u8::try_from(state.level.clamp(0, 8)).unwrap_or(8),
+            is_source: state.is_source,
+            is_falling: state.falling,
+            height: state.height,
+        }))
+    }
+
     fn get_time_of_day(&mut self, world: Resource<World>) -> wasmtime::Result<u64> {
         Ok(self.get(&world)?.get_time_of_day() as u64)
     }
@@ -690,6 +794,27 @@ impl pumpkin::plugin::world::HostWorld for PluginHostState {
 
     fn get_world_age(&mut self, world: Resource<World>) -> wasmtime::Result<u64> {
         Ok(self.get(&world)?.get_world_age() as u64)
+    }
+
+    fn schedule_block_tick(
+        &mut self,
+        world: Resource<World>,
+        pos: WitBlockPos,
+        delay_ticks: u8,
+        priority: WitTickPriority,
+    ) -> wasmtime::Result<()> {
+        let world_ref = self.get(&world)?;
+        let internal_pos = BlockPos::new(pos.x, pos.y, pos.z);
+        if world_ref.is_loaded(&internal_pos) {
+            let block = world_ref.get_block(&internal_pos);
+            world_ref.schedule_block_tick(
+                block,
+                internal_pos,
+                delay_ticks,
+                from_wit_tick_priority(priority),
+            );
+        }
+        Ok(())
     }
 
     fn get_dimension(&mut self, world: Resource<World>) -> wasmtime::Result<String> {
@@ -896,6 +1021,47 @@ impl pumpkin::plugin::world::HostWorld for PluginHostState {
         }
 
         Ok(entities)
+    }
+
+    fn get_entities_in_box(
+        &mut self,
+        world: Resource<World>,
+        min: WitPosition,
+        max: WitPosition,
+        filter: pumpkin::plugin::world::EntityFilter,
+    ) -> wasmtime::Result<Vec<pumpkin::plugin::world::EntitySnapshot>> {
+        let world = self.get(&world)?;
+        super::item_entity::entity_snapshots_in_box(world, min, max, filter)
+    }
+
+    fn get_item_entities_in_box(
+        &mut self,
+        world: Resource<World>,
+        min: WitPosition,
+        max: WitPosition,
+    ) -> wasmtime::Result<Vec<Resource<pumpkin::plugin::world::ItemEntity>>> {
+        let world = self.get(&world)?.clone();
+        super::item_entity::item_entities_in_box(self, &world, min, max)
+    }
+
+    fn get_entity_by_uuid(
+        &mut self,
+        world: Resource<World>,
+        id: pumpkin::plugin::uuid::Uuid,
+    ) -> wasmtime::Result<Option<Resource<pumpkin::plugin::world::Entity>>> {
+        let id = <pumpkin::plugin::uuid::Uuid as super::uuid::UuidExt>::from_wit(&id);
+        let entity = super::item_entity::entity_by_uuid(self.get(&world)?, id);
+        entity.map(|entity| self.add(entity)).transpose()
+    }
+
+    fn get_entity_by_id(
+        &mut self,
+        world: Resource<World>,
+        id: u32,
+    ) -> wasmtime::Result<Option<Resource<pumpkin::plugin::world::Entity>>> {
+        // `entity.get-id` returns the signed network id as u32.
+        let entity = self.get(&world)?.get_entity_by_id(id as i32);
+        entity.map(|entity| self.add(entity)).transpose()
     }
 
     fn ray_trace_blocks(
@@ -1218,6 +1384,45 @@ impl pumpkin::plugin::world::HostWorldWithStore<PluginHostState> for HasSelf<Plu
         accessor.add_res(entity)
     }
 
+    async fn spawn_item(
+        accessor: &Accessor<PluginHostState, Self>,
+        world: Resource<World>,
+        pos: WitPosition,
+        stack: Resource<pumpkin::plugin::item_stack::ItemStack>,
+        velocity: Option<WitPosition>,
+        pickup_delay: Option<u8>,
+    ) -> wasmtime::Result<Option<Resource<pumpkin::plugin::world::ItemEntity>>> {
+        let world = accessor.with(|mut host| world_from_state(host.get(), &world))?;
+        let stack = accessor.get_res(&stack)?.lock().await.clone();
+        let item = run_blocking(accessor, move || {
+            super::item_entity::spawn_item(&world, pos, stack, velocity, pickup_delay)
+        })
+        .await?;
+        item.map(|item| accessor.add_res(item)).transpose()
+    }
+
+    async fn get_block_drops(
+        accessor: &Accessor<PluginHostState, Self>,
+        world: Resource<World>,
+        pos: WitBlockPos,
+        tool: Option<Resource<pumpkin::plugin::item_stack::ItemStack>>,
+    ) -> wasmtime::Result<Vec<Resource<pumpkin::plugin::item_stack::ItemStack>>> {
+        let world = accessor.with(|mut host| world_from_state(host.get(), &world))?;
+        let tool = match tool {
+            Some(tool) => Some(accessor.get_res(&tool)?.lock().await.clone()),
+            None => None,
+        };
+        let pos = BlockPos::new(pos.x, pos.y, pos.z);
+        let drops = run_blocking(accessor, move || {
+            pumpkin_core::block::block_drops_at(&world, &pos, tool)
+        })
+        .await?;
+        drops
+            .into_iter()
+            .map(|stack| accessor.add_res(Arc::new(tokio::sync::Mutex::new(stack))))
+            .collect()
+    }
+
     async fn strike_lightning(
         accessor: &Accessor<PluginHostState, Self>,
         world: Resource<World>,
@@ -1290,6 +1495,97 @@ impl pumpkin::plugin::world::HostWorldWithStore<PluginHostState> for HasSelf<Plu
         update_flags: WitBlockFlags,
     ) -> wasmtime::Result<()> {
         set_block_state_with_store(accessor, world, pos, state, update_flags).await
+    }
+
+    async fn get_redstone_power(
+        accessor: &Accessor<PluginHostState, Self>,
+        world: Resource<World>,
+        pos: WitBlockPos,
+        direction: WitBlockDirection,
+    ) -> wasmtime::Result<u8> {
+        crate::redstone::get_redstone_power(accessor, world, pos, direction).await
+    }
+
+    async fn get_direct_redstone_power(
+        accessor: &Accessor<PluginHostState, Self>,
+        world: Resource<World>,
+        pos: WitBlockPos,
+        direction: WitBlockDirection,
+    ) -> wasmtime::Result<u8> {
+        crate::redstone::get_direct_redstone_power(accessor, world, pos, direction).await
+    }
+
+    async fn has_neighbor_signal(
+        accessor: &Accessor<PluginHostState, Self>,
+        world: Resource<World>,
+        pos: WitBlockPos,
+    ) -> wasmtime::Result<bool> {
+        crate::redstone::has_neighbor_signal(accessor, world, pos).await
+    }
+
+    async fn get_best_neighbor_signal(
+        accessor: &Accessor<PluginHostState, Self>,
+        world: Resource<World>,
+        pos: WitBlockPos,
+    ) -> wasmtime::Result<u8> {
+        crate::redstone::get_best_neighbor_signal(accessor, world, pos).await
+    }
+
+    async fn get_analog_signal(
+        accessor: &Accessor<PluginHostState, Self>,
+        world: Resource<World>,
+        pos: WitBlockPos,
+        direction: WitBlockDirection,
+    ) -> wasmtime::Result<Option<u8>> {
+        crate::redstone::get_analog_signal(accessor, world, pos, direction).await
+    }
+
+    async fn update_neighbors(
+        accessor: &Accessor<PluginHostState, Self>,
+        world: Resource<World>,
+        pos: WitBlockPos,
+        source_block: Option<String>,
+    ) -> wasmtime::Result<Result<(), String>> {
+        crate::redstone::update_neighbors(accessor, world, pos, source_block).await
+    }
+
+    async fn update_comparators(
+        accessor: &Accessor<PluginHostState, Self>,
+        world: Resource<World>,
+        pos: WitBlockPos,
+    ) -> wasmtime::Result<()> {
+        crate::redstone::update_comparators(accessor, world, pos).await
+    }
+
+    async fn set_block_redstone_output(
+        accessor: &Accessor<PluginHostState, Self>,
+        world: Resource<World>,
+        pos: WitBlockPos,
+        weak: u8,
+        strong: u8,
+    ) -> wasmtime::Result<Result<(), String>> {
+        crate::redstone::set_block_redstone_output(accessor, world, pos, None, weak, strong).await
+    }
+
+    async fn set_block_redstone_output_face(
+        accessor: &Accessor<PluginHostState, Self>,
+        world: Resource<World>,
+        pos: WitBlockPos,
+        face: WitBlockDirection,
+        weak: u8,
+        strong: u8,
+    ) -> wasmtime::Result<Result<(), String>> {
+        crate::redstone::set_block_redstone_output(accessor, world, pos, Some(face), weak, strong)
+            .await
+    }
+
+    async fn set_block_comparator_output(
+        accessor: &Accessor<PluginHostState, Self>,
+        world: Resource<World>,
+        pos: WitBlockPos,
+        output: Option<u8>,
+    ) -> wasmtime::Result<Result<(), String>> {
+        crate::redstone::set_block_comparator_output(accessor, world, pos, output).await
     }
 }
 

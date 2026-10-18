@@ -16,6 +16,7 @@ use wasmtime::{Engine, Store};
 mod bindings;
 
 pub mod advancement;
+pub mod block_callbacks;
 pub mod block_entity;
 pub mod block_placement;
 pub mod block_registry;
@@ -29,6 +30,7 @@ pub mod display;
 pub mod enchantment;
 pub mod entity;
 pub mod events;
+pub mod fake_player;
 pub mod forms;
 pub mod gametest;
 pub mod generated_packets;
@@ -36,6 +38,7 @@ pub mod gui;
 pub mod i18n;
 pub mod inventory;
 pub mod ipc;
+pub mod item_entity;
 pub mod item_registry;
 pub mod item_stack;
 pub mod java_dialogs;
@@ -47,6 +50,7 @@ pub mod permission;
 pub mod player;
 pub mod plugin_block_entity;
 pub mod recipe;
+pub mod redstone;
 pub mod scheduler;
 pub mod scoreboard;
 pub mod server;
@@ -458,6 +462,9 @@ mod resource_with {
         type Internal = Arc<dyn EntityBase>;
     }
     impl FromResource for plugin::entity::Mob {
+        type Internal = Arc<dyn EntityBase>;
+    }
+    impl FromResource for plugin::world::ItemEntity {
         type Internal = Arc<dyn EntityBase>;
     }
 

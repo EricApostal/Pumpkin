@@ -1,6 +1,7 @@
 use pumpkin_data::data_component_impl::ContainerImpl;
 use pumpkin_data::item_stack::ItemStack;
 use pumpkin_data::sound::{Sound, SoundCategory};
+use pumpkin_data::tag::Taggable;
 use pumpkin_nbt::compound::NbtCompound;
 use pumpkin_util::math::position::BlockPos;
 use std::any::Any;
@@ -241,6 +242,13 @@ impl Inventory for ShulkerBoxBlockEntity {
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         items[slot] = stack;
         self.mark_dirty();
+    }
+
+    fn is_valid_slot_for(&self, _slot: usize, stack: &ItemStack) -> bool {
+        // A shulker box cannot hold another one.
+        !stack
+            .item
+            .has_tag(&pumpkin_data::tag::Item::MINECRAFT_SHULKER_BOXES)
     }
 
     fn on_open(&self) {

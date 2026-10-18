@@ -79,3 +79,37 @@ impl BlockEntityUnloadEvent {
         }
     }
 }
+
+/// The block entities of one plugin type that are due to tick in a world.
+///
+/// Fired at most once per world, tick and type, for the types that a plugin gave a tick interval
+/// (`plugin-block-entity.set-block-entity-ticking`). One event carries all the positions that are
+/// due, so ticking many entities costs the plugin one call.
+#[derive(Event, Clone)]
+pub struct BlockEntityTickEvent {
+    /// The world of the entities.
+    pub world: Arc<World>,
+    /// The full key of the block entity type.
+    pub type_key: String,
+    /// The tick of the server, `server.tick_count`.
+    pub tick: i32,
+    /// The entities that are due. Always at least one.
+    pub positions: Vec<BlockPos>,
+}
+
+impl BlockEntityTickEvent {
+    #[must_use]
+    pub const fn new(
+        world: Arc<World>,
+        type_key: String,
+        tick: i32,
+        positions: Vec<BlockPos>,
+    ) -> Self {
+        Self {
+            world,
+            type_key,
+            tick,
+            positions,
+        }
+    }
+}

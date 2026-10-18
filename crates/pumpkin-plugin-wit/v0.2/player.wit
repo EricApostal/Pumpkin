@@ -841,6 +841,8 @@ interface player {
         get-id: func () -> uuid;
         /// Returns the player's username.
         get-name: func () -> string;
+        /// Whether this is a fake player (see the `fake-player` interface): not connected, not in the tab list.
+        is-fake: func () -> bool;
 
         // Basic state
 
@@ -1023,6 +1025,9 @@ interface player {
         heal: async func(amount: f32);
         /// Deals damage to the player by a specified amount with a damage type.
         damage: async func(amount: f32, damage-type: damage-type);
+        /// Deals damage with a damage type by key, vanilla (`minecraft:` prefix optional) or
+        /// registered with `damage-types.register-damage-type`. Fails for an unknown key.
+        damage-by-key: async func(amount: f32, damage-type-key: string) -> result<_, string>;
         /// Kills the player instantly.
         kill: async func();
 

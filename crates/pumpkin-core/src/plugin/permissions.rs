@@ -87,6 +87,20 @@ pub const REGISTRY_MENUS: &str = "registry.menus";
 /// stack that carries one.
 pub const REGISTRY_COMPONENTS: &str = "registry.components";
 
+/// Allows the plugin to register custom damage types while the server starts.
+///
+/// Damage types are a registry that clients synchronise, their ids are handed to clients.
+pub const REGISTRY_DAMAGE_TYPES: &str = "registry.damage-types";
+
+/// Allows the plugin to register custom recipe types and add recipes of those types.
+///
+/// Recipe types are plugin side data, they are not sent to clients and can be added at any time.
+pub const REGISTRY_RECIPES: &str = "registry.recipes";
+
+/// Allows the plugin to create fake players: server side actors that behave like players
+/// (break blocks, use items, attack) without a connection.
+pub const FAKE_PLAYERS: &str = "fake-players";
+
 #[must_use]
 pub fn get_permission_description(permission: &str) -> Option<&'static str> {
     match permission {
@@ -129,6 +143,11 @@ pub fn get_permission_description(permission: &str) -> Option<&'static str> {
         REGISTRY_BLOCK_ENTITIES => Some("Allows the plugin to register custom block entity types."),
         REGISTRY_MENUS => Some("Allows the plugin to register custom menu types."),
         REGISTRY_COMPONENTS => Some("Allows the plugin to register custom data component types."),
+        REGISTRY_DAMAGE_TYPES => Some("Allows the plugin to register custom damage types."),
+        REGISTRY_RECIPES => Some("Allows the plugin to register custom recipe types and recipes."),
+        FAKE_PLAYERS => Some(
+            "Allows the plugin to create fake players that break blocks, use items and attack like players.",
+        ),
         p if p.starts_with(SYS_ENV_PREFIX) => {
             Some("Allows the plugin to read specific environment variables.")
         }

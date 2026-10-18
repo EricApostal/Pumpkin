@@ -444,6 +444,28 @@ impl pumpkin_inventory::Inventory for BrewingStandBlockEntity {
             _ => false,
         }
     }
+
+    // Vanilla `BrewingStandBlockEntity`: top feeds the ingredient, sides the bottles and fuel.
+    fn slots_for_face(&self, face: pumpkin_data::BlockDirection) -> Vec<usize> {
+        match face {
+            pumpkin_data::BlockDirection::Up => vec![3],
+            pumpkin_data::BlockDirection::Down => vec![0, 1, 2, 3],
+            _ => vec![0, 1, 2, 4],
+        }
+    }
+
+    fn can_take_item_through_face(
+        &self,
+        slot: usize,
+        stack: &ItemStack,
+        _face: pumpkin_data::BlockDirection,
+    ) -> bool {
+        // The ingredient slot only gives back glass bottles.
+        if slot == 3 {
+            return stack.item.id == pumpkin_data::item::Item::GLASS_BOTTLE.id;
+        }
+        true
+    }
 }
 
 impl pumpkin_inventory::Clearable for BrewingStandBlockEntity {

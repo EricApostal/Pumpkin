@@ -80,6 +80,8 @@ pub struct DatapackManager {
     context_int_providers: RwLock<ContextProviderRegistry>,
     context_float_providers: RwLock<ContextProviderRegistry>,
     damage_types: RwLock<DamageTypeRegistry>,
+    /// The loaded damage type definitions, kept to number them again once plugins registered theirs.
+    damage_type_defs: RwLock<HashMap<String, DamageTypeDefinition>>,
     loot_tables: RwLock<HashMap<String, Arc<DynamicLootTable>>>,
     dynamic_registries: RwLock<HashMap<String, HashMap<String, RegistryEntryData>>>,
     trade_registry: RwLock<TradeRegistry>,
@@ -111,6 +113,7 @@ impl DatapackManager {
             context_int_providers: RwLock::new(HashMap::new()),
             context_float_providers: RwLock::new(HashMap::new()),
             damage_types: RwLock::new(HashMap::new()),
+            damage_type_defs: RwLock::new(HashMap::new()),
             loot_tables: RwLock::new(HashMap::new()),
             dynamic_registries: RwLock::new(HashMap::new()),
             trade_registry: RwLock::new(TradeRegistry::new()),
@@ -177,7 +180,11 @@ impl DatapackManager {
             &mut loaded_packs_vec,
         );
 
-        let damage_type_registry = build_damage_type_registry(all_damage_type_defs);
+        let damage_type_registry = build_damage_type_registry(all_damage_type_defs.clone());
+        *self
+            .damage_type_defs
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = all_damage_type_defs;
 
         recipe_manager.set_recipes(all_recipes);
         *self
@@ -405,6 +412,23 @@ impl DatapackManager {
         entries
     }
 
+    /// Numbers the datapack damage types again after the plugin ones: plugins register after the
+    /// datapacks loaded, and their types come first after the vanilla ids.
+    pub fn renumber_damage_types(&self) {
+        let defs = self
+            .damage_type_defs
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone();
+        let registry = build_damage_type_registry(defs);
+        *self
+            .damage_types
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = registry;
+    }
+
+    /// The vanilla entries, then the plugin ones, with the datapack types replacing or following
+    /// them. The order is the id order clients see.
     #[must_use]
     pub fn merge_damage_type_entries(
         &self,
@@ -414,7 +438,19 @@ impl DatapackManager {
             .damage_types
             .read()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
-        merge_damage_type_entries(vanilla_entries, &guard)
+        let plugin_types = pumpkin_data::damage_type_registry::plugin_damage_types();
+        if plugin_types.is_empty() {
+            return merge_damage_type_entries(vanilla_entries, &guard);
+        }
+        let mut with_plugin_types: Vec<RegistryEntryData> =
+            vanilla_entries.iter().map(clone_registry_entry).collect();
+        with_plugin_types.extend(plugin_types.iter().map(|plugin| {
+            damage_type_loader::to_registry_entry(
+                plugin.key.to_string(),
+                &damage_type_loader::definition_from_damage_type(&plugin.damage_type),
+            )
+        }));
+        merge_damage_type_entries(&with_plugin_types, &guard)
     }
 
     #[must_use]
@@ -1178,9 +1214,23 @@ fn build_damage_type_registry(
     mut all_damage_type_defs: HashMap<String, DamageTypeDefinition>,
 ) -> DamageTypeRegistry {
     let mut damage_type_registry: DamageTypeRegistry = HashMap::new();
-    let mut next_custom_id = 51u8;
+    // The ids after the vanilla ones go to the types plugins registered, the datapack ones follow.
+    let mut next_custom_id = pumpkin_data::damage_type_registry::VANILLA_DAMAGE_TYPE_COUNT
+        .saturating_add(
+            u8::try_from(pumpkin_data::damage_type_registry::plugin_damage_type_count())
+                .unwrap_or(u8::MAX),
+        );
     let mut static_map: HashMap<String, &'static DamageType> = HashMap::new();
     let mut names = Vec::new();
+    for plugin in pumpkin_data::damage_type_registry::plugin_damage_types() {
+        if all_damage_type_defs.contains_key(plugin.key) {
+            // The datapack replaces it and takes its id below.
+            continue;
+        }
+        let leaked: &'static DamageType = Box::leak(Box::new(plugin.damage_type));
+        static_map.insert(plugin.key.to_string(), leaked);
+        names.push(plugin.key.to_string());
+    }
 
     let mut sorted_ids: Vec<String> = all_damage_type_defs.keys().cloned().collect();
     sorted_ids.sort();
@@ -1192,14 +1242,16 @@ fn build_damage_type_registry(
         let path = id.split_once(':').map_or(id.as_str(), |(_, p)| p);
         let numeric_id = pumpkin_data::damage::DamageType::from_name(path)
             .or_else(|| pumpkin_data::damage::DamageType::from_name(&id))
-            .map_or_else(
-                || {
-                    let nid = next_custom_id;
-                    next_custom_id = next_custom_id.saturating_add(1);
-                    nid
-                },
-                |vanilla_dt| vanilla_dt.id,
-            );
+            .map(|vanilla_dt| vanilla_dt.id)
+            .or_else(|| {
+                pumpkin_data::damage_type_registry::plugin_damage_type_by_key(&id)
+                    .map(|plugin| plugin.damage_type.id)
+            })
+            .unwrap_or_else(|| {
+                let nid = next_custom_id;
+                next_custom_id = next_custom_id.saturating_add(1);
+                nid
+            });
 
         let dt = damage_type_loader::to_damage_type(numeric_id, &def);
         let nbt_data = damage_type_loader::to_registry_nbt_bytes(&def);

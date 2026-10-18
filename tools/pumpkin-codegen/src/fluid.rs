@@ -393,6 +393,7 @@ pub fn build() -> TokenStream {
             Err(e) => panic!("Failed to parse fluids.json: {e}"),
         };
 
+    let fluid_count = fluids.len() as u16;
     let mut constants = TokenStream::new();
     let mut id_matches = Vec::new();
     let mut type_from_name = TokenStream::new();
@@ -762,25 +763,28 @@ pub fn build() -> TokenStream {
         impl Fluid {
             #constants
 
+            /// Number of generated fluids. Fluids registered at runtime get the ids from here on.
+            pub const VANILLA_COUNT: u16 = #fluid_count;
+
             pub fn from_registry_key(name: &str) -> Option<&'static Self> {
                 match name {
                     #type_from_name
-                    _ => None
+                    _ => Self::from_dynamic_registry_key(name)
                 }
             }
 
-            pub const fn from_id(id: u16) -> Option<&'static Self> {
+            pub fn from_id(id: u16) -> Option<&'static Self> {
                 match id {
                     #type_from_raw_id_arms
-                    _ => None
+                    _ => Self::from_dynamic_id(id)
                 }
             }
 
             #[allow(unreachable_patterns, clippy::match_overlapping_arm)]
-            pub const fn from_state_id(id: BlockStateId) -> Option<&'static Self> {
+            pub fn from_state_id(id: BlockStateId) -> Option<&'static Self> {
                 match id.as_u16() {
                     #fluid_from_state_id
-                    _ => None
+                    _ => Self::from_dynamic_state_id(id)
                 }
             }
 
@@ -816,6 +820,7 @@ pub fn build() -> TokenStream {
                     || (a == 2 && b == 1)
                     || (a == 3 && b == 4)
                     || (a == 4 && b == 3)
+                    || Self::dynamic_same_fluid_type(a, b)
             }
             pub fn matches_type(&self, other: &Fluid) -> bool {
                 Self::same_fluid_type(self.id, other.id)
@@ -824,7 +829,10 @@ pub fn build() -> TokenStream {
                 match self.id {
                     2 => &Fluid::FLOWING_WATER,
                     4 => &Fluid::FLOWING_LAVA,
-                    _ => Fluid::from_id(self.id).unwrap_or(&Fluid::EMPTY),
+                    _ => self
+                        .dynamic_flowing_variant()
+                        .or_else(|| Fluid::from_id(self.id))
+                        .unwrap_or(&Fluid::EMPTY),
                 }
             }
 
@@ -852,7 +860,7 @@ pub fn build() -> TokenStream {
 
         impl ToResourceLocation for &'static Fluid {
             fn to_resource_location(&self) -> ResourceLocation {
-                format!("minecraft:{}", self.name)
+                self.resource_location().into_owned()
             }
         }
 

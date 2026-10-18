@@ -4,6 +4,7 @@
 //! registry sync announces for its block entity type. The registry is append only and closes before
 //! players can connect, see [`crate::plugin_registry`].
 
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{LazyLock, PoisonError, RwLock};
 
 use crate::block_properties::BLOCK_ENTITY_TYPES;
@@ -22,6 +23,55 @@ pub struct PluginBlockEntityType {
     pub id: u32,
     /// The keys of the blocks this type belongs to.
     pub valid_blocks: &'static [&'static str],
+    /// The tick interval in ticks a plugin asked for, 0 when it does not want the type ticked.
+    /// Use [`PluginBlockEntityType::tick_interval`] and [`set_plugin_block_entity_tick_interval`].
+    tick_interval: AtomicU32,
+}
+
+impl PluginBlockEntityType {
+    /// A type that is not ticked.
+    #[must_use]
+    pub const fn new(key: &'static str, id: u32, valid_blocks: &'static [&'static str]) -> Self {
+        Self {
+            key,
+            id,
+            valid_blocks,
+            tick_interval: AtomicU32::new(0),
+        }
+    }
+
+    /// How often the type is ticked, in ticks. 0 when it is not.
+    #[must_use]
+    pub fn tick_interval(&self) -> u32 {
+        self.tick_interval.load(Ordering::Relaxed)
+    }
+}
+
+/// How many types have a tick interval, so a world can tell with one load that nothing ticks.
+static TICKING_TYPES: AtomicU32 = AtomicU32::new(0);
+
+/// Sets how often the entities of a type are ticked, 0 stops it. Returns the previous interval.
+pub fn set_plugin_block_entity_tick_interval(
+    entity_type: &'static PluginBlockEntityType,
+    interval: u32,
+) -> u32 {
+    let previous = entity_type.tick_interval.swap(interval, Ordering::AcqRel);
+    match (previous == 0, interval == 0) {
+        (true, false) => {
+            TICKING_TYPES.fetch_add(1, Ordering::AcqRel);
+        }
+        (false, true) => {
+            TICKING_TYPES.fetch_sub(1, Ordering::AcqRel);
+        }
+        _ => {}
+    }
+    previous
+}
+
+/// Whether any plugin block entity type is ticked. Cheap, meant for the tick loop.
+#[must_use]
+pub fn any_plugin_block_entity_ticking() -> bool {
+    TICKING_TYPES.load(Ordering::Acquire) != 0
 }
 
 static REGISTRY: LazyLock<RwLock<PluginRegistry<PluginBlockEntityType>>> =
@@ -74,10 +124,12 @@ pub fn register_plugin_block_entity_type(
         .iter()
         .map(|block| &*Box::leak(block.clone().into_boxed_str()))
         .collect();
-    write_registry().register(key, same, move |index, key| PluginBlockEntityType {
-        key,
-        id: vanilla_count + index as u32,
-        valid_blocks: Box::leak(leaked_blocks.into_boxed_slice()),
+    write_registry().register(key, same, move |index, key| {
+        PluginBlockEntityType::new(
+            key,
+            vanilla_count + index as u32,
+            Box::leak(leaked_blocks.into_boxed_slice()),
+        )
     })
 }
 

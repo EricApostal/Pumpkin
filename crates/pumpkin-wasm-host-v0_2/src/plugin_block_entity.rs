@@ -9,7 +9,7 @@ use crate::pumpkin::plugin::world::World as WitWorld;
 use pumpkin_core::plugin::permissions;
 use pumpkin_data::block_entity_registry::{
     plugin_block_entity_type_by_key, plugin_block_entity_types, register_plugin_block_entity_type,
-    vanilla_block_entity_type_count,
+    set_plugin_block_entity_tick_interval, vanilla_block_entity_type_count,
 };
 use pumpkin_nbt::compound::NbtCompound;
 use pumpkin_nbt::tag::NbtTag;
@@ -83,6 +83,30 @@ impl Host for PluginHostState {
                     .collect(),
             })
             .collect())
+    }
+
+    fn set_block_entity_ticking(
+        &mut self,
+        type_key: String,
+        interval: u32,
+    ) -> wasmtime::Result<Result<(), String>> {
+        if !self
+            .permissions
+            .iter()
+            .any(|p| p == permissions::REGISTRY_BLOCK_ENTITIES)
+        {
+            return Ok(Err(format!(
+                "ticking block entity types needs the '{}' permission",
+                permissions::REGISTRY_BLOCK_ENTITIES
+            )));
+        }
+        let Some(entity_type) = plugin_block_entity_type_by_key(&type_key) else {
+            return Ok(Err(format!(
+                "block entity type '{type_key}' is not registered"
+            )));
+        };
+        set_plugin_block_entity_tick_interval(entity_type, interval);
+        Ok(Ok(()))
     }
 
     fn get_block_entity_data(

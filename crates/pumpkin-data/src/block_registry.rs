@@ -293,6 +293,78 @@ struct PlacementRules {
     resolved: Vec<ResolvedPlacementRule>,
 }
 
+/// The `BlockBehaviour` hooks of a registered block that call back into its plugin. A block calls
+/// back for none of them until [`Block::set_dynamic_callbacks`] opts in.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub struct BlockCallbacks(u32);
+
+impl BlockCallbacks {
+    pub const NONE: Self = Self(0);
+    pub const NEIGHBOR_UPDATE: Self = Self(1 << 0);
+    pub const PLACED: Self = Self(1 << 1);
+    pub const PLAYER_PLACED: Self = Self(1 << 2);
+    pub const STATE_REPLACED: Self = Self(1 << 3);
+    pub const BROKEN: Self = Self(1 << 4);
+    pub const SCHEDULED_TICK: Self = Self(1 << 5);
+    pub const RANDOM_TICK: Self = Self(1 << 6);
+    pub const ENTITY_COLLISION: Self = Self(1 << 7);
+    pub const ENTITY_STEP: Self = Self(1 << 8);
+    pub const CAN_PLACE: Self = Self(1 << 9);
+    pub const UPDATE_SHAPE: Self = Self(1 << 10);
+    /// The block is a redstone signal source that uses the output the plugin stored for it.
+    pub const REDSTONE_OUTPUT: Self = Self(1 << 11);
+    /// Redstone readers ask the plugin for the weak power of the block.
+    pub const WEAK_POWER: Self = Self(1 << 12);
+    /// Redstone readers ask the plugin for the strong power of the block.
+    pub const STRONG_POWER: Self = Self(1 << 13);
+    /// Comparators read the block, from the stored output or by asking the plugin.
+    pub const COMPARATOR_OUTPUT: Self = Self(1 << 14);
+
+    /// The callbacks that make a block a redstone signal source.
+    pub const REDSTONE_SOURCE: Self =
+        Self(Self::REDSTONE_OUTPUT.0 | Self::WEAK_POWER.0 | Self::STRONG_POWER.0);
+
+    /// Every callback there is.
+    pub const ALL: Self = Self((1 << 15) - 1);
+
+    /// `None` when `bits` has a bit that is not a callback.
+    #[must_use]
+    pub const fn from_bits(bits: u32) -> Option<Self> {
+        if bits & !Self::ALL.0 == 0 {
+            Some(Self(bits))
+        } else {
+            None
+        }
+    }
+
+    #[must_use]
+    pub const fn bits(self) -> u32 {
+        self.0
+    }
+
+    /// Whether every callback of `other` is in `self`.
+    #[must_use]
+    pub const fn contains(self, other: Self) -> bool {
+        self.0 & other.0 == other.0
+    }
+
+    /// Whether `self` and `other` have a callback in common.
+    #[must_use]
+    pub const fn intersects(self, other: Self) -> bool {
+        self.0 & other.0 != 0
+    }
+
+    #[must_use]
+    pub const fn union(self, other: Self) -> Self {
+        Self(self.0 | other.0)
+    }
+
+    #[must_use]
+    pub const fn is_empty(self) -> bool {
+        self.0 == 0
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BlockDrops {
     /// One item of the item linked with `Block::link_dynamic_item`.
@@ -355,6 +427,8 @@ pub enum BlockRegistrationError {
     OutOfStateIds(String, u32, u32),
     /// The block has other placement rules already (block key).
     PlacementRulesChanged(String),
+    /// The block has other callbacks already (block key).
+    CallbacksChanged(String),
 }
 
 impl fmt::Display for BlockRegistrationError {
@@ -393,6 +467,9 @@ impl fmt::Display for BlockRegistrationError {
             ),
             Self::PlacementRulesChanged(key) => {
                 write!(f, "block '{key}' has other placement rules already")
+            }
+            Self::CallbacksChanged(key) => {
+                write!(f, "block '{key}' has other callbacks already")
             }
         }
     }
@@ -674,6 +751,8 @@ pub struct DynamicBlockInfo {
     connect_rules: Vec<ResolvedConnectRule>,
     /// Set once by [`DynamicBlockRegistry::set_placement_rules`].
     placement: OnceLock<PlacementRules>,
+    /// Set once by [`DynamicBlockRegistry::set_callbacks`].
+    callbacks: OnceLock<BlockCallbacks>,
 }
 
 fn leak_str(text: &str) -> &'static str {
@@ -734,6 +813,7 @@ impl DynamicBlockInfo {
             properties,
             connect_rules,
             placement: OnceLock::new(),
+            callbacks: OnceLock::new(),
         };
         let defaults: Vec<(String, String)> = info.registration.default_state.clone();
         let props: Vec<(&str, &str)> = defaults
@@ -859,6 +939,12 @@ impl DynamicBlockInfo {
             ConnectTarget::Block(key) => neighbour.name == key.as_str(),
             ConnectTarget::Tag(tag) => neighbour.is_tagged_with(tag).unwrap_or(false),
         }
+    }
+
+    /// The hooks that call back into the plugin of this block, none by default.
+    #[must_use]
+    pub fn callbacks(&self) -> BlockCallbacks {
+        self.callbacks.get().copied().unwrap_or_default()
     }
 
     /// The placement rules set with [`DynamicBlockRegistry::set_placement_rules`], empty when there
@@ -1437,6 +1523,35 @@ impl DynamicBlockRegistry {
         Ok(info)
     }
 
+    /// Sets which hooks of `block_key` call back into its plugin. Repeating the same callbacks is
+    /// fine, other callbacks are [`BlockRegistrationError::CallbacksChanged`].
+    pub fn set_callbacks(
+        &mut self,
+        block_key: &str,
+        callbacks: BlockCallbacks,
+    ) -> Result<&'static DynamicBlockInfo, BlockRegistrationError> {
+        let index = *self
+            .by_key
+            .get(block_key)
+            .ok_or_else(|| BlockRegistrationError::UnknownBlock(block_key.to_string()))?;
+        let info = self.infos[index];
+        if let Some(existing) = info.callbacks.get() {
+            return if *existing == callbacks {
+                Ok(info)
+            } else {
+                Err(BlockRegistrationError::CallbacksChanged(
+                    block_key.to_string(),
+                ))
+            };
+        }
+        if self.frozen {
+            return Err(BlockRegistrationError::Frozen);
+        }
+        // The registry is locked for writing, nobody else can have set them in the meantime.
+        let _ = info.callbacks.set(callbacks);
+        Ok(info)
+    }
+
     #[must_use]
     pub fn get_by_id(&self, id: u16) -> Option<&'static Block> {
         let index = usize::from(id).checked_sub(usize::from(BlockId::BLOCK_COUNT))?;
@@ -1625,6 +1740,15 @@ impl Block {
         rules: Vec<PlacementRule>,
     ) -> Result<(), BlockRegistrationError> {
         write_registry().set_placement_rules(block_key, rules)?;
+        Ok(())
+    }
+
+    /// Sets the callbacks of a registered block, see [`DynamicBlockRegistry::set_callbacks`].
+    pub fn set_dynamic_callbacks(
+        block_key: &str,
+        callbacks: BlockCallbacks,
+    ) -> Result<(), BlockRegistrationError> {
+        write_registry().set_callbacks(block_key, callbacks)?;
         Ok(())
     }
 
@@ -2507,6 +2631,46 @@ mod tests {
             registry.set_placement_rules("test_place:missing", Vec::new()),
             Err(BlockRegistrationError::UnknownBlock(_))
         ));
+    }
+
+    #[test]
+    fn callbacks_are_opt_in_and_set_once() {
+        let mut registry = DynamicBlockRegistry::new();
+        let block = registry
+            .register(registration("test_callbacks:machine"))
+            .unwrap();
+        let info = registry.get_info(block.id.as_u16()).unwrap();
+        assert!(info.callbacks().is_empty());
+
+        let callbacks = BlockCallbacks::NEIGHBOR_UPDATE.union(BlockCallbacks::SCHEDULED_TICK);
+        registry
+            .set_callbacks("test_callbacks:machine", callbacks)
+            .unwrap();
+        assert!(info.callbacks().contains(BlockCallbacks::SCHEDULED_TICK));
+        assert!(!info.callbacks().contains(BlockCallbacks::BROKEN));
+        // The same callbacks again are fine, others are not, also once closed.
+        registry
+            .set_callbacks("test_callbacks:machine", callbacks)
+            .unwrap();
+        registry.freeze();
+        registry
+            .set_callbacks("test_callbacks:machine", callbacks)
+            .unwrap();
+        assert!(matches!(
+            registry.set_callbacks("test_callbacks:machine", BlockCallbacks::ALL),
+            Err(BlockRegistrationError::CallbacksChanged(_))
+        ));
+        assert!(matches!(
+            registry.set_callbacks("test_callbacks:missing", callbacks),
+            Err(BlockRegistrationError::UnknownBlock(_))
+        ));
+        assert_eq!(BlockCallbacks::from_bits(1 << 15), None);
+        assert!(BlockCallbacks::REDSTONE_SOURCE.intersects(BlockCallbacks::WEAK_POWER));
+        assert!(!BlockCallbacks::REDSTONE_SOURCE.intersects(BlockCallbacks::COMPARATOR_OUTPUT));
+        assert_eq!(
+            BlockCallbacks::from_bits(BlockCallbacks::ALL.bits()),
+            Some(BlockCallbacks::ALL)
+        );
     }
 
     /// Checks every state of a block registered with the properties of `vanilla` against the vanilla

@@ -29,6 +29,7 @@ pub mod loot;
 pub mod map;
 mod neighbor_updater;
 mod plugin_block_entity;
+pub mod plugin_redstone;
 pub mod portal;
 pub mod raid;
 pub mod random_sequences;
@@ -278,6 +279,8 @@ pub struct World {
     synced_block_event_queue: std::sync::Mutex<Vec<BlockEvent>>,
     /// A map of unsent block changes, keyed by block position.
     unsent_block_changes: std::sync::Mutex<HashMap<BlockPos, BlockStateId>>,
+    /// Redstone output that plugins stored for their custom blocks.
+    pub plugin_redstone: plugin_redstone::PluginRedstoneOutputs,
     /// Persisted vanilla POI storage for portal and villager lookups.
     pub portal_poi: std::sync::Mutex<portal::PortalPoiStorage>,
     /// Villager job sites and their current owners.
@@ -419,6 +422,7 @@ impl World {
             min_y: i32::from(generation_settings.shape.min_y),
             synced_block_event_queue: std::sync::Mutex::new(Vec::new()),
             unsent_block_changes: std::sync::Mutex::new(HashMap::new()),
+            plugin_redstone: plugin_redstone::PluginRedstoneOutputs::default(),
             portal_poi: std::sync::Mutex::new(portal_poi),
             villager_poi: std::sync::Mutex::new(villager_poi::VillagerPoiStorage::default()),
             raids: std::sync::Mutex::new(raid::Raids::default()),
@@ -1663,6 +1667,8 @@ impl World {
             }
         }
         let block_entity_count = block_entities.len();
+        // Plugin handlers run below, they must not find the lock held.
+        drop(active_chunks);
 
         let t_be = std::time::Instant::now();
         let be_handle = handle;
@@ -1677,6 +1683,10 @@ impl World {
         self.flush_comparator_updates(&block_entities);
         drop(guard);
         let block_entity_elapsed = t_be.elapsed();
+
+        // Batched ticking for the block entities of plugin types, see `tick_plugin_block_entities`.
+        self.tick_plugin_block_entities(server);
+        self.fire_world_tick_event(server);
 
         self.level
             .chunk_loading
@@ -4424,6 +4434,8 @@ impl World {
             .iter()
             .find(|p| p.gameprofile.id == id)
             .cloned()
+            // Fake players are not in the list but the code that fires player events needs them.
+            .or_else(|| crate::entity::fake_player::find_in_world(self, id))
     }
 
     /// Retrieves an entity by their unique UUID.
@@ -5181,7 +5193,10 @@ impl World {
 
             if flags.contains(BlockFlags::NOTIFY_NEIGHBORS) {
                 self.update_neighbors_at(position, old_block, None);
-                if block_state_id.has_analog_output_signal() {
+                if crate::block::blocks::dynamic::has_analog_output(
+                    new_block,
+                    block_state_id.to_state(),
+                ) {
                     self.update_neighbour_for_output_signal(position, new_block);
                 }
             }
@@ -6029,6 +6044,7 @@ impl World {
                 block,
                 position,
                 source_block,
+                source_position,
                 notify: false,
             });
         }

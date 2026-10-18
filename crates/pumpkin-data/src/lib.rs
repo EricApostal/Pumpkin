@@ -457,6 +457,15 @@ mod blocks;
 
 pub mod plugin_registry;
 
+#[cfg(feature = "entity_type")]
+pub mod entity_registry;
+
+#[cfg(feature = "fluid")]
+pub mod fluid_registry;
+
+#[cfg(feature = "damage")]
+pub mod damage_type_registry;
+
 #[cfg(feature = "screen")]
 pub mod menu_registry;
 

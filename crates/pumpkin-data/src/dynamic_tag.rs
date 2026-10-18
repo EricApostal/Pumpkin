@@ -1,4 +1,4 @@
-//! Tags added at runtime, so plugin items and blocks can join vanilla tags or form their own.
+//! Tags added at runtime, so plugin items, blocks and fluids can join vanilla tags or form their own.
 //!
 //! Plugin tags stay for the whole run, datapack tags are replaced on every reload. The generated
 //! `Taggable::is_tagged_with` and `has_tag` consult this overlay, and it is part of the client tag
@@ -31,7 +31,7 @@ static SNAPSHOT: ArcSwapOption<Snapshot> = ArcSwapOption::const_empty();
 /// Lets the common case, no runtime tags, skip everything.
 static HAS_TAGS: AtomicBool = AtomicBool::new(false);
 
-/// The resolved runtime tags of items and blocks, by registry and normalized tag name.
+/// The resolved runtime tags of items, blocks and fluids, by registry and normalized tag name.
 #[derive(Default)]
 struct Snapshot {
     tags: HashMap<RegistryKey, HashMap<Box<str>, Box<[u16]>>>,
@@ -74,18 +74,23 @@ fn resolve(registry: RegistryKey, location: &str) -> Option<u16> {
         RegistryKey::Item => crate::item::Item::from_registry_key(location).map(|item| item.id),
         #[cfg(feature = "block")]
         RegistryKey::Block => crate::Block::from_name(location).map(|block| block.id.as_u16()),
+        #[cfg(feature = "fluid")]
+        RegistryKey::Fluid => crate::fluid::get_fluid(location).map(|fluid| fluid.id),
         _ => None,
     }
 }
 
 /// Whether tags of this registry are resolved to ids and published.
 const fn has_ids(registry: RegistryKey) -> bool {
-    matches!(registry, RegistryKey::Item | RegistryKey::Block)
+    matches!(
+        registry,
+        RegistryKey::Item | RegistryKey::Block | RegistryKey::Fluid
+    )
 }
 
 fn publish(overlay: &Overlay) {
     let mut snapshot = Snapshot::default();
-    for registry in [RegistryKey::Item, RegistryKey::Block] {
+    for registry in [RegistryKey::Item, RegistryKey::Block, RegistryKey::Fluid] {
         let names: Vec<&String> = [&overlay.plugin, &overlay.datapack]
             .into_iter()
             .flat_map(|tags| tags.keys())

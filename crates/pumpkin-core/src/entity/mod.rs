@@ -78,6 +78,7 @@ pub mod custom_sound;
 pub mod decoration;
 pub mod effect;
 pub mod experience_orb;
+pub mod fake_player;
 pub mod falling;
 pub mod hunger;
 pub mod interaction;

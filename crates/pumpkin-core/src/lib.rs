@@ -484,6 +484,9 @@ impl PumpkinServer {
         pumpkin_data::block_entity_registry::freeze_plugin_block_entity_types();
         pumpkin_data::menu_registry::freeze_plugin_menu_types();
         pumpkin_data::data_component_registry::freeze_plugin_component_types();
+        // Damage types too: plugin types come first after the vanilla ids, datapack types follow.
+        pumpkin_data::damage_type_registry::freeze_plugin_damage_types();
+        self.server.datapack_manager.renumber_damage_types();
 
         self.server.start_telemetry();
         self.server.management_hub.broadcast_server_started();

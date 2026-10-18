@@ -85,3 +85,13 @@ pub const REGISTRY_MENUS: &str = "registry.menus";
 ///
 /// Registration is only possible while the server starts, before players can connect.
 pub const REGISTRY_COMPONENTS: &str = "registry.components";
+
+/// Allows the plugin to register custom damage types with `damage_types`.
+///
+/// Registration is only possible while the server starts, before players can connect.
+pub const REGISTRY_DAMAGE_TYPES: &str = "registry.damage-types";
+
+/// Allows the plugin to register custom recipe types and add recipes of those types with `recipe`.
+///
+/// Recipe types are plugin side data, they are not sent to clients and can be added at any time.
+pub const REGISTRY_RECIPES: &str = "registry.recipes";

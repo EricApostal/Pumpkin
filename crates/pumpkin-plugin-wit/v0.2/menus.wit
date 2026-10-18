@@ -16,10 +16,28 @@
 /// close from the client, or `close-menu`, or another screen opening fires `menu-closed-event`
 /// (and `inventory-close-event`).
 ///
-/// A menu has no behaviour of its own. Clicks in it are sent to the plugin as `menu-click-event`
-/// and are not applied by the server, the plugin decides what a click does and updates the slots
-/// with `set-menu-slot`. A menu with zero slots (a terminal, a custom GUI that only talks through
-/// payloads) sends no slot data at all.
+/// By default a menu has no behaviour of its own. Clicks in it are sent to the plugin as
+/// `menu-click-event` and are not applied by the server, the plugin decides what a click does and
+/// updates the slots with `set-menu-slot` and the cursor with `set-menu-cursor`. A menu with zero
+/// slots (a terminal, a custom GUI that only talks through payloads) sends no slot data at all.
+///
+/// # Vanilla clicks
+///
+/// A menu opened with `open-menu-with-options` and `apply-vanilla-clicks` runs the server's vanilla
+/// click logic instead: pick up and place with the left and right button, shift-click, number key
+/// swap, double click collect, drag split and spread, creative clone, and throwing items out of
+/// the window. `menu-click-event` still fires first and a handler can cancel it (the click is then
+/// not applied, the client is resynchronised), and `menu-slot-changed-event` fires after a click
+/// that changed the menu's slots or the cursor, so the plugin can mirror the state. What a slot
+/// accepts is declared with `menu-slot-rule`s, they can be replaced while the menu is open with
+/// `set-menu-click-rules`.
+///
+/// The menu's slots are numbered from 0. With `player-inventory` the 36 slots of the player's
+/// inventory follow them (`slot-count` to `slot-count + 35`: the main inventory, then the hotbar,
+/// the order of every vanilla menu), backed by the player's real inventory. Without it a click on
+/// a slot the server does not track is ignored. The cursor stack is the server's: it is sent with
+/// every synchronisation, and when the menu closes what is on it goes back to the player's
+/// inventory or is dropped, like in every vanilla window.
 ///
 /// # Extra data
 ///
@@ -50,6 +68,59 @@ interface menus {
         /// The full resource location, `namespace:path`.
         key: string,
         id: u32,
+    }
+
+    /// How a slot takes part in vanilla clicks.
+    variant menu-slot-kind {
+        /// Items go in and out like in a chest.
+        normal,
+        /// Items can be taken, the whole stack at once, but not placed (a result slot).
+        output-only,
+        /// Nothing moves in or out.
+        locked,
+        /// Clicks never move real items. A click with a stack on the cursor sets the slot to a copy
+        /// of it (a right click: one item) and leaves the cursor unchanged, a click with an empty
+        /// cursor empties the slot. Shift-click, number keys, drops and drags leave it alone.
+        ghost,
+        /// Like `normal`, but only these items can be placed: item keys, the `minecraft:` prefix
+        /// is optional.
+        filter(list<string>),
+    }
+
+    /// The rule of one slot of the menu. A slot without a rule is `normal` with the stack limit
+    /// of the item.
+    record menu-slot-rule {
+        slot: u32,
+        kind: menu-slot-kind,
+        /// The most items the slot holds (at least 1), none for the limit of the item.
+        max-stack-size: option<u8>,
+    }
+
+    /// A range of the menu's own slots, `end` exclusive.
+    record menu-slot-range {
+        start: u32,
+        end: u32,
+    }
+
+    /// What a menu that applies vanilla clicks follows.
+    record menu-click-rules {
+        slot-rules: list<menu-slot-rule>,
+        /// The menu slots a shift-click moves items into, tried in order. Used for shift-clicks on
+        /// the player inventory slots, and on the menu's own slots when the menu has no player
+        /// inventory slots (the item then moves to the other slots of the ranges). With player
+        /// inventory slots, a shift-click on a menu slot moves the item into them, the hotbar
+        /// first from the end like a chest does. Slots that do not take the item are skipped.
+        quick-move-targets: list<menu-slot-range>,
+    }
+
+    /// How `open-menu-with-options` opens a menu.
+    record menu-options {
+        /// Apply the vanilla click logic, see the interface documentation.
+        apply-vanilla-clicks: bool,
+        /// Add the 36 slots of the player's inventory behind the menu's own. The menu then has at
+        /// most 220 own slots.
+        player-inventory: bool,
+        rules: menu-click-rules,
     }
 
     /// The menu a player has open.
@@ -85,6 +156,11 @@ interface menus {
     /// right after the open packet.
     open-menu-with-slots: func(player: borrow<player>, menu-type-key: string, title: text-component, extra-data: option<list<u8>>, slot-count: u32) -> result<u32, string>;
 
+    /// Like `open-menu-with-slots`, with the options of the menu: vanilla click logic, the player
+    /// inventory slots and the slot rules. Fails for bad rules (a slot or range the menu does not
+    /// have, a stack limit of 0) without closing the player's screen.
+    open-menu-with-options: func(player: borrow<player>, menu-type-key: string, title: text-component, extra-data: option<list<u8>>, slot-count: u32, options: menu-options) -> result<u32, string>;
+
     /// Closes the menu the player has open, if it is a plugin menu. Returns whether it was. The
     /// client is told to close it and `menu-closed-event` fires.
     close-menu: func(player: borrow<player>) -> bool;
@@ -103,4 +179,19 @@ interface menus {
     /// open plugin menu and sends it to the client with `ClientboundContainerSetData`. Data slots
     /// are not tracked by the server, the plugin sends every change.
     set-menu-data: func(player: borrow<player>, id: u32, value: s16) -> result<_, string>;
+
+    /// Replaces the slot rules and quick move targets of the player's open plugin menu. Slots
+    /// without a rule become `normal` again. Only menus opened with `apply-vanilla-clicks` use
+    /// them.
+    set-menu-click-rules: func(player: borrow<player>, rules: menu-click-rules) -> result<_, string>;
+
+    /// Returns a copy of the stack on the cursor of the player's open plugin menu, none if it is
+    /// empty or the player has no plugin menu open.
+    get-menu-cursor: func(player: borrow<player>) -> option<item-stack>;
+
+    /// Sets the stack on the cursor of the player's open plugin menu (none empties it) and sends it
+    /// to the client. The server keeps it: later synchronisations send it again instead of an empty
+    /// cursor. Fails if the player has no plugin menu open or the menu has no slots (such a menu is
+    /// never synchronised, so it has no cursor).
+    set-menu-cursor: func(player: borrow<player>, stack: option<item-stack>) -> result<_, string>;
 }

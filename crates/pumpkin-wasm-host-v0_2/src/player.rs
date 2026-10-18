@@ -1160,6 +1160,11 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
         Ok(player.gameprofile.name.clone())
     }
 
+    fn is_fake(&mut self, player: Resource<Player>) -> wasmtime::Result<bool> {
+        let player = self.get(&player)?;
+        Ok(player.is_fake)
+    }
+
     fn get_position(
         &mut self,
         player: Resource<Player>,

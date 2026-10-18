@@ -402,6 +402,22 @@ interface %world {
         id: u16,
     }
 
+    /// The fluid at a block position: a fluid block, or a block holding water (waterlogged blocks,
+    /// kelp, seagrass, bubble columns).
+    record fluid-state {
+        /// The still fluid, `minecraft:water` or `minecraft:lava`. The flowing variant has the same
+        /// tags, `is-source` tells the two apart.
+        fluid: string,
+        /// The fluid amount: 8 for a source and for falling fluid, 1 for the thinnest flow.
+        level: u8,
+        /// Whether this is a source block.
+        is-source: bool,
+        /// Whether the fluid is falling down from fluid above.
+        is-falling: bool,
+        /// How high the fluid reaches in the block, `0.0..1.0`.
+        height: f32,
+    }
+
     resource entity {
         get-id: func() -> u32;
         get-uuid: func() -> uuid;
@@ -524,6 +540,44 @@ interface %world {
 
         /// Returns whether this entity is an AI-driven mob.
         is-mob: func() -> bool;
+
+        /// Returns this entity as an item-entity if it is a dropped item, or none otherwise.
+        as-item: func() -> option<item-entity>;
+
+        /// Returns whether this entity is a dropped item.
+        is-item: func() -> bool;
+    }
+
+    /// Represents a dropped item (the entity of an item lying in the world).
+    resource item-entity {
+        /// Converts back to the base entity handle.
+        as-entity: func() -> entity;
+
+        /// Returns a copy of the stack of this item, including its data components.
+        /// Changing the returned stack does not change the item, use `set-stack` for that.
+        get-stack: func() -> item-stack;
+
+        /// Replaces the stack of this item with a copy of `stack` and resends it to the players.
+        /// An empty stack makes the item disappear on its next tick.
+        set-stack: async func(stack: borrow<item-stack>);
+
+        /// Returns the ticks left before players can pick this item up.
+        get-pickup-delay: func() -> u8;
+        /// Sets the ticks left before players can pick this item up.
+        set-pickup-delay: func(ticks: u8);
+
+        /// Returns whether players are unable to pick this item up.
+        is-never-pickup: func() -> bool;
+        /// Sets whether players are unable to pick this item up. Such an item does not merge either.
+        set-never-pickup: func(never-pickup: bool);
+
+        /// Returns whether this item never despawns of old age.
+        is-never-despawn: func() -> bool;
+        /// Sets whether this item never despawns of old age. Such an item does not merge either.
+        set-never-despawn: func(never-despawn: bool);
+
+        /// Removes this item from the world without dropping anything.
+        discard: func();
     }
 
     /// Represents a living entity with health, combat stats, attributes, and equipment (mobs, players, armor stands).
@@ -543,6 +597,9 @@ interface %world {
         get-max-health: func() -> f32;
         set-max-health: func(max-health: f32);
         damage: async func(amount: f32, damage-type: damage-type);
+        /// Deals damage with a damage type by key, vanilla (`minecraft:` prefix optional) or
+        /// registered with `damage-types.register-damage-type`. Fails for an unknown key.
+        damage-by-key: async func(amount: f32, damage-type-key: string) -> result<_, string>;
         is-dead: func() -> bool;
 
         get-absorption: func() -> f32;
@@ -766,6 +823,40 @@ interface %world {
         max: position,
     }
 
+    /// Selects which entities `get-entities-in-box` returns.
+    variant entity-filter {
+        /// Every entity, players included.
+        all,
+        /// Dropped items only.
+        items,
+        /// Living entities (mobs, armor stands, players).
+        living,
+        /// Players only.
+        players,
+        /// Entities of one of the listed types.
+        types(list<entity-type>),
+    }
+
+    /// What `entity-snapshot` tells about the stack of a dropped item.
+    record item-summary {
+        /// The registry key of the item (e.g., "minecraft:diamond").
+        registry-key: string,
+        count: u8,
+    }
+
+    /// A cheap copy of the state of an entity at one moment, it does not allocate an entity resource.
+    /// Use `get-entity-by-uuid` to get a handle to the entity.
+    record entity-snapshot {
+        id: u32,
+        uuid: uuid,
+        entity-type: entity-type,
+        position: position,
+        bounding-box: bounding-box,
+        velocity: position,
+        /// The stack of the entity if it is a dropped item.
+        item: option<item-summary>,
+    }
+
     /// Represents the configured shared spawn location for a world.
     record world-spawn-location {
         /// The block position of the shared world spawn.
@@ -784,6 +875,17 @@ interface %world {
         south,
         west,
         east,
+    }
+
+    /// The order in which ticks due at the same time run, the first one runs first.
+    enum tick-priority {
+        extremely-high,
+        very-high,
+        high,
+        normal,
+        low,
+        very-low,
+        extremely-low,
     }
 
     /// Represents a Minecraft world (dimension).
@@ -815,6 +917,26 @@ interface %world {
         /// Gets the numerical block ID at the specified position.
         get-block-id: func(pos: block-pos) -> u16;
 
+        /// Returns whether the chunk containing `pos` is loaded (a position outside the build
+        /// height counts as not loaded). Never loads a chunk. The block-state queries return air
+        /// for a position that is not loaded.
+        is-loaded: func(pos: block-pos) -> bool;
+
+        /// Returns whether every chunk that overlaps the box between the corners `min` and `max`
+        /// (inclusive, in any order) is loaded. Never loads a chunk.
+        is-area-loaded: func(min: block-pos, max: block-pos) -> bool;
+
+        /// Returns the fluid at `pos`: a fluid block, or a block that holds water (waterlogged
+        /// blocks, kelp, seagrass, bubble columns). None when there is no fluid or the chunk is not
+        /// loaded. How a block reacts to pistons is `piston-behavior` of `get-block-state`.
+        get-fluid-state: func(pos: block-pos) -> option<fluid-state>;
+
+        /// Returns what the block at `pos` would drop when broken with `tool` (none for bare
+        /// hands), with the enchantments, such as fortune and silk touch, of the tool applied. The
+        /// block is not broken, no event fires and nothing spawns. Loot tables roll randomly, so
+        /// repeated calls can differ. Empty for air and when the chunk is not loaded.
+        get-block-drops: async func(pos: block-pos, tool: option<borrow<item-stack>>) -> list<item-stack>;
+
         /// Sets the block at the specified position using its default state.
         set-block: async func(pos: block-pos, block: block, update-flags: block-flags);
 
@@ -833,6 +955,74 @@ interface %world {
 
         /// Returns the total age of the world in ticks.
         get-world-age: func() -> u64;
+
+        /// Schedules a tick of the block that is at `pos` now, `delay-ticks` ticks from now (at most
+        /// 255). When it is due and the position still has a block, that block's scheduled tick
+        /// runs: for a custom block with the `scheduled-tick` callback of `block-callbacks` it is a
+        /// `custom-block-scheduled-tick-event`. Does nothing when the chunk is not loaded.
+        schedule-block-tick: func(pos: block-pos, delay-ticks: u8, priority: tick-priority);
+
+        /// Returns the redstone power that the block at `pos` receives from its neighbour on the
+        /// `direction` side (the neighbour at `pos` plus `direction`), 0 to 15. Like vanilla
+        /// `getSignal` of that neighbour: its weak power towards `pos`, and when the neighbour is a
+        /// solid block also the strong power it receives itself. Redstone wire counts. Unloaded
+        /// positions give 0. Custom blocks that ask their plugin run its handlers, so this is async.
+        get-redstone-power: async func(pos: block-pos, direction: block-direction) -> u8;
+
+        /// Like `get-redstone-power`, but only the strong power of the neighbour on the `direction`
+        /// side counts (vanilla `getDirectSignal`), the part that a solid block passes on.
+        get-direct-redstone-power: async func(pos: block-pos, direction: block-direction) -> u8;
+
+        /// Returns whether any neighbour of `pos` gives it redstone power, vanilla
+        /// `hasNeighborSignal`. This is what a lamp or a door checks.
+        has-neighbor-signal: async func(pos: block-pos) -> bool;
+
+        /// Returns the highest `get-redstone-power` over the six sides of `pos`, vanilla
+        /// `getBestNeighborSignal`.
+        get-best-neighbor-signal: async func(pos: block-pos) -> u8;
+
+        /// Returns what a comparator that sits against the `direction` side of the block at `pos`
+        /// would read from it: the analog output, 0 to 15. None when the block has no analog output,
+        /// for example stone. Containers, cauldrons, custom blocks with the `comparator-output`
+        /// callback and others have one.
+        get-analog-signal: async func(pos: block-pos, direction: block-direction) -> option<u8>;
+
+        /// Notifies the six neighbours of `pos` that it changed, so they run their neighbour update
+        /// (redstone wire, repeaters, lamps, custom blocks with the `neighbor-update` callback).
+        /// `set-block-state` with `notify-neighbors` does this on its own; use this when the signal
+        /// of a block changes without its state changing. `source-block` is the key of the block that
+        /// the neighbours are told changed, none for the block that is at `pos`. A block that gives
+        /// strong power through a solid block also has to update the neighbours of that block, or
+        /// use `set-block-redstone-output`, which does that. Fails for an unknown block key.
+        update-neighbors: async func(pos: block-pos, source-block: option<string>) -> result<_, string>;
+
+        /// Tells the comparators next to `pos` (also those behind one solid block) to read the block
+        /// at `pos` again, because its analog output changed. Placing a block with an analog output
+        /// and `set-block-comparator-output` do this on their own.
+        update-comparators: async func(pos: block-pos);
+
+        /// Stores the redstone power of the custom block at `pos` for all six faces and updates the
+        /// neighbours so the change spreads. `weak` reaches the blocks next to the block (wire,
+        /// repeaters, lamps), `strong` is also passed on by a solid block next to it, like a lever
+        /// powers the block it sits on. 0 to 15, higher counts as 15, both 0 removes the output.
+        /// Nothing happens when the output stays the same. Redstone reads the stored output without
+        /// asking the plugin: while any face has output, the stored values answer for all faces and
+        /// `custom-block-redstone-power-event` is not fired. It is kept in memory only and dropped
+        /// when the block is replaced or moved: store it again after a restart. Fails when the block at `pos` is not a custom block with the
+        /// `redstone-output` callback of `block-callbacks`.
+        set-block-redstone-output: async func(pos: block-pos, weak: u8, strong: u8) -> result<_, string>;
+
+        /// Like `set-block-redstone-output` for one face only: the side of the block that touches the
+        /// neighbour at `pos` plus `face`. The other faces keep their output. A diode that outputs to
+        /// the north sets the north face.
+        set-block-redstone-output-face: async func(pos: block-pos, face: block-direction, weak: u8, strong: u8) -> result<_, string>;
+
+        /// Stores the analog output (0 to 15, none for no output) that comparators read from the
+        /// custom block at `pos` and updates the comparators next to it. It replaces
+        /// `custom-block-comparator-output-event`. It is kept in memory only and dropped when the
+        /// block is replaced or moved. Fails when the block at `pos` is not a custom block with the
+        /// `comparator-output` callback of `block-callbacks`.
+        set-block-comparator-output: async func(pos: block-pos, output: option<u8>) -> result<_, string>;
 
         /// Returns the dimension type (e.g., \"minecraft:overworld\").
         get-dimension: func() -> string;
@@ -902,6 +1092,25 @@ interface %world {
 
         /// Returns a list of all entities in this world.
         get-entities: func() -> list<entity>;
+
+        /// Spawns a dropped item with a copy of `stack` (data components, including custom ones, are kept).
+        /// The item gets a random small velocity and a pickup delay of 10 ticks unless given.
+        /// Returns none when the stack is empty or a plugin cancelled the spawn.
+        spawn-item: async func(pos: position, stack: borrow<item-stack>, velocity: option<position>, pickup-delay: option<u8>) -> option<item-entity>;
+
+        /// Returns a snapshot of every entity matching `filter` whose bounding box intersects the box
+        /// between `min` and `max`. Entities that were removed already are left out.
+        get-entities-in-box: func(min: position, max: position, filter: entity-filter) -> list<entity-snapshot>;
+
+        /// Returns a handle to every dropped item whose bounding box intersects the box between `min` and `max`.
+        get-item-entities-in-box: func(min: position, max: position) -> list<item-entity>;
+
+        /// Returns the entity with the given uuid, if it is in this world.
+        get-entity-by-uuid: func(id: uuid) -> option<entity>;
+
+        /// Returns the entity with the given network id (`entity.get-id`), players included, if it
+        /// is in this world.
+        get-entity-by-id: func(id: u32) -> option<entity>;
 
         /// Spawns a lightning bolt at the specified position.
         strike-lightning: async func(pos: position, effect-only: bool);
@@ -1047,4 +1256,25 @@ interface %world {
 
     /// Gets the detailed block state for a numerical block state ID.
     get-block-state-by-id: func(state-id: u16) -> option<block-state>;
+
+    // Tag queries. `tag` is a tag name like `minecraft:logs` or `create:wrenches`, `#` prefix
+    // optional, `minecraft:` namespace optional. They see the vanilla tags, datapack tags and tags
+    // plugins registered with `register-block-tag` and `register-item-tag`. Unknown keys and tags
+    // are not in the tag (false). Entries that are registered later count once they exist.
+
+    /// Returns whether the block (`minecraft:stone`, `create:gearbox`) is in the block tag.
+    block-has-tag: func(block-key: string, tag: string) -> bool;
+
+    /// Returns whether the block of a block state ID is in the block tag.
+    block-state-has-tag: func(state-id: u16, tag: string) -> bool;
+
+    /// Returns whether the item (`minecraft:stick`, `create:wrench`) is in the item tag.
+    item-has-tag: func(item-key: string, tag: string) -> bool;
+
+    /// Returns whether the fluid (`minecraft:water`, `minecraft:flowing_water`, `minecraft:lava`)
+    /// is in the fluid tag. Fluid tags cannot be registered by plugins.
+    fluid-has-tag: func(fluid-key: string, tag: string) -> bool;
+
+    /// Returns whether the entity type (`minecraft:cow`) is in the entity type tag.
+    entity-type-has-tag: func(entity-type-key: string, tag: string) -> bool;
 }

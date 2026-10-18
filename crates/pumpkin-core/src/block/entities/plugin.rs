@@ -8,6 +8,8 @@ use pumpkin_util::math::position::BlockPos;
 use tracing::warn;
 
 use super::BlockEntity;
+use super::plugin_inventory::{INVENTORY_KEY, MAX_SLOTS, PluginInventory};
+use pumpkin_inventory::Inventory;
 
 /// Key of the compound with the data of the plugin in the saved block entity.
 pub const SAVE_DATA_KEY: &str = "PluginData";
@@ -15,11 +17,8 @@ pub const SAVE_DATA_KEY: &str = "PluginData";
 pub const CLIENT_DATA_KEY: &str = "PluginClientData";
 
 /// Stand in for an entity whose type is gone, see [`PluginBlockEntity::from_nbt`].
-static UNREGISTERED: PluginBlockEntityType = PluginBlockEntityType {
-    key: "pumpkin:unregistered",
-    id: u32::MAX,
-    valid_blocks: &[],
-};
+static UNREGISTERED: PluginBlockEntityType =
+    PluginBlockEntityType::new("pumpkin:unregistered", u32::MAX, &[]);
 
 /// A block entity of a type that a plugin registered. The server only stores its data: the plugin
 /// owns the behaviour. It holds two compound tags, the save data (written to the chunk) and the
@@ -34,6 +33,8 @@ pub struct PluginBlockEntity {
     client_data: Mutex<Option<NbtCompound>>,
     /// Whether the plugin was told that the entity is loaded, see `World::announce_plugin_block_entities`.
     announced: AtomicBool,
+    /// The slots a plugin registered for this entity, see [`Self::register_inventory`].
+    inventory: Mutex<Option<Arc<PluginInventory>>>,
 }
 
 impl PluginBlockEntity {
@@ -50,6 +51,7 @@ impl PluginBlockEntity {
             data: Mutex::new(data),
             client_data: Mutex::new(client_data),
             announced: AtomicBool::new(false),
+            inventory: Mutex::new(None),
         }
     }
 
@@ -57,12 +59,20 @@ impl PluginBlockEntity {
     #[must_use]
     pub fn try_from_nbt(nbt: &NbtCompound, position: BlockPos) -> Option<Self> {
         let entity_type = plugin_block_entity_type_by_key(nbt.get_string("id")?)?;
-        Some(Self::new(
+        let entity = Self::new(
             position,
             entity_type,
             nbt.get_compound(SAVE_DATA_KEY).cloned().unwrap_or_default(),
             nbt.get_compound(CLIENT_DATA_KEY).cloned(),
-        ))
+        );
+        if let Some(inventory) = nbt.get_compound(INVENTORY_KEY).and_then(PluginInventory::from_nbt)
+        {
+            *entity
+                .inventory
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner) = Some(Arc::new(inventory));
+        }
+        Some(entity)
     }
 
     /// Reads a saved block entity for the loader of the world. Entities of vanilla or unknown ids
@@ -117,6 +127,48 @@ impl PluginBlockEntity {
             .unwrap_or_else(PoisonError::into_inner) = client_data;
     }
 
+    /// The inventory a plugin registered, if any.
+    #[must_use]
+    pub fn plugin_inventory(&self) -> Option<Arc<PluginInventory>> {
+        self.inventory
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
+    }
+
+    /// Gives the entity an inventory of `slot_count` slots that take `slot_limit` items at most,
+    /// or resizes the one it has (see [`PluginInventory::resize`]). It is saved with the entity.
+    pub fn register_inventory(
+        &self,
+        slot_count: usize,
+        slot_limit: u8,
+    ) -> Result<Arc<PluginInventory>, String> {
+        if slot_count > MAX_SLOTS {
+            return Err(format!("an inventory has at most {MAX_SLOTS} slots"));
+        }
+        let mut guard = self
+            .inventory
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        if let Some(existing) = guard.as_ref() {
+            existing.resize(slot_count, slot_limit)?;
+            return Ok(existing.clone());
+        }
+        let inventory = Arc::new(PluginInventory::new(slot_count, slot_limit));
+        *guard = Some(inventory.clone());
+        Ok(inventory)
+    }
+
+    /// Takes the inventory away and returns the stacks that were in it.
+    pub fn unregister_inventory(&self) -> Vec<pumpkin_data::item_stack::ItemStack> {
+        self.inventory
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .take()
+            .map(|inventory| inventory.take_all())
+            .unwrap_or_default()
+    }
+
     /// Marks the entity as announced to the plugin and returns whether it was before.
     pub fn mark_announced(&self) -> bool {
         self.announced.swap(true, Ordering::AcqRel)
@@ -126,6 +178,9 @@ impl PluginBlockEntity {
 impl BlockEntity for PluginBlockEntity {
     fn write_nbt(&self, nbt: &mut NbtCompound) {
         nbt.put_compound(SAVE_DATA_KEY, self.data());
+        if let Some(inventory) = self.plugin_inventory() {
+            nbt.put_compound(INVENTORY_KEY, inventory.write_nbt());
+        }
         if let Some(client_data) = self.client_data() {
             nbt.put_compound(CLIENT_DATA_KEY, client_data);
         }
@@ -150,6 +205,12 @@ impl BlockEntity for PluginBlockEntity {
     /// The id of the type in the registry clients synchronise.
     fn get_id(&self) -> u32 {
         self.entity_type.id
+    }
+
+    /// The slots of the plugin, if it registered some. Hoppers go through this.
+    fn get_inventory(self: Arc<Self>) -> Option<Arc<dyn Inventory>> {
+        self.plugin_inventory()
+            .map(|inventory| inventory as Arc<dyn Inventory>)
     }
 
     fn as_any(&self) -> &dyn Any {

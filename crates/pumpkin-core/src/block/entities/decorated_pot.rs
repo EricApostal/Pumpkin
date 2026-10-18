@@ -1,9 +1,10 @@
 use super::BlockEntity;
 use pumpkin_data::item_stack::ItemStack;
+use pumpkin_inventory::{Clearable, Inventory};
 use pumpkin_nbt::compound::NbtCompound;
 use pumpkin_nbt::tag::NbtTag;
 use pumpkin_util::math::position::BlockPos;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 pub struct DecoratedPotBlockEntity {
     pub position: BlockPos,
@@ -67,8 +68,76 @@ impl BlockEntity for DecoratedPotBlockEntity {
         Some(nbt)
     }
 
+    fn get_inventory(self: Arc<Self>) -> Option<Arc<dyn Inventory>> {
+        Some(self)
+    }
+
     fn as_any(&self) -> &dyn std::any::Any {
         self
+    }
+}
+
+/// The pot as a one slot container, so hoppers and item handlers can fill and empty it.
+impl Inventory for DecoratedPotBlockEntity {
+    fn size(&self) -> usize {
+        1
+    }
+
+    fn is_empty(&self) -> bool {
+        self.get_item().is_none_or(|item| item.is_empty())
+    }
+
+    fn get_stack(&self, slot: usize) -> ItemStack {
+        if slot != 0 {
+            return ItemStack::EMPTY.clone();
+        }
+        self.get_item().unwrap_or_else(|| ItemStack::EMPTY.clone())
+    }
+
+    fn remove_stack(&self, slot: usize) -> ItemStack {
+        if slot != 0 {
+            return ItemStack::EMPTY.clone();
+        }
+        self.take_item().unwrap_or_else(|| ItemStack::EMPTY.clone())
+    }
+
+    fn remove_stack_specific(&self, slot: usize, amount: u8) -> ItemStack {
+        if slot != 0 || amount == 0 {
+            return ItemStack::EMPTY.clone();
+        }
+        let mut item = self
+            .item
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let Some(stack) = item.as_mut() else {
+            return ItemStack::EMPTY.clone();
+        };
+        let removed = stack.split(amount);
+        if stack.is_empty() {
+            *item = None;
+        }
+        removed
+    }
+
+    fn set_stack(&self, slot: usize, stack: ItemStack) {
+        if slot != 0 {
+            return;
+        }
+        *self
+            .item
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) =
+            if stack.is_empty() { None } else { Some(stack) };
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+}
+
+impl Clearable for DecoratedPotBlockEntity {
+    fn clear(&self) {
+        self.take_item();
     }
 }
 

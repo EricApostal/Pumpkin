@@ -393,6 +393,8 @@ pub struct OnNeighborUpdateArgs<'a> {
     pub block: &'a Block,
     pub position: &'a BlockPos,
     pub source_block: &'a Block,
+    /// Where the change that caused the update happened.
+    pub source_position: &'a BlockPos,
     pub notify: bool,
 }
 
@@ -502,6 +504,42 @@ fn loot_table_items(
     };
     let seed: i64 = rand::random();
     crate::world::loot::generate_loot_from_handle(&loot_table, seed, params)
+}
+
+/// The items breaking the block at `pos` with `tool` would drop, without breaking it, firing events
+/// or spawning anything. Empty when the chunk is not loaded. Rolls the loot table, so random drops
+/// can differ between calls.
+pub fn block_drops_at(
+    world: &Arc<World>,
+    pos: &BlockPos,
+    tool: Option<ItemStack>,
+) -> Vec<ItemStack> {
+    let Some(state) = world.get_block_state_if_loaded(pos) else {
+        return Vec::new();
+    };
+    if state.is_air() {
+        return Vec::new();
+    }
+    let block = Block::from_state_id(state.id);
+    let params = LootContextParameters {
+        tool: tool.filter(|tool| !tool.is_empty()),
+        block_state: Some(state),
+        position: Some(pos.to_f64()),
+        killed_by_player: Some(false),
+        world_time: world.level_info.load().day_time as u64,
+        is_raining: Some(world.is_raining()),
+        is_thundering: Some(world.is_thundering()),
+        ..Default::default()
+    };
+    let mut items = block_loot(world, block, &params);
+    if let Some(block_entity) = world.get_block_entity(pos) {
+        for stack in &mut items {
+            if Block::from_item_id(stack.item.id) == Some(block) {
+                block_entity.collect_item_components(stack);
+            }
+        }
+    }
+    items
 }
 
 pub fn drop_loot(

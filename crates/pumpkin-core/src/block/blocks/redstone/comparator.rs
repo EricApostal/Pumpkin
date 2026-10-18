@@ -21,6 +21,8 @@ use crate::{
     world::World,
 };
 
+use crate::block::blocks::dynamic::has_analog_output;
+
 use super::abstract_redstone_gate::{self, RedstoneGateBlock, RedstoneGateBlockProperties};
 
 #[pumpkin_block("minecraft:comparator")]
@@ -219,7 +221,7 @@ impl RedstoneGateBlock<ComparatorLikeProperties> for ComparatorBlock {
         let mut target_pos = pos.offset(facing.to_offset());
         let (target_block, target_state) = world.get_block_and_state(&target_pos);
 
-        if target_state.has_analog_output_signal() {
+        if has_analog_output(target_block, target_state) {
             result_signal = world
                 .block_registry
                 .get_pumpkin_block(target_block.id)
@@ -240,7 +242,7 @@ impl RedstoneGateBlock<ComparatorLikeProperties> for ComparatorBlock {
             let item_frame_signal =
                 Self::get_attached_itemframe_level(world, facing, target_pos).map(i32::from);
 
-            let block_signal = target_state.has_analog_output_signal().then(|| {
+            let block_signal = has_analog_output(target_block, target_state).then(|| {
                 let signal = world
                     .block_registry
                     .get_pumpkin_block(target_block.id)

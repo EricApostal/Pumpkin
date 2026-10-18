@@ -1,0 +1,73 @@
+/// Fake players: server side actors that behave like players for the item, block and entity
+/// handling, the events and the protection checks, but have no connection. They are not shown in
+/// the tab list, not counted as online, not saved, not ticked and fire no join or leave events.
+///
+/// A fake player is the ordinary `player` resource (`player.is-fake` is true), so the inventory,
+/// held item, game mode, permission and effect functions of `player` work on it. Functions that
+/// send something to a client do nothing. The actions below fire the same events as the packets
+/// of a connected player (block break, interact, use item, damage), with the fake player as the
+/// player of the event.
+///
+/// Needs the `fake-players` plugin permission.
+interface fake-player {
+    use common.{hand, position, block-pos};
+    use player.{player};
+    use %world.{%world, entity, block-direction};
+    use uuid.{uuid};
+
+    /// Where a block break stands.
+    variant break-progress {
+        /// There is nothing to break, it is out of reach, an event cancelled it, or the held
+        /// item cannot mine it. The fake player is not breaking anything afterwards.
+        rejected,
+        /// Still breaking, with the progress so far. `1.0` and more breaks the block.
+        in-progress(f32),
+        /// The block was broken (drops, tool wear, and events happened).
+        broken,
+    }
+
+    /// Creates a fake player in a world. It starts at the world origin: set its location before
+    /// it acts. The uuid is the offline uuid of the name unless given.
+    /// Fails when a fake or online player already has the uuid.
+    create-fake-player: func(world-ref: borrow<%world>, profile-name: string, id: option<uuid>) -> result<player, string>;
+
+    /// Stops the fake player and unregisters it. Remove fake players you no longer need.
+    remove-fake-player: func(player: borrow<player>) -> result<_, string>;
+
+    /// Moves the fake player, into the given world when it is not the current one.
+    set-fake-player-location: func(player: borrow<player>, world-ref: option<borrow<%world>>, pos: position, yaw: f32, pitch: f32) -> result<_, string>;
+
+    /// Sets whether the fake player sneaks. Sneaking with an item in hand skips the use of the
+    /// clicked block (chests, doors) like it does for a player.
+    set-fake-player-sneaking: func(player: borrow<player>, sneaking: bool) -> result<_, string>;
+
+    /// Right clicks a block with the item in the hand: the block can act first, then the item
+    /// (placing, buckets, hoes, bone meal). `cursor` is where on the face the click lands (0 to 1
+    /// on each axis, `(0.5, 0.5, 0.5)` is the middle). Returns true when the clicked block, the
+    /// block next to it or the held item changed. Fails when the block is out of reach (the
+    /// player reach plus one block from the eyes).
+    use-item-on-block: async func(player: borrow<player>, pos: block-pos, face: block-direction, hand: hand, cursor: tuple<f32, f32, f32>) -> result<bool, string>;
+
+    /// Uses the item in the hand in the direction the fake player looks (eating, throwing, bows,
+    /// fishing rods).
+    use-item: async func(player: borrow<player>, hand: hand) -> result<_, string>;
+
+    /// Attacks an entity in the same world at full strength with the held item: the damage,
+    /// knockback and enchantments of a player attack. Players are only attacked when PvP is on.
+    attack-entity: async func(player: borrow<player>, target: borrow<entity>) -> result<_, string>;
+
+    /// Right clicks an entity with the item in the main hand (shearing, feeding, trading,
+    /// saddling, name tags). Swap the items to use the off hand.
+    interact-entity: async func(player: borrow<player>, target: borrow<entity>) -> result<_, string>;
+
+    /// Starts breaking a block. It breaks at once when it is instant to break. Otherwise call
+    /// `continue-break-block` once per tick. Starting another block stops the current one.
+    start-break-block: async func(player: borrow<player>, pos: block-pos, face: block-direction) -> result<break-progress, string>;
+
+    /// Advances the break by one tick. Breaks the block when the progress reaches `1.0`, like the
+    /// survival break of a player: events, drops, tool wear and enchantments.
+    continue-break-block: async func(player: borrow<player>) -> result<break-progress, string>;
+
+    /// Stops breaking the current block, the damage on it goes away.
+    stop-break-block: async func(player: borrow<player>) -> result<_, string>;
+}

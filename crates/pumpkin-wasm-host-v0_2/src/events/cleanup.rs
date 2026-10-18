@@ -735,5 +735,47 @@ pub fn cleanup_event(event: &Event, state: &mut PluginHostState) {
         Event::BlockEntityUnloadEvent(data) => {
             cleanup_world(state, &data.target_world);
         }
+        Event::BlockEntityTickEvent(data) => {
+            cleanup_world(state, &data.target_world);
+        }
+        Event::WorldTickEvent(data) => {
+            cleanup_world(state, &data.target_world);
+        }
+        Event::CustomBlockNeighborUpdateEvent(data) => {
+            cleanup_world(state, &data.target_world);
+        }
+        Event::CustomBlockPlacedEvent(data) => {
+            cleanup_world(state, &data.target_world);
+        }
+        Event::CustomBlockStateReplacedEvent(data) => {
+            cleanup_world(state, &data.target_world);
+        }
+        Event::CustomBlockBrokenEvent(data) => {
+            cleanup_world(state, &data.target_world);
+        }
+        Event::CustomBlockScheduledTickEvent(data) => {
+            cleanup_world(state, &data.target_world);
+        }
+        Event::CustomBlockRandomTickEvent(data) => {
+            cleanup_world(state, &data.target_world);
+        }
+        Event::CustomBlockEntityCollisionEvent(data) => {
+            cleanup_world(state, &data.target_world);
+        }
+        Event::CustomBlockEntityStepEvent(data) => {
+            cleanup_world(state, &data.target_world);
+        }
+        Event::CustomBlockCanPlaceEvent(data) => {
+            cleanup_world(state, &data.target_world);
+        }
+        Event::CustomBlockUpdateShapeEvent(data) => {
+            cleanup_world(state, &data.target_world);
+        }
+        Event::CustomBlockRedstonePowerEvent(data) => {
+            cleanup_world(state, &data.target_world);
+        }
+        Event::CustomBlockComparatorOutputEvent(data) => {
+            cleanup_world(state, &data.target_world);
+        }
     }
 }

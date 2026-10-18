@@ -54,4 +54,68 @@ interface damage-types {
     wither,
     wither-skull,
   }
+
+  /// How the damage of a damage type scales with the difficulty.
+  enum damage-scaling {
+    never,
+    when-caused-by-living-non-player,
+    always,
+  }
+
+  /// The effects (sound and animation) a damage type has when it hurts.
+  enum damage-effects {
+    hurt,
+    thorns,
+    drowning,
+    burning,
+    poking,
+    freezing,
+  }
+
+  /// Which family of death messages a damage type uses.
+  enum death-message-type {
+    %default,
+    fall-variants,
+    intentional-game-design,
+  }
+
+  /// A damage type to add to the damage type registry.
+  record damage-type-definition {
+    /// Full resource location, `namespace:path`, lowercase, `a-z 0-9 _ - .` (and `/` in the path).
+    /// The `minecraft` namespace is reserved.
+    key: string,
+    /// The translation key suffix of the death message, `death.attack.<message-id>` (and
+    /// `.player` with a killer). Clients need a resource pack for the translation.
+    message-id: string,
+    scaling: damage-scaling,
+    /// The hunger a player loses when hurt by it.
+    exhaustion: f32,
+    effects: option<damage-effects>,
+    death-message-type: death-message-type,
+  }
+
+  /// A damage type and its network id.
+  record damage-type-entry {
+    key: string,
+    id: u32,
+  }
+
+  /// Registers a damage type and returns its id. Vanilla damage types have the ids
+  /// `0..get-vanilla-damage-type-count()`, plugin types get `get-vanilla-damage-type-count() + n`
+  /// where `n` is the registration order, datapack damage types follow them. Use the type with
+  /// `living-entity.damage-by-key` and `player.damage-by-key`.
+  ///
+  /// Fails for an invalid or duplicate key (the same definition again returns the id), an invalid
+  /// definition, or when registration is closed: it closes when the server starts accepting
+  /// connections. Needs the `registry.damage-types` permission.
+  register-damage-type: func(definition: damage-type-definition) -> result<u32, string>;
+
+  /// Returns the id of a damage type by key, vanilla (`minecraft:` prefix optional) or plugin.
+  get-damage-type-id: func(key: string) -> option<u32>;
+
+  /// Returns the number of vanilla damage types. This is also the id of the first plugin type.
+  get-vanilla-damage-type-count: func() -> u32;
+
+  /// Returns all plugin damage types in id order.
+  get-registered-damage-types: func() -> list<damage-type-entry>;
 }

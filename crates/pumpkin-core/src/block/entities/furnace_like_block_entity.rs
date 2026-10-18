@@ -340,6 +340,44 @@ macro_rules! impl_inventory_for_cooking {
                 self.mark_dirty();
             }
 
+            // Slots: 0 input, 1 fuel, 2 output. Used by hoppers and the plugin item handlers.
+            fn is_valid_slot_for(&self, slot: usize, stack: &ItemStack) -> bool {
+                match slot {
+                    2 => false,
+                    1 => {
+                        stack
+                            .get_data_component::<pumpkin_data::data_component_impl::CookingFuelImpl>()
+                            .is_some()
+                            || (stack.item.id == pumpkin_data::item::Item::BUCKET.id
+                                && pumpkin_inventory::Inventory::get_stack(self, 1).item.id
+                                    != pumpkin_data::item::Item::BUCKET.id)
+                    }
+                    _ => true,
+                }
+            }
+
+            fn slots_for_face(&self, face: pumpkin_data::BlockDirection) -> Vec<usize> {
+                match face {
+                    pumpkin_data::BlockDirection::Down => vec![2, 1],
+                    pumpkin_data::BlockDirection::Up => vec![0],
+                    _ => vec![1],
+                }
+            }
+
+            fn can_take_item_through_face(
+                &self,
+                slot: usize,
+                stack: &ItemStack,
+                face: pumpkin_data::BlockDirection,
+            ) -> bool {
+                // Out of the bottom fuel slot only the bucket that is left of a fuel comes.
+                if face == pumpkin_data::BlockDirection::Down && slot == 1 {
+                    return stack.item.id == pumpkin_data::item::Item::WATER_BUCKET.id
+                        || stack.item.id == pumpkin_data::item::Item::BUCKET.id;
+                }
+                true
+            }
+
             fn mark_dirty(&self) {
                 self.dirty.store(true, Ordering::Relaxed);
                 self.comparator_dirty.store(true, Ordering::Relaxed);

@@ -1381,6 +1381,7 @@ impl BlockRegistry {
         block: &Block,
         position: &BlockPos,
         source_block: &Block,
+        source_position: &BlockPos,
         notify: bool,
     ) {
         let pumpkin_block = self.get_pumpkin_block(block.id);
@@ -1390,6 +1391,7 @@ impl BlockRegistry {
                 block,
                 position,
                 source_block,
+                source_position,
                 notify,
             });
         }

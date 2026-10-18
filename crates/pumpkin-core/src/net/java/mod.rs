@@ -138,6 +138,8 @@ pub struct JavaClient {
     pub packet_limiter: PacketRateLimiter,
     /// Vanilla `suspendFlushingOnServerThread`.
     suspend_flushing: Arc<AtomicBool>,
+    /// Not connected to anything (a fake player): every outgoing packet is dropped.
+    detached: bool,
 }
 
 impl JavaClient {
@@ -177,6 +179,45 @@ impl JavaClient {
             packet_sequence: AtomicI32::new(-1),
             packet_limiter: pending.packet_limiter,
             suspend_flushing: Arc::new(AtomicBool::new(false)),
+            detached: false,
+        }
+    }
+
+    /// A client without a connection, for fake players. It accepts and drops every outgoing
+    /// packet and never times out. Needs a Tokio runtime.
+    #[must_use]
+    pub fn detached(gameprofile: GameProfile, config: PlayerConfig) -> Self {
+        let (send, recv) = tokio::sync::mpsc::unbounded_channel();
+
+        Self {
+            id: u64::MAX,
+            gameprofile,
+            config: ArcSwap::from_pointee(config),
+            server_address: String::new(),
+            address: SocketAddr::from(([127, 0, 0, 1], 0)),
+            connection_state: AtomicCell::new(ConnectionState::Play),
+            close_token: CancellationToken::new(),
+            tasks: TaskTracker::new(),
+            rt_handle: tokio::runtime::Handle::current(),
+            outgoing_packet_queue_send: send,
+            outgoing_packet_queue_recv: Some(recv),
+            pending_bytes: Arc::new(AtomicUsize::new(0)),
+            version: AtomicCell::new(CURRENT_MC_VERSION),
+            network_writer: std::sync::Mutex::new(None),
+            network_reader: std::sync::Mutex::new(None),
+            brand: ArcSwap::from_pointee(None),
+            flavour: AtomicCell::new(ConnectionFlavour::Vanilla),
+            player: ArcSwap::from_pointee(None),
+            wait_for_keep_alive: AtomicBool::new(false),
+            received_movement_this_tick: AtomicBool::new(false),
+            keep_alive_id: AtomicCell::new(0),
+            last_keep_alive_time: AtomicCell::new(Instant::now()),
+            last_packet_time: AtomicCell::new(Instant::now()),
+            pending_keep_alives: std::sync::Mutex::new(Vec::new()),
+            packet_sequence: AtomicI32::new(-1),
+            packet_limiter: PacketRateLimiter::new(false, 0.0, 0.0),
+            suspend_flushing: Arc::new(AtomicBool::new(false)),
+            detached: true,
         }
     }
 
@@ -193,6 +234,9 @@ impl JavaClient {
 
     /// Flushes Channel even while suspended.
     pub fn flush_channel(&self) {
+        if self.detached {
+            return;
+        }
         if self
             .outgoing_packet_queue_send
             .send(OutgoingPacket::Flush)
@@ -406,7 +450,7 @@ impl JavaClient {
 
     /// Outbound choke point of all enqueue/send paths. `None` when the packet must be dropped.
     fn reserve_pending_bytes(&self, packet_data: Bytes) -> Option<(Bytes, usize)> {
-        if self.close_token.is_cancelled() {
+        if self.detached || self.close_token.is_cancelled() {
             return None;
         }
         let packet_data = self.translate_outgoing(packet_data)?;
@@ -549,9 +593,10 @@ impl JavaClient {
     }
 
     pub fn try_kick(&self, reason: &TextComponent) {
-        if let Some(data) = self
-            .serialize_disconnect(reason)
-            .and_then(|data| self.translate_outgoing(data))
+        if !self.detached
+            && let Some(data) = self
+                .serialize_disconnect(reason)
+                .and_then(|data| self.translate_outgoing(data))
         {
             let packet_len = data.len();
             let _ = self.pending_bytes.fetch_add(packet_len, Ordering::AcqRel);

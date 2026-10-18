@@ -11,6 +11,7 @@
 use std::{any::Any, sync::Arc};
 
 use crate::inventory::{Clearable, Inventory};
+use pumpkin_data::BlockDirection;
 use pumpkin_data::item_stack::ItemStack;
 
 /// A composite inventory combining two inventories.
@@ -106,6 +107,41 @@ impl Inventory for DoubleInventory {
                 .is_valid_slot_for(slot - self.first.size(), stack)
         } else {
             self.first.is_valid_slot_for(slot, stack)
+        }
+    }
+
+    fn slots_for_face(&self, face: BlockDirection) -> Vec<usize> {
+        let offset = self.first.size();
+        let mut slots = self.first.slots_for_face(face);
+        slots.extend(self.second.slots_for_face(face).into_iter().map(|slot| slot + offset));
+        slots
+    }
+
+    fn can_place_item_through_face(
+        &self,
+        slot: usize,
+        stack: &ItemStack,
+        face: BlockDirection,
+    ) -> bool {
+        if slot >= self.first.size() {
+            self.second
+                .can_place_item_through_face(slot - self.first.size(), stack, face)
+        } else {
+            self.first.can_place_item_through_face(slot, stack, face)
+        }
+    }
+
+    fn can_take_item_through_face(
+        &self,
+        slot: usize,
+        stack: &ItemStack,
+        face: BlockDirection,
+    ) -> bool {
+        if slot >= self.first.size() {
+            self.second
+                .can_take_item_through_face(slot - self.first.size(), stack, face)
+        } else {
+            self.first.can_take_item_through_face(slot, stack, face)
         }
     }
 

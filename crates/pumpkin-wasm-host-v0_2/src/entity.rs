@@ -17,7 +17,7 @@ use crate::{
         uuid::Uuid,
         world::{
             BlockPos as WitBlockPos, BoundingBox as WitBoundingBox, Entity, HostEntity,
-            LivingEntity as WitLivingEntity, Mob as WitMob,
+            ItemEntity as WitItemEntity, LivingEntity as WitLivingEntity, Mob as WitMob,
             RayTraceBlockResult as WitRayTraceBlockResult,
             RayTraceEntityResult as WitRayTraceEntityResult, RaycastResult as WitRaycastResult,
             World,
@@ -718,6 +718,23 @@ impl HostEntity for PluginHostState {
         } else {
             Ok(None)
         }
+    }
+
+    fn as_item(
+        &mut self,
+        this: Resource<Entity>,
+    ) -> wasmtime::Result<Option<Resource<WitItemEntity>>> {
+        let entity = self.get(&this)?.clone();
+        if entity.get_item_entity().is_some() {
+            Ok(Some(self.add(entity)?))
+        } else {
+            Ok(None)
+        }
+    }
+
+    fn is_item(&mut self, this: Resource<Entity>) -> wasmtime::Result<bool> {
+        let entity = self.get(&this)?;
+        Ok(entity.get_item_entity().is_some())
     }
 
     fn is_living(&mut self, this: Resource<Entity>) -> wasmtime::Result<bool> {

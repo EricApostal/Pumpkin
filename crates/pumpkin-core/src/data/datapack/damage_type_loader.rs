@@ -153,6 +153,35 @@ pub fn to_damage_type(numeric_id: u8, def: &DamageTypeDefinition) -> DamageType 
     }
 }
 
+/// The definition a runtime `DamageType` (for example one that a plugin registered) was made from.
+#[must_use]
+pub fn definition_from_damage_type(damage_type: &DamageType) -> DamageTypeDefinition {
+    DamageTypeDefinition {
+        message_id: damage_type.message_id.to_string(),
+        scaling: match damage_type.scaling {
+            DamageScaling::Never => DamageScalingWrapper::Never,
+            DamageScaling::WhenCausedByLivingNonPlayer => {
+                DamageScalingWrapper::WhenCausedByLivingNonPlayer
+            }
+            DamageScaling::Always => DamageScalingWrapper::Always,
+        },
+        exhaustion: damage_type.exhaustion,
+        effects: damage_type.effects.map(|effects| match effects {
+            DamageEffects::Hurt => DamageEffectsWrapper::Hurt,
+            DamageEffects::Thorns => DamageEffectsWrapper::Thorns,
+            DamageEffects::Drowning => DamageEffectsWrapper::Drowning,
+            DamageEffects::Burning => DamageEffectsWrapper::Burning,
+            DamageEffects::Poking => DamageEffectsWrapper::Poking,
+            DamageEffects::Freezing => DamageEffectsWrapper::Freezing,
+        }),
+        death_message_type: Some(match damage_type.death_message_type {
+            DeathMessageType::Default => DeathMessageTypeWrapper::Default,
+            DeathMessageType::FallVariants => DeathMessageTypeWrapper::FallVariants,
+            DeathMessageType::IntentionalGameDesign => DeathMessageTypeWrapper::IntentionalGameDesign,
+        }),
+    }
+}
+
 /// Encodes the damage type definition into binary NBT payload.
 #[must_use]
 pub fn to_registry_nbt_bytes(def: &DamageTypeDefinition) -> Box<[u8]> {

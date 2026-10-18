@@ -73,7 +73,107 @@ interface recipe {
         campfire,
     }
 
-    /// Common interface for registering recipes.
+    /// An ingredient and how many items it takes. A separate record, so `ingredient` itself is
+    /// unchanged.
+    record sized-ingredient {
+        ingredient: ingredient,
+        /// At least 1.
+        count: u32,
+    }
+
+    /// An item a recipe produces.
+    record recipe-output {
+        /// Resource location of the item (e.g. "minecraft:iron_nugget").
+        item: string,
+        /// At least 1.
+        count: u32,
+        /// Chance in 0.0 to 1.0 that the output is produced. 1.0 for the vanilla recipes.
+        chance: f32,
+    }
+
+    /// A fluid in a recipe.
+    record recipe-fluid {
+        /// Resource location of the fluid, or "#namespace:path" for a fluid tag.
+        fluid: string,
+        /// Amount in millibuckets, at least 1.
+        amount: u32,
+    }
+
+    /// The layout of a shaped crafting recipe.
+    record shape-info {
+        pattern: list<string>,
+        key: list<tuple<string, ingredient>>,
+    }
+
+    /// What a cooking recipe adds to the generic fields.
+    record cooking-info {
+        experience: f32,
+        /// Cooking time in ticks.
+        cooking-time: u32,
+    }
+
+    /// A recipe as plain data.
+    record recipe-info {
+        /// The id of the recipe. Vanilla crafting, stonecutting and smithing recipes have none in
+        /// the server's tables.
+        id: option<string>,
+        /// The recipe type key (e.g. "minecraft:smelting", "create:pressing").
+        recipe-type: string,
+        group: option<string>,
+        /// For a shaped recipe one entry per filled cell of the pattern, row by row.
+        ingredients: list<sized-ingredient>,
+        results: list<recipe-output>,
+        /// Only recipes of plugin defined types have fluids.
+        fluid-ingredients: list<recipe-fluid>,
+        fluid-results: list<recipe-fluid>,
+        /// Set for shaped crafting recipes.
+        shape: option<shape-info>,
+        /// Set for cooking recipes.
+        cooking: option<cooking-info>,
+        /// The extra data of a recipe of a plugin defined type, empty for the others.
+        extra: list<u8>,
+    }
+
+    /// The crafting recipe a grid matched.
+    record crafting-result {
+        id: option<string>,
+        recipe-type: string,
+        output: recipe-output,
+    }
+
+    /// The recipe that cooks an item.
+    record cooking-result {
+        id: option<string>,
+        output: recipe-output,
+        experience: f32,
+        /// Cooking time in ticks.
+        cooking-time: u32,
+    }
+
+    /// A recipe of a plugin defined type.
+    record custom-recipe {
+        /// Unique "namespace:path" id, not in the "minecraft" namespace.
+        id: string,
+        ingredients: list<sized-ingredient>,
+        results: list<recipe-output>,
+        fluid-ingredients: list<recipe-fluid>,
+        fluid-results: list<recipe-fluid>,
+        /// Whatever else the machine needs (NBT, JSON, ...), at most 64 KiB. The server never
+        /// reads it.
+        extra: list<u8>,
+    }
+
+    /// Common interface for registering and querying recipes.
+    ///
+    /// The queries are read only and cover the vanilla recipes, the recipes of datapacks, the
+    /// recipes added with the register functions below and the recipes of plugin defined types.
+    /// Furnaces and the crafting table of the server use the vanilla recipes (and, for crafting,
+    /// the dynamic ones), a cooking recipe added by a plugin is reported by the queries only.
+    ///
+    /// Recipes of plugin defined types are plugin side data. They are not synchronised to
+    /// clients (the recipe book only knows the vanilla recipe displays), they are kept apart from
+    /// datapack recipes, so a datapack reload does not remove them, and they are never removed or
+    /// changed. Registering needs the `registry.recipes` permission.
     resource recipe-manager {
         /// Registers a shaped crafting recipe.
         register-shaped: async func(id: string, recipe: shaped-recipe);
@@ -83,6 +183,35 @@ interface recipe {
 
         /// Registers a cooking recipe.
         register-cooking: async func(id: string, station-type: cooking-type, recipe: cooking-recipe);
+
+        /// Registers a recipe type (e.g. "create:pressing"). Registering a key again does nothing.
+        /// Fails for the "minecraft" namespace and without the `registry.recipes` permission.
+        register-recipe-type: func(key: string) -> result<_, string>;
+
+        /// The keys of the recipe types plugins registered, in registration order.
+        get-registered-recipe-types: func() -> list<string>;
+
+        /// Adds a recipe of a registered type. Adding the identical recipe again does nothing, a
+        /// different recipe with the same id fails. Needs the `registry.recipes` permission.
+        register-custom-recipe: func(recipe-type: string, recipe: custom-recipe) -> result<_, string>;
+
+        /// All recipes of a type. Vanilla types are "minecraft:crafting_shaped",
+        /// "minecraft:crafting_shapeless", "minecraft:crafting_transmute", "minecraft:smelting",
+        /// "minecraft:blasting", "minecraft:smoking", "minecraft:campfire_cooking",
+        /// "minecraft:stonecutting" and "minecraft:smithing_transform". Unknown types have none.
+        find-recipes: func(recipe-type: string) -> list<recipe-info>;
+
+        /// The recipe with an id. Finds recipes of plugin defined types, dynamic recipes and the
+        /// vanilla cooking recipes.
+        get-recipe-by-id: func(id: string) -> option<recipe-info>;
+
+        /// The crafting recipe a grid of items matches, like the crafting table: only the items
+        /// count. `grid` is row by row (`width` * `height` entries, both 1 to 9), `none` is an empty
+        /// cell. An item key the server does not know and a grid of another size match nothing.
+        find-crafting-recipe: func(width: u32, height: u32, grid: list<option<string>>) -> option<crafting-result>;
+
+        /// The recipe that cooks an item (e.g. "minecraft:raw_iron") in a station.
+        find-smelting-recipe: func(item: string, station-type: cooking-type) -> option<cooking-result>;
     }
 }
 

@@ -2043,9 +2043,33 @@ interface event {
         count: u32
     }
 
-    /// A player clicked in a menu of a type registered with `menus.register-menu-type`. The server
-    /// does not apply the click, the menu belongs to the plugin. It resends the menu's slots after
-    /// the event, so the client's prediction is reverted unless the plugin changed the slots.
+    /// The mode of a container click packet.
+    enum menu-click-mode {
+        /// A left or right click (button 0 or 1), also the click with the cursor outside of the
+        /// window (slot `-999`).
+        pickup,
+        /// A shift-click (button 0 or 1).
+        quick-move,
+        /// A number key (button 0 to 8) or the offhand key (button 40).
+        swap,
+        /// A middle click in creative mode (button 2).
+        clone,
+        /// Q (button 0) or Ctrl+Q (button 1).
+        throw,
+        /// A drag, in three packets: the start at slot `-999` (button 0, 4 or 8 for a left, right or
+        /// middle drag), one per slot dragged over (button 1, 5 or 9) and the end at slot `-999`
+        /// (button 2, 6 or 10).
+        quick-craft,
+        /// A double click that collects matching stacks onto the cursor.
+        pickup-all
+    }
+
+    /// A player clicked in a menu of a type registered with `menus.register-menu-type`. Fired before
+    /// the click does anything and cancellable. Unless the menu applies vanilla clicks the server
+    /// does not apply the click, the menu belongs to the plugin: it resends the menu's slots and the
+    /// cursor after the event, so the client's prediction is reverted unless the plugin changed
+    /// them. A menu that applies vanilla clicks applies the click after the event if it was not
+    /// cancelled, and `menu-slot-changed-event` follows.
     record menu-click-event-data {
         player: player,
         container-id: u32,
@@ -2054,11 +2078,49 @@ interface event {
         /// The slot that was clicked, `-1` for the cursor and `-999` for outside of the window.
         slot: s16,
         button: s8,
+        /// The type of the click, derived from `mode` and `button`: a drag cannot be told from a
+        /// click with it, use `mode`.
         click-type: click-type,
+        mode: menu-click-mode,
         changed-slots: list<menu-changed-slot>,
         /// The item id of the stack on the cursor, none if the cursor is empty.
         carried-item-id: option<u32>,
-        carried-count: u32
+        carried-count: u32,
+        /// The server's cursor stack of the menu before the click, with its components (an empty
+        /// stack for an empty cursor). The client only reports a hash of its own.
+        cursor-stack: item-stack,
+        /// Set to cancel the click.
+        cancelled: bool
+    }
+
+    /// A slot of a menu a click changed.
+    record menu-slot-change {
+        slot: u32,
+        /// The stack the slot held before the click.
+        previous: item-stack,
+        /// The stack the slot holds now.
+        stack: item-stack
+    }
+
+    /// A click changed slots, or the cursor, of a menu opened with `apply-vanilla-clicks`. Fired
+    /// after the click so the plugin can mirror the state. Only the menu's own slots are listed, not
+    /// the player inventory slots a menu can have, and not changes the plugin makes itself.
+    record menu-slot-changed-event-data {
+        player: player,
+        container-id: u32,
+        menu-type: string,
+        changes: list<menu-slot-change>,
+        /// The cursor stack after the click.
+        cursor-stack: item-stack
+    }
+
+    /// A player clicked a button of a plugin menu (`ServerboundContainerButtonClick`, what the
+    /// buttons of an enchanting table send). The server does nothing with it.
+    record menu-button-click-event-data {
+        player: player,
+        container-id: u32,
+        menu-type: string,
+        button-id: s32
     }
 
     /// A player's menu of a plugin menu type closed: the player closed it, the plugin called
@@ -2089,6 +2151,195 @@ interface event {
         type-key: string,
         removed: bool,
         save-data: nbt-tree
+    }
+
+    /// The block entities of one plugin type that are due to tick in a world. Fired at most once per
+    /// world, tick and type, for types that got an interval with
+    /// `plugin-block-entity.set-block-entity-ticking`. All due entities are in `positions`, in no
+    /// particular order, and they were loaded when the event was built; one may have been removed by
+    /// a handler of an earlier event of the same tick, so check before changing it.
+    record block-entity-tick-event-data {
+        target-world: %world,
+        type-key: string,
+        /// The tick of the server.
+        tick: s32,
+        positions: list<block-pos>
+    }
+
+    /// Fired once per tick for every world, after its entities and block entities ticked (and
+    /// after the `block-entity-tick-event`s of the world).
+    record world-tick-event-data {
+        target-world: %world,
+        /// The tick of the server.
+        tick: s32
+    }
+
+    /// A neighbour of a custom block that set `neighbor-update` in `block-callbacks` changed.
+    record custom-block-neighbor-update-event-data {
+        target-world: %world,
+        pos: block-pos,
+        /// The key of the block.
+        block: string,
+        state-index: u16,
+        /// The position of the change.
+        source-pos: block-pos,
+        /// The key of the block that changed, the one at `source-pos` now.
+        source-block: string
+    }
+
+    /// A custom block that set `placed` or `player-placed` in `block-callbacks` was set in the world.
+    /// `placed` fires right after the block was set, before its neighbours update, for every way
+    /// the block got there. `player-placed` fires after a player placed it and sets `player`.
+    record custom-block-placed-event-data {
+        target-world: %world,
+        pos: block-pos,
+        /// The key of the block.
+        block: string,
+        state-index: u16,
+        /// The player that placed the block, none for `placed`.
+        player: option<uuid>,
+        /// The state id that was at `pos` before, none for `player-placed`.
+        old-state-id: option<u16>,
+        /// The block was moved there, for example by a piston.
+        moved: bool
+    }
+
+    /// A custom block that set `state-replaced` in `block-callbacks` was replaced by another block
+    /// (the position has the new block already) or moved away.
+    record custom-block-state-replaced-event-data {
+        target-world: %world,
+        pos: block-pos,
+        /// The key of the block.
+        block: string,
+        /// The state the block had.
+        old-state-index: u16,
+        /// The block is moved, for example by a piston, instead of removed.
+        moved: bool
+    }
+
+    /// A player broke a custom block that set `broken` in `block-callbacks`.
+    record custom-block-broken-event-data {
+        target-world: %world,
+        pos: block-pos,
+        /// The key of the block.
+        block: string,
+        /// The state the block had.
+        state-index: u16,
+        player: uuid
+    }
+
+    /// A tick of a custom block that set `scheduled-tick` or `random-tick` in `block-callbacks` is
+    /// due. Used by `custom-block-scheduled-tick-event` (scheduled with `world.schedule-block-tick`)
+    /// and `custom-block-random-tick-event`.
+    record custom-block-tick-event-data {
+        target-world: %world,
+        pos: block-pos,
+        /// The key of the block.
+        block: string,
+        state-index: u16
+    }
+
+    /// An entity is inside a custom block that set `entity-collision` in `block-callbacks`. Fires
+    /// every tick that the entity overlaps the block.
+    record custom-block-entity-collision-event-data {
+        target-world: %world,
+        pos: block-pos,
+        /// The key of the block.
+        block: string,
+        state-index: u16,
+        entity-id: s32,
+        entity-uuid: uuid,
+        /// The key of the entity type.
+        entity-type: string,
+        entity-pos: position
+    }
+
+    /// An entity stands on or walks over a custom block that set `entity-step` in
+    /// `block-callbacks`.
+    record custom-block-entity-step-event-data {
+        target-world: %world,
+        pos: block-pos,
+        /// The key of the block.
+        block: string,
+        state-index: u16,
+        entity-id: s32,
+        entity-uuid: uuid,
+        /// The key of the entity type.
+        entity-type: string,
+        entity-pos: position,
+        below-supporting-block: bool
+    }
+
+    /// A custom block that set `can-place` in `block-callbacks` is about to be placed. Set
+    /// `can-place` to false to refuse it, in a blocking handler. Players placing, falling blocks
+    /// and structures ask.
+    record custom-block-can-place-event-data {
+        target-world: %world,
+        pos: block-pos,
+        /// The key of the block.
+        block: string,
+        /// The state about to be placed (the default state when a player places).
+        state-index: u16,
+        /// The face of the clicked block, when a player places.
+        face: option<block-direction>,
+        /// The player that places the block, if any.
+        player: option<uuid>,
+        /// Whether the block can be placed, true to start with.
+        can-place: bool
+    }
+
+    /// A neighbour of a custom block that set `update-shape` in `block-callbacks` changed. The block
+    /// has the state `new-state-index` afterwards: the state that its connect rules give to start
+    /// with, set it to another state index of the block to change that, in a blocking handler.
+    record custom-block-update-shape-event-data {
+        target-world: %world,
+        pos: block-pos,
+        /// The key of the block.
+        block: string,
+        /// The current state of the block.
+        state-index: u16,
+        /// The direction from the block to the changed neighbour.
+        direction: block-direction,
+        neighbor-pos: block-pos,
+        /// The key of the block at `neighbor-pos`.
+        neighbor-block: string,
+        neighbor-state-id: u16,
+        new-state-index: u16
+    }
+
+    /// A redstone reader asks a custom block that set `weak-power` or `strong-power` in
+    /// `block-callbacks` for its power. Set `power` (0 to 15, higher counts as 15) in a blocking
+    /// handler. Not fired while output is stored for the block with `world.set-block-redstone-output`
+    /// (stored output answers for every face, until it is set to 0 again).
+    /// Fires whenever redstone looks at the block, handle it very quickly.
+    record custom-block-redstone-power-event-data {
+        target-world: %world,
+        pos: block-pos,
+        /// The key of the block.
+        block: string,
+        state-index: u16,
+        /// The side of the block that the power is read from, the one facing the reader.
+        face: block-direction,
+        /// True when the strong power is asked for (it goes through a solid block next to the
+        /// face), false for the weak power (it reaches the block next to the face).
+        strong: bool,
+        /// The power of the block on `face`, 0 to start with.
+        power: u8
+    }
+
+    /// A comparator reads a custom block that set `comparator-output` in `block-callbacks`. Set
+    /// `output` in a blocking handler: 0 to 15, or none for a block without analog output. Not fired
+    /// while an output is stored with `world.set-block-comparator-output`.
+    record custom-block-comparator-output-event-data {
+        target-world: %world,
+        pos: block-pos,
+        /// The key of the block.
+        block: string,
+        state-index: u16,
+        /// The side of the block the comparator sits against.
+        face: block-direction,
+        /// The analog output, none to start with.
+        output: option<u8>
     }
 
     enum event-type {
@@ -2377,8 +2628,24 @@ interface event {
         player-use-block-event,
         menu-click-event,
         menu-closed-event,
+        menu-slot-changed-event,
+        menu-button-click-event,
         block-entity-load-event,
         block-entity-unload-event,
+        block-entity-tick-event,
+        world-tick-event,
+        custom-block-neighbor-update-event,
+        custom-block-placed-event,
+        custom-block-state-replaced-event,
+        custom-block-broken-event,
+        custom-block-scheduled-tick-event,
+        custom-block-random-tick-event,
+        custom-block-entity-collision-event,
+        custom-block-entity-step-event,
+        custom-block-can-place-event,
+        custom-block-update-shape-event,
+        custom-block-redstone-power-event,
+        custom-block-comparator-output-event,
     }
 
     variant event {
@@ -2667,7 +2934,23 @@ interface event {
         player-use-block-event(player-use-block-event-data),
         menu-click-event(menu-click-event-data),
         menu-closed-event(menu-closed-event-data),
+        menu-slot-changed-event(menu-slot-changed-event-data),
+        menu-button-click-event(menu-button-click-event-data),
         block-entity-load-event(block-entity-load-event-data),
         block-entity-unload-event(block-entity-unload-event-data),
+        block-entity-tick-event(block-entity-tick-event-data),
+        world-tick-event(world-tick-event-data),
+        custom-block-neighbor-update-event(custom-block-neighbor-update-event-data),
+        custom-block-placed-event(custom-block-placed-event-data),
+        custom-block-state-replaced-event(custom-block-state-replaced-event-data),
+        custom-block-broken-event(custom-block-broken-event-data),
+        custom-block-scheduled-tick-event(custom-block-tick-event-data),
+        custom-block-random-tick-event(custom-block-tick-event-data),
+        custom-block-entity-collision-event(custom-block-entity-collision-event-data),
+        custom-block-entity-step-event(custom-block-entity-step-event-data),
+        custom-block-can-place-event(custom-block-can-place-event-data),
+        custom-block-update-shape-event(custom-block-update-shape-event-data),
+        custom-block-redstone-power-event(custom-block-redstone-power-event-data),
+        custom-block-comparator-output-event(custom-block-comparator-output-event-data),
     }
 }

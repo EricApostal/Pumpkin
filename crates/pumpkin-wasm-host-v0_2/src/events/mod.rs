@@ -20,6 +20,7 @@ use pumpkin_wasm_host_common::{plugin::WasmPlugin, state::PluginHostState};
 
 pub mod block;
 pub mod cleanup;
+pub mod custom_block;
 pub mod dialog;
 pub mod enchantment;
 pub mod entity;

@@ -7,20 +7,33 @@
 
 use std::sync::Arc;
 
-use pumpkin_data::block_entity_registry::{PluginBlockEntityType, plugin_block_entity_type_by_key};
+use pumpkin_data::block_entity_registry::{
+    PluginBlockEntityType, any_plugin_block_entity_ticking, plugin_block_entity_type_by_key,
+};
 use pumpkin_nbt::compound::NbtCompound;
 use pumpkin_protocol::codec::var_int::VarInt;
 use pumpkin_protocol::java::client::play::CBlockEntityData;
 use pumpkin_util::math::position::BlockPos;
 use pumpkin_util::math::vector2::Vector2;
 use pumpkin_world::chunk::io::Dirtiable;
+use rustc_hash::FxHashMap;
 use tracing::warn;
 
 use crate::block::entities::BlockEntity;
 use crate::block::entities::plugin::PluginBlockEntity;
-use crate::plugin::block::{BlockEntityLoadEvent, BlockEntityUnloadEvent};
+use crate::plugin::block::{BlockEntityLoadEvent, BlockEntityTickEvent, BlockEntityUnloadEvent};
+use crate::plugin::world::WorldTickEvent;
+use crate::server::Server;
 
 use super::World;
+
+/// Spreads the entities of a type over the ticks of its interval, so that they do not all fall due
+/// in the same tick. Stable for a position.
+const fn tick_phase(position: &BlockPos) -> u32 {
+    (position.0.x.wrapping_mul(73_856_093)
+        ^ position.0.y.wrapping_mul(19_349_663)
+        ^ position.0.z.wrapping_mul(83_492_791)) as u32
+}
 
 impl World {
     /// The `Arc` of this world, found through the server.
@@ -127,6 +140,14 @@ impl World {
         };
         self.fire_plugin_block_entity_unload(plugin_entity, true);
 
+        // What is left in its inventory drops, like the contents of a chest.
+        if let Some(inventory) = plugin_entity.plugin_inventory()
+            && let Some(world) = self.arc_self()
+        {
+            let inventory: Arc<dyn pumpkin_inventory::Inventory> = inventory;
+            world.scatter_inventory(position, &inventory);
+        }
+
         self.remove_block_entity(position);
         // The saved copy as well, or the entity would come back when something asks for it.
         let removed = |chunk: &pumpkin_world::chunk::ChunkData| {
@@ -209,6 +230,110 @@ impl World {
             );
             server.plugin_manager.fire(&server, &mut event).await;
         }
+    }
+
+    /// Ticks the plugin block entities of the types that have a tick interval: for each type one
+    /// `BlockEntityTickEvent` with the positions that are due. Only entities in `active_chunks`
+    /// (the chunks that tick) count, an entity that is not loaded is not in `block_entities`.
+    ///
+    /// Costs a load of one atomic and a check for handlers when nothing wants ticking.
+    pub(super) fn tick_plugin_block_entities(self: &Arc<Self>, server: &Arc<Server>) {
+        if !any_plugin_block_entity_ticking()
+            || !server.plugin_manager.has_handlers::<BlockEntityTickEvent>()
+        {
+            return;
+        }
+        let tick = server.tick_count.load(std::sync::atomic::Ordering::Relaxed);
+        let tick_bits = tick as u32;
+
+        // Collected first: the plugin may change the entities while it handles an event, and
+        // nothing of `block_entities` may be held across that.
+        let mut due: FxHashMap<u32, (&'static PluginBlockEntityType, Vec<BlockPos>)> =
+            FxHashMap::default();
+        let mut collect = |entities: &FxHashMap<BlockPos, Arc<dyn BlockEntity>>| {
+            for entity in entities.values() {
+                let Some(plugin_entity) = entity.as_any().downcast_ref::<PluginBlockEntity>()
+                else {
+                    continue;
+                };
+                let entity_type = plugin_entity.entity_type();
+                let interval = entity_type.tick_interval();
+                if interval == 0 {
+                    continue;
+                }
+                let position = plugin_entity.get_position();
+                if interval == 1 || tick_bits.wrapping_add(tick_phase(&position)) % interval == 0 {
+                    due.entry(entity_type.id)
+                        .or_insert_with(|| (entity_type, Vec::new()))
+                        .1
+                        .push(position);
+                }
+            }
+        };
+        {
+            // Not held while the plugin runs.
+            let active_chunks = self
+                .active_chunks
+                .read()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            if self.block_entities.len() < active_chunks.len() {
+                for chunk in &self.block_entities {
+                    if active_chunks.contains(chunk.key()) {
+                        collect(chunk.value());
+                    }
+                }
+            } else {
+                for chunk_position in active_chunks.iter() {
+                    if let Some(chunk) = self.block_entities.get(chunk_position) {
+                        collect(chunk.value());
+                    }
+                }
+            }
+        }
+        if due.is_empty() {
+            return;
+        }
+
+        let mut due: Vec<_> = due.into_values().collect();
+        due.sort_unstable_by_key(|(entity_type, _)| entity_type.id);
+        for (index, (entity_type, mut positions)) in due.into_iter().enumerate() {
+            if index > 0 {
+                // An earlier event may have removed some of them.
+                positions.retain(|position| {
+                    self.block_entities
+                        .get(&position.chunk_position())
+                        .and_then(|chunk| chunk.get(position).cloned())
+                        .is_some_and(|entity| {
+                            entity
+                                .as_any()
+                                .downcast_ref::<PluginBlockEntity>()
+                                .is_some_and(|entity| {
+                                    std::ptr::eq(entity.entity_type(), entity_type)
+                                })
+                        })
+                });
+                if positions.is_empty() {
+                    continue;
+                }
+            }
+            let mut event = BlockEntityTickEvent::new(
+                self.clone(),
+                entity_type.key.to_string(),
+                tick,
+                positions,
+            );
+            server.plugin_manager.fire_blocking(server, &mut event);
+        }
+    }
+
+    /// Fires `WorldTickEvent` for this world, nothing is allocated if nobody listens.
+    pub(super) fn fire_world_tick_event(self: &Arc<Self>, server: &Arc<Server>) {
+        if !server.plugin_manager.has_handlers::<WorldTickEvent>() {
+            return;
+        }
+        let tick = server.tick_count.load(std::sync::atomic::Ordering::Relaxed);
+        let mut event = WorldTickEvent::new(self.clone(), tick);
+        server.plugin_manager.fire_blocking(server, &mut event);
     }
 
     fn fire_plugin_block_entity_load(&self, entity: &PluginBlockEntity) {

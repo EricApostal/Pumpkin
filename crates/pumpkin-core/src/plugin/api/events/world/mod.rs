@@ -18,6 +18,7 @@ pub mod weather_change;
 pub mod world_init;
 pub mod world_load;
 pub mod world_save;
+pub mod world_tick;
 
 pub use async_structure_generate::*;
 pub use async_structure_spawn::*;
@@ -39,3 +40,4 @@ pub use weather_change::*;
 pub use world_init::*;
 pub use world_load::*;
 pub use world_save::*;
+pub use world_tick::*;

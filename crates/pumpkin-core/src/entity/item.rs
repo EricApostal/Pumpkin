@@ -162,6 +162,34 @@ impl ItemEntity {
         self.pickup_delay.store(pickup_delay, Ordering::Relaxed);
     }
 
+    /// Replaces the stack of this item entity and resends it to the clients.
+    pub fn set_item_stack(&self, stack: ItemStack) {
+        Self::update_fire_immune(&self.entity, &stack);
+        *self
+            .item_stack
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = stack;
+        self.on_count_changed();
+    }
+
+    /// Whether this item never despawns of old age (it does not merge either).
+    pub fn is_never_despawn(&self) -> bool {
+        self.never_despawn.load(Ordering::Relaxed)
+    }
+
+    pub fn set_never_despawn(&self, never_despawn: bool) {
+        self.never_despawn.store(never_despawn, Ordering::Relaxed);
+    }
+
+    /// Whether players are unable to pick this item up (it does not merge either).
+    pub fn is_never_pickup(&self) -> bool {
+        self.never_pickup.load(Ordering::Relaxed)
+    }
+
+    pub fn set_never_pickup(&self, never_pickup: bool) {
+        self.never_pickup.store(never_pickup, Ordering::Relaxed);
+    }
+
     pub const fn get_entity(&self) -> &Entity {
         &self.entity
     }
@@ -673,6 +701,7 @@ impl EntityBase for ItemEntity {
 
     fn on_player_collision(&self, player: &Arc<Player>) {
         if self.pickup_delay.load(Ordering::Relaxed) > 0
+            || self.never_pickup.load(Ordering::Relaxed)
             || player.living_entity.health.load() <= 0.0
             || player.is_spectator()
         {

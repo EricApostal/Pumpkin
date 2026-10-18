@@ -2,24 +2,198 @@ use super::AccessorExt;
 use crate::pumpkin::plugin::recipe::HostRecipeManagerWithStore;
 
 use crate::pumpkin::plugin::recipe::{
-    CookingRecipe as WitCookingRecipe, CookingType as WitCookingType, Host as RecipeHost,
+    CookingInfo as WitCookingInfo, CookingRecipe as WitCookingRecipe,
+    CookingResult as WitCookingResult, CookingType as WitCookingType,
+    CraftingResult as WitCraftingResult, CustomRecipe as WitCustomRecipe, Host as RecipeHost,
     HostRecipeManager, Ingredient as WitIngredient, RecipeCategory as WitRecipeCategory,
-    RecipeManager as WitRecipeManager, ShapedRecipe as WitShapedRecipe,
-    ShapelessRecipe as WitShapelessRecipe,
+    RecipeFluid as WitRecipeFluid, RecipeInfo as WitRecipeInfo, RecipeManager as WitRecipeManager,
+    RecipeOutput as WitRecipeOutput, ShapeInfo as WitShapeInfo, ShapedRecipe as WitShapedRecipe,
+    ShapelessRecipe as WitShapelessRecipe, SizedIngredient as WitSizedIngredient,
 };
-use pumpkin_data::recipes::RecipeCategoryTypes;
+use pumpkin_core::plugin::permissions;
+use pumpkin_core::server::plugin_recipe::{
+    PluginRecipe, RecipeFluid, RecipeOutput, SizedIngredient,
+};
+use pumpkin_core::server::recipe_query::{CookingQueryResult, CraftingQueryResult, RecipeInfo};
+use pumpkin_data::item::Item;
+use pumpkin_data::recipes::{CookingRecipeKind, RecipeCategoryTypes};
 use pumpkin_protocol::codec::recipe::{
     DynamicRecipe, OwnedCookingRecipe, OwnedCookingRecipeType, OwnedCraftingRecipe,
     OwnedRecipeIngredient, OwnedRecipeResult,
 };
 use pumpkin_wasm_host_common::state::PluginHostState;
+use std::sync::Arc;
+use tracing::info;
 use wasmtime::component::{Accessor, HasSelf, Resource};
 
 impl RecipeHost for PluginHostState {}
 
+/// `registry.recipes` guard of the functions that add custom recipe types and recipes.
+fn check_recipe_registry_permission(state: &PluginHostState) -> Result<(), String> {
+    if state
+        .permissions
+        .iter()
+        .any(|p| p == permissions::REGISTRY_RECIPES)
+    {
+        Ok(())
+    } else {
+        Err(format!(
+            "registering recipe types and recipes needs the '{}' permission",
+            permissions::REGISTRY_RECIPES
+        ))
+    }
+}
+
 impl HostRecipeManager for PluginHostState {
     fn drop(&mut self, rep: Resource<WitRecipeManager>) -> wasmtime::Result<()> {
         self.drop(rep)
+    }
+
+    fn register_recipe_type(
+        &mut self,
+        res: Resource<WitRecipeManager>,
+        key: String,
+    ) -> wasmtime::Result<Result<(), String>> {
+        if let Err(message) = check_recipe_registry_permission(self) {
+            return Ok(Err(message));
+        }
+        let manager = Arc::clone(self.get(&res)?);
+        Ok(match manager.plugin_recipes().register_type(&key) {
+            Ok(()) => {
+                info!(
+                    "Plugin {} registered recipe type {key}",
+                    self.name.as_deref().unwrap_or("<unknown>")
+                );
+                Ok(())
+            }
+            Err(error) => Err(format!("recipe type '{key}': {error}")),
+        })
+    }
+
+    fn get_registered_recipe_types(
+        &mut self,
+        res: Resource<WitRecipeManager>,
+    ) -> wasmtime::Result<Vec<String>> {
+        let manager = Arc::clone(self.get(&res)?);
+        Ok(manager
+            .plugin_recipes()
+            .type_keys()
+            .into_iter()
+            .map(ToString::to_string)
+            .collect())
+    }
+
+    fn register_custom_recipe(
+        &mut self,
+        res: Resource<WitRecipeManager>,
+        recipe_type: String,
+        recipe: WitCustomRecipe,
+    ) -> wasmtime::Result<Result<(), String>> {
+        if let Err(message) = check_recipe_registry_permission(self) {
+            return Ok(Err(message));
+        }
+        let manager = Arc::clone(self.get(&res)?);
+        let id = recipe.id.clone();
+        let recipe = PluginRecipe {
+            id: recipe.id,
+            type_key: recipe_type,
+            ingredients: recipe
+                .ingredients
+                .into_iter()
+                .map(from_wit_sized_ingredient)
+                .collect(),
+            results: recipe.results.into_iter().map(from_wit_output).collect(),
+            fluid_ingredients: recipe
+                .fluid_ingredients
+                .into_iter()
+                .map(from_wit_fluid)
+                .collect(),
+            fluid_results: recipe
+                .fluid_results
+                .into_iter()
+                .map(from_wit_fluid)
+                .collect(),
+            extra: recipe.extra,
+        };
+        Ok(manager
+            .plugin_recipes()
+            .add_recipe(recipe)
+            .map_err(|error| format!("recipe '{id}': {error}")))
+    }
+
+    fn find_recipes(
+        &mut self,
+        res: Resource<WitRecipeManager>,
+        recipe_type: String,
+    ) -> wasmtime::Result<Vec<WitRecipeInfo>> {
+        let manager = Arc::clone(self.get(&res)?);
+        Ok(manager
+            .find_recipes(&recipe_type)
+            .into_iter()
+            .map(to_wit_info)
+            .collect())
+    }
+
+    fn get_recipe_by_id(
+        &mut self,
+        res: Resource<WitRecipeManager>,
+        id: String,
+    ) -> wasmtime::Result<Option<WitRecipeInfo>> {
+        let manager = Arc::clone(self.get(&res)?);
+        Ok(manager.find_recipe_by_id(&id).map(to_wit_info))
+    }
+
+    fn find_crafting_recipe(
+        &mut self,
+        res: Resource<WitRecipeManager>,
+        width: u32,
+        height: u32,
+        grid: Vec<Option<String>>,
+    ) -> wasmtime::Result<Option<WitCraftingResult>> {
+        let manager = Arc::clone(self.get(&res)?);
+        let (Ok(width), Ok(height)) = (u8::try_from(width), u8::try_from(height)) else {
+            return Ok(None);
+        };
+        if !(1..=9).contains(&width)
+            || !(1..=9).contains(&height)
+            || grid.len() != usize::from(width) * usize::from(height)
+        {
+            return Ok(None);
+        }
+        let mut items = Vec::with_capacity(grid.len());
+        for cell in &grid {
+            match cell {
+                None => items.push(None),
+                Some(key) => match Item::from_registry_key(key) {
+                    Some(item) => items.push(Some(item)),
+                    None => return Ok(None),
+                },
+            }
+        }
+        Ok(manager
+            .find_crafting_recipe(width, height, &items)
+            .map(to_wit_crafting_result))
+    }
+
+    fn find_smelting_recipe(
+        &mut self,
+        res: Resource<WitRecipeManager>,
+        item: String,
+        station_type: WitCookingType,
+    ) -> wasmtime::Result<Option<WitCookingResult>> {
+        let manager = Arc::clone(self.get(&res)?);
+        let Some(item) = Item::from_registry_key(&item) else {
+            return Ok(None);
+        };
+        let kind = match station_type {
+            WitCookingType::Smelting => CookingRecipeKind::Smelting,
+            WitCookingType::Blasting => CookingRecipeKind::Blasting,
+            WitCookingType::Smoking => CookingRecipeKind::Smoking,
+            WitCookingType::Campfire => CookingRecipeKind::CampfireCooking,
+        };
+        Ok(manager
+            .find_cooking_recipe(item, kind)
+            .map(to_wit_cooking_result))
     }
 }
 
@@ -160,6 +334,108 @@ fn to_owned_ingredient(ing: WitIngredient) -> OwnedRecipeIngredient {
         WitIngredient::Item(id) => OwnedRecipeIngredient::Simple(id),
         WitIngredient::Tag(tag) => OwnedRecipeIngredient::Tagged(tag),
         WitIngredient::OneOf(items) => OwnedRecipeIngredient::OneOf(items),
+    }
+}
+
+fn to_wit_ingredient(ing: OwnedRecipeIngredient) -> WitIngredient {
+    match ing {
+        OwnedRecipeIngredient::Simple(id) => WitIngredient::Item(id),
+        OwnedRecipeIngredient::Tagged(tag) => WitIngredient::Tag(tag),
+        OwnedRecipeIngredient::OneOf(items) => WitIngredient::OneOf(items),
+    }
+}
+
+fn from_wit_sized_ingredient(entry: WitSizedIngredient) -> SizedIngredient {
+    SizedIngredient {
+        ingredient: to_owned_ingredient(entry.ingredient),
+        count: entry.count,
+    }
+}
+
+fn to_wit_sized_ingredient(entry: SizedIngredient) -> WitSizedIngredient {
+    WitSizedIngredient {
+        ingredient: to_wit_ingredient(entry.ingredient),
+        count: entry.count,
+    }
+}
+
+fn from_wit_output(output: WitRecipeOutput) -> RecipeOutput {
+    RecipeOutput {
+        item_id: output.item,
+        count: output.count,
+        chance: output.chance,
+    }
+}
+
+fn to_wit_output(output: RecipeOutput) -> WitRecipeOutput {
+    WitRecipeOutput {
+        item: output.item_id,
+        count: output.count,
+        chance: output.chance,
+    }
+}
+
+fn from_wit_fluid(fluid: WitRecipeFluid) -> RecipeFluid {
+    RecipeFluid {
+        fluid: fluid.fluid,
+        amount: fluid.amount,
+    }
+}
+
+fn to_wit_fluid(fluid: RecipeFluid) -> WitRecipeFluid {
+    WitRecipeFluid {
+        fluid: fluid.fluid,
+        amount: fluid.amount,
+    }
+}
+
+fn to_wit_info(info: RecipeInfo) -> WitRecipeInfo {
+    WitRecipeInfo {
+        id: info.id,
+        recipe_type: info.recipe_type,
+        group: info.group,
+        ingredients: info
+            .ingredients
+            .into_iter()
+            .map(to_wit_sized_ingredient)
+            .collect(),
+        results: info.results.into_iter().map(to_wit_output).collect(),
+        fluid_ingredients: info
+            .fluid_ingredients
+            .into_iter()
+            .map(to_wit_fluid)
+            .collect(),
+        fluid_results: info.fluid_results.into_iter().map(to_wit_fluid).collect(),
+        shape: info.shape.map(|shape| WitShapeInfo {
+            pattern: shape.pattern,
+            key: shape
+                .key
+                .into_iter()
+                .map(|(k, ingredient)| (k.to_string(), to_wit_ingredient(ingredient)))
+                .collect(),
+        }),
+        cooking: info.cooking.map(|cooking| WitCookingInfo {
+            experience: cooking.experience,
+            cooking_time: cooking.cooking_time,
+        }),
+        extra: info.extra,
+    }
+}
+
+fn to_wit_crafting_result(result: CraftingQueryResult) -> WitCraftingResult {
+    WitCraftingResult {
+        id: result.id,
+        recipe_type: result.recipe_type,
+        output: to_wit_output(result.output),
+    }
+}
+
+fn to_wit_cooking_result(result: CookingQueryResult) -> WitCookingResult {
+    WitCookingResult {
+        id: result.id,
+        output: to_wit_output(result.output),
+        experience: result.experience,
+        cooking_time: result.cooking_time,
     }
 }
 

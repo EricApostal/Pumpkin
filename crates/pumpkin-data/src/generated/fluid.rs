@@ -617,6 +617,8 @@ impl Fluid {
         flow_distance: 4u32,
         can_convert_to_source: false,
     };
+    #[doc = r" Number of generated fluids. Fluids registered at runtime get the ids from here on."]
+    pub const VANILLA_COUNT: u16 = 5u16;
     pub fn from_registry_key(name: &str) -> Option<&'static Self> {
         match name {
             "empty" => Some(&Self::EMPTY),
@@ -624,28 +626,28 @@ impl Fluid {
             "water" => Some(&Self::WATER),
             "flowing_lava" => Some(&Self::FLOWING_LAVA),
             "lava" => Some(&Self::LAVA),
-            _ => None,
+            _ => Self::from_dynamic_registry_key(name),
         }
     }
-    pub const fn from_id(id: u16) -> Option<&'static Self> {
+    pub fn from_id(id: u16) -> Option<&'static Self> {
         match id {
             0 => Some(&Self::EMPTY),
             1 => Some(&Self::FLOWING_WATER),
             2 => Some(&Self::WATER),
             3 => Some(&Self::FLOWING_LAVA),
             4 => Some(&Self::LAVA),
-            _ => None,
+            _ => Self::from_dynamic_id(id),
         }
     }
     #[allow(unreachable_patterns, clippy::match_overlapping_arm)]
-    pub const fn from_state_id(id: BlockStateId) -> Option<&'static Self> {
+    pub fn from_state_id(id: BlockStateId) -> Option<&'static Self> {
         match id.as_u16() {
             0..=0 => Some(&Fluid::EMPTY),
             89..=89 => Some(&Fluid::WATER),
             105..=105 => Some(&Fluid::LAVA),
             89..=104 => Some(&Fluid::FLOWING_WATER),
             105..=120 => Some(&Fluid::FLOWING_LAVA),
-            _ => None,
+            _ => Self::from_dynamic_state_id(id),
         }
     }
     pub fn ident_to_fluid_id(name: &str) -> Option<u8> {
@@ -698,6 +700,7 @@ impl Fluid {
             || (a == 2 && b == 1)
             || (a == 3 && b == 4)
             || (a == 4 && b == 3)
+            || Self::dynamic_same_fluid_type(a, b)
     }
     pub fn matches_type(&self, other: &Fluid) -> bool {
         Self::same_fluid_type(self.id, other.id)
@@ -706,7 +709,10 @@ impl Fluid {
         match self.id {
             2 => &Fluid::FLOWING_WATER,
             4 => &Fluid::FLOWING_LAVA,
-            _ => Fluid::from_id(self.id).unwrap_or(&Fluid::EMPTY),
+            _ => self
+                .dynamic_flowing_variant()
+                .or_else(|| Fluid::from_id(self.id))
+                .unwrap_or(&Fluid::EMPTY),
         }
     }
     pub fn is_source(&self, state_id: BlockStateId) -> bool {
@@ -728,7 +734,7 @@ impl Fluid {
 }
 impl ToResourceLocation for &'static Fluid {
     fn to_resource_location(&self) -> ResourceLocation {
-        format!("minecraft:{}", self.name)
+        self.resource_location().into_owned()
     }
 }
 impl FromResourceLocation for &'static Fluid {

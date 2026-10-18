@@ -538,6 +538,9 @@ pub struct Player {
     pub post_effects: std::sync::Mutex<Vec<String>>,
     /// Inbound packets waiting to be processed during player tick.
     pub inbound_packets: SegQueue<RawPacket>,
+    /// A fake player: it has no connection, is not in the world's player list and is never saved.
+    /// See [`crate::entity::fake_player`].
+    pub is_fake: bool,
 }
 
 use base64::prelude::*;
@@ -636,13 +639,24 @@ impl Player {
         Some(skin)
     }
 
-    #[expect(clippy::too_many_lines, clippy::items_after_statements)]
     pub fn new(
         client: Arc<ClientPlatform>,
         gameprofile: GameProfile,
         config: PlayerConfig,
         world: &Arc<World>,
         gamemode: GameMode,
+    ) -> Self {
+        Self::new_inner(client, gameprofile, config, world, gamemode, false)
+    }
+
+    #[expect(clippy::too_many_lines, clippy::items_after_statements)]
+    pub(crate) fn new_inner(
+        client: Arc<ClientPlatform>,
+        gameprofile: GameProfile,
+        config: PlayerConfig,
+        world: &Arc<World>,
+        gamemode: GameMode,
+        is_fake: bool,
     ) -> Self {
         let inventory_changed = Arc::new(AtomicBool::new(true));
 
@@ -721,7 +735,7 @@ impl Player {
             ClientPlatform::Java(client) => client.version.load() >= JavaMinecraftVersion::V_1_21_4,
             ClientPlatform::Bedrock(_) => true,
         };
-        let initially_loaded = !supports_player_loaded;
+        let initially_loaded = is_fake || !supports_player_loaded;
 
         Self {
             living_entity,
@@ -773,7 +787,8 @@ impl Player {
             )),
             last_action_time: AtomicCell::new(std::time::Instant::now()),
             ping: AtomicU32::new(0),
-            last_attacked_ticks: AtomicU32::new(0),
+            // A fake player is not ticked, so start it with a recovered attack cooldown.
+            last_attacked_ticks: AtomicU32::new(if is_fake { 1000 } else { 0 }),
             client_loaded: AtomicBool::new(initially_loaded),
             bedrock_spawned: AtomicBool::new(false),
             client_loaded_timeout: AtomicU32::new(if initially_loaded { 0 } else { 60 }),
@@ -801,7 +816,12 @@ impl Player {
             experience_points: AtomicI32::new(0),
             item_cooldowns: std::sync::Mutex::new(HashMap::new()),
             chunk_sender: Mutex::new(crate::net::ChunkSender::new()),
-            chunk_listener: Mutex::new(world.level.chunk_listener.add_global_chunk_listener()),
+            // A fake player never reads it, so it must not collect every chunk event.
+            chunk_listener: Mutex::new(if is_fake {
+                crossbeam::channel::unbounded().1
+            } else {
+                world.level.chunk_listener.add_global_chunk_listener()
+            }),
             held_chunk_tickets: Mutex::new(None),
             chunk_send_epoch: AtomicU32::new(0),
             last_sent_xp: AtomicI32::new(-1),
@@ -840,6 +860,7 @@ impl Player {
             spawn_extra_particles_on_fall: AtomicBool::new(false),
             post_effects: std::sync::Mutex::new(Vec::new()),
             inbound_packets: SegQueue::new(),
+            is_fake,
         }
     }
 
@@ -3022,7 +3043,7 @@ impl Player {
         }
     }
 
-    fn continue_mining(
+    pub(crate) fn continue_mining(
         &self,
         location: BlockPos,
         world: &World,
@@ -6353,6 +6374,11 @@ impl Player {
 
     /// Handles when the player clicks a button in a container (e.g. Enchantment Table)
     pub fn on_container_button_click(&self, packet: &SContainerButtonClick) {
+        // The buttons of a menu of a plugin registered type belong to the plugin.
+        if self.route_plugin_menu_button_click(packet) {
+            return;
+        }
+
         let screen_handler = self
             .current_screen_handler
             .lock()

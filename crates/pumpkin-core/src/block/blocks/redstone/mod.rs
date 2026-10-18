@@ -5,6 +5,8 @@
 use pumpkin_data::{Block, BlockDirection, BlockState};
 use pumpkin_util::math::position::BlockPos;
 
+use crate::block::GetComparatorOutputArgs;
+use crate::block::blocks::dynamic::has_analog_output;
 use crate::world::World;
 
 pub mod bell;
@@ -149,6 +151,50 @@ pub fn block_receives_redstone_power(world: &World, pos: &BlockPos) -> bool {
         }
     }
     false
+}
+
+/// The power that `pos` receives from its neighbour on the `direction` side, vanilla
+/// `Level.getSignal(pos.relative(direction), direction)`.
+pub fn get_signal_from(world: &World, pos: &BlockPos, direction: BlockDirection) -> u8 {
+    let neighbor_pos = pos.offset(direction.to_offset());
+    let (block, state) = world.get_block_and_state(&neighbor_pos);
+    get_redstone_power(block, state, world, &neighbor_pos, direction)
+}
+
+/// The strong power that `pos` receives from its neighbour on the `direction` side, vanilla
+/// `Level.getDirectSignal(pos.relative(direction), direction)`.
+pub fn get_direct_signal_from(world: &World, pos: &BlockPos, direction: BlockDirection) -> u8 {
+    let neighbor_pos = pos.offset(direction.to_offset());
+    let (block, state) = world.get_block_and_state(&neighbor_pos);
+    get_strong_power(block, state, world, &neighbor_pos, direction, true)
+}
+
+/// The highest power that `pos` receives from any side, vanilla `Level.getBestNeighborSignal`.
+pub fn get_best_neighbor_signal(world: &World, pos: &BlockPos) -> u8 {
+    BlockDirection::all()
+        .into_iter()
+        .map(|direction| get_signal_from(world, pos, direction))
+        .max()
+        .unwrap_or(0)
+}
+
+/// What a comparator that sits against the `face` side of the block at `pos` reads from it,
+/// `None` when the block has no analog output.
+pub fn get_analog_signal(world: &World, pos: &BlockPos, face: BlockDirection) -> Option<u8> {
+    let (block, state) = world.get_block_and_state(pos);
+    if !has_analog_output(block, state) {
+        return None;
+    }
+    world
+        .block_registry
+        .get_pumpkin_block(block.id)?
+        .get_comparator_output(GetComparatorOutputArgs {
+            world,
+            block,
+            state,
+            position: pos,
+            direction: face,
+        })
 }
 
 #[must_use]

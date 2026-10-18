@@ -1,0 +1,78 @@
+/// Callbacks of custom blocks, so a plugin can implement block logic.
+///
+/// A block calls back for none of its hooks until the plugin opts in with `set-block-callbacks`.
+/// For every hook in the set the server fires an event that the plugin handles with
+/// `context.register-event`. Handlers get the events of all blocks that opted in, tell
+/// them apart with the `block` key. A block that did not opt in costs nothing: no event is made
+/// and no handler runs. The `neighbor-update`, `update-shape`, `entity-collision` and `entity-step`
+/// hooks run very often, handle them quickly.
+///
+/// The `state-index` of the events counts like the states of `block-registry`: add it to the
+/// `base-state-id` of the block for the state id.
+///
+/// Redstone: a plugin machine usually knows its output from its own state. Set `redstone-output`
+/// (and `comparator-output`) and tell the world with `world.set-block-redstone-output` whenever it
+/// changes, that needs no event and updates the neighbours. The `weak-power`, `strong-power` and
+/// `comparator-output` events instead ask the plugin at the moment redstone reads the block. To
+/// read signals use `world.get-redstone-power` and its relatives. The events that return a result
+/// count only from handlers registered as blocking.
+///
+/// Callbacks can be set until the server starts accepting connections (after plugin load and
+/// `server-load-event`) and need the `registry.blocks` permission. Setting the same callbacks again
+/// is fine, other callbacks for a block that has some fail.
+interface block-callbacks {
+    /// The hooks of a block to call the plugin for.
+    flags block-callback-flags {
+        /// A neighbour of the block changed: `custom-block-neighbor-update-event`.
+        neighbor-update,
+        /// The block was set in the world: `custom-block-placed-event`.
+        placed,
+        /// A player placed the block: `custom-block-placed-event` with the player set.
+        player-placed,
+        /// The block was replaced by another block or moved: `custom-block-state-replaced-event`.
+        state-replaced,
+        /// A player broke the block: `custom-block-broken-event`.
+        broken,
+        /// A tick scheduled with `world.schedule-block-tick` is due:
+        /// `custom-block-scheduled-tick-event`.
+        scheduled-tick,
+        /// The block got a random tick: `custom-block-random-tick-event`.
+        random-tick,
+        /// An entity is inside the block: `custom-block-entity-collision-event`.
+        entity-collision,
+        /// An entity stands on or walks over the block: `custom-block-entity-step-event`.
+        entity-step,
+        /// The block is about to be placed: `custom-block-can-place-event`, which can refuse it.
+        can-place,
+        /// A neighbour changed and the block updates its shape: `custom-block-update-shape-event`,
+        /// which can change the state of the block.
+        update-shape,
+        /// The block is a redstone signal source that uses the output stored with
+        /// `world.set-block-redstone-output` (and its face variant). Redstone wire connects to it
+        /// and repeaters, torches and neighbouring blocks read its power. Nothing is stored to
+        /// start with, so the block gives no power until the plugin stores some. The output is
+        /// kept in memory only and dropped when the block is replaced or moved: store it again
+        /// after a restart. Without stored output this flag asks for no event, use `weak-power` and
+        /// `strong-power` for that.
+        redstone-output,
+        /// Redstone readers ask for the weak power of the block with a
+        /// `custom-block-redstone-power-event` whose `strong` is false, unless output is stored for
+        /// the block. Makes the block a redstone signal source, like `redstone-output`. Runs
+        /// whenever redstone looks at the block, handle it very quickly.
+        weak-power,
+        /// Redstone readers ask for the strong power of the block with a
+        /// `custom-block-redstone-power-event` whose `strong` is true, unless output is stored for
+        /// the block. Makes the block a redstone signal source, like `redstone-output`. Runs
+        /// whenever redstone looks at the block, handle it very quickly.
+        strong-power,
+        /// Comparators can read the block: from the analog output stored with
+        /// `world.set-block-comparator-output`, else with a `custom-block-comparator-output-event`.
+        /// The output that is stored is kept in memory only and dropped when the block is replaced
+        /// or moved. Placing the block updates the comparators next to it.
+        comparator-output,
+    }
+
+    /// Sets the hooks of a block registered with `register-block` that call the plugin. Fails for
+    /// an unknown block, other callbacks than before, or when registration is closed.
+    set-block-callbacks: func(block-key: string, callbacks: block-callback-flags) -> result<_, string>;
+}

@@ -324,11 +324,32 @@ fn recipe_matches(
     }
 }
 
+/// The recipe a crafting grid matched.
+pub enum MatchedCrafting {
+    Vanilla(&'static CraftingRecipeTypes),
+    Dynamic(OwnedCraftingRecipe),
+}
+
+/// A recipe that matched a crafting grid and what it produces.
+pub struct CraftingMatch {
+    pub recipe: MatchedCrafting,
+    pub result: RecipeResult,
+}
+
 #[must_use]
 pub fn match_crafting_recipe(
     inventory: &dyn RecipeInputInventory,
     provider: Option<&dyn RecipeProvider>,
 ) -> Option<RecipeResult> {
+    find_crafting_match(inventory, provider).map(|matched| matched.result)
+}
+
+/// Like [`match_crafting_recipe`], but also returns the recipe that matched.
+#[must_use]
+pub fn find_crafting_match(
+    inventory: &dyn RecipeInputInventory,
+    provider: Option<&dyn RecipeProvider>,
+) -> Option<CraftingMatch> {
     let mut count: usize = 0;
     let inventory_width = inventory.get_width();
     let mut top_x = 9;
@@ -363,7 +384,10 @@ pub fn match_crafting_recipe(
             count,
             inventory,
         ) {
-            return Some(result);
+            return Some(CraftingMatch {
+                recipe: MatchedCrafting::Vanilla(recipe),
+                result,
+            });
         }
     }
 
@@ -381,7 +405,10 @@ pub fn match_crafting_recipe(
                     inventory,
                 )
             {
-                return Some(result);
+                return Some(CraftingMatch {
+                    recipe: MatchedCrafting::Dynamic(crafting.clone()),
+                    result,
+                });
             }
         }
     }
