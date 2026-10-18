@@ -76,7 +76,7 @@ fn run_task(server: &Arc<Server>, task: &ScheduledTask) {
             })
             .await
         {
-            tracing::error!(handler_id, %error, "Wasm scheduled task failed");
+            tracing::error!(handler_id, error = %format_args!("{error:#}"), "Wasm scheduled task failed");
         }
     });
 }

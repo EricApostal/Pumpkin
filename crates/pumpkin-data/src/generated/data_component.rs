@@ -191,15 +191,15 @@ pub enum DataComponent {
     PluginComponent63 = 185u8,
 }
 impl DataComponent {
-    /// Number of vanilla components. Component ids from here on are plugin slots.
+    #[doc = r" Number of vanilla components. Component ids from here on are plugin slots."]
     pub const VANILLA_COUNT: u8 = 122u8;
-    /// Number of component types plugins can register.
+    #[doc = r" Number of component types plugins can register."]
     pub const PLUGIN_SLOT_COUNT: u8 = 64u8;
     #[must_use]
     pub const fn to_id(self) -> u8 {
         self as u8
     }
-    /// The index of a plugin component slot, `None` for a vanilla component.
+    #[doc = r" The index of a plugin component slot, `None` for a vanilla component."]
     #[must_use]
     pub const fn plugin_slot(self) -> Option<u8> {
         let id = self as u8;
@@ -209,7 +209,7 @@ impl DataComponent {
             None
         }
     }
-    /// The component of a plugin slot, `None` if the slot does not exist.
+    #[doc = r" The component of a plugin slot, `None` if the slot does not exist."]
     #[must_use]
     pub const fn from_plugin_slot(slot: u8) -> Option<Self> {
         if slot >= Self::PLUGIN_SLOT_COUNT {
@@ -901,6 +901,70 @@ impl DataComponent {
             Self::SignTextBack => true,
             Self::Waxed => true,
             Self::CushionColor => true,
+            Self::PluginComponent0 => true,
+            Self::PluginComponent1 => true,
+            Self::PluginComponent2 => true,
+            Self::PluginComponent3 => true,
+            Self::PluginComponent4 => true,
+            Self::PluginComponent5 => true,
+            Self::PluginComponent6 => true,
+            Self::PluginComponent7 => true,
+            Self::PluginComponent8 => true,
+            Self::PluginComponent9 => true,
+            Self::PluginComponent10 => true,
+            Self::PluginComponent11 => true,
+            Self::PluginComponent12 => true,
+            Self::PluginComponent13 => true,
+            Self::PluginComponent14 => true,
+            Self::PluginComponent15 => true,
+            Self::PluginComponent16 => true,
+            Self::PluginComponent17 => true,
+            Self::PluginComponent18 => true,
+            Self::PluginComponent19 => true,
+            Self::PluginComponent20 => true,
+            Self::PluginComponent21 => true,
+            Self::PluginComponent22 => true,
+            Self::PluginComponent23 => true,
+            Self::PluginComponent24 => true,
+            Self::PluginComponent25 => true,
+            Self::PluginComponent26 => true,
+            Self::PluginComponent27 => true,
+            Self::PluginComponent28 => true,
+            Self::PluginComponent29 => true,
+            Self::PluginComponent30 => true,
+            Self::PluginComponent31 => true,
+            Self::PluginComponent32 => true,
+            Self::PluginComponent33 => true,
+            Self::PluginComponent34 => true,
+            Self::PluginComponent35 => true,
+            Self::PluginComponent36 => true,
+            Self::PluginComponent37 => true,
+            Self::PluginComponent38 => true,
+            Self::PluginComponent39 => true,
+            Self::PluginComponent40 => true,
+            Self::PluginComponent41 => true,
+            Self::PluginComponent42 => true,
+            Self::PluginComponent43 => true,
+            Self::PluginComponent44 => true,
+            Self::PluginComponent45 => true,
+            Self::PluginComponent46 => true,
+            Self::PluginComponent47 => true,
+            Self::PluginComponent48 => true,
+            Self::PluginComponent49 => true,
+            Self::PluginComponent50 => true,
+            Self::PluginComponent51 => true,
+            Self::PluginComponent52 => true,
+            Self::PluginComponent53 => true,
+            Self::PluginComponent54 => true,
+            Self::PluginComponent55 => true,
+            Self::PluginComponent56 => true,
+            Self::PluginComponent57 => true,
+            Self::PluginComponent58 => true,
+            Self::PluginComponent59 => true,
+            Self::PluginComponent60 => true,
+            Self::PluginComponent61 => true,
+            Self::PluginComponent62 => true,
+            Self::PluginComponent63 => true,
         }
     }
     #[must_use]
@@ -1034,6 +1098,70 @@ impl DataComponent {
             Self::SignTextBack => false,
             Self::Waxed => false,
             Self::CushionColor => false,
+            Self::PluginComponent0 => false,
+            Self::PluginComponent1 => false,
+            Self::PluginComponent2 => false,
+            Self::PluginComponent3 => false,
+            Self::PluginComponent4 => false,
+            Self::PluginComponent5 => false,
+            Self::PluginComponent6 => false,
+            Self::PluginComponent7 => false,
+            Self::PluginComponent8 => false,
+            Self::PluginComponent9 => false,
+            Self::PluginComponent10 => false,
+            Self::PluginComponent11 => false,
+            Self::PluginComponent12 => false,
+            Self::PluginComponent13 => false,
+            Self::PluginComponent14 => false,
+            Self::PluginComponent15 => false,
+            Self::PluginComponent16 => false,
+            Self::PluginComponent17 => false,
+            Self::PluginComponent18 => false,
+            Self::PluginComponent19 => false,
+            Self::PluginComponent20 => false,
+            Self::PluginComponent21 => false,
+            Self::PluginComponent22 => false,
+            Self::PluginComponent23 => false,
+            Self::PluginComponent24 => false,
+            Self::PluginComponent25 => false,
+            Self::PluginComponent26 => false,
+            Self::PluginComponent27 => false,
+            Self::PluginComponent28 => false,
+            Self::PluginComponent29 => false,
+            Self::PluginComponent30 => false,
+            Self::PluginComponent31 => false,
+            Self::PluginComponent32 => false,
+            Self::PluginComponent33 => false,
+            Self::PluginComponent34 => false,
+            Self::PluginComponent35 => false,
+            Self::PluginComponent36 => false,
+            Self::PluginComponent37 => false,
+            Self::PluginComponent38 => false,
+            Self::PluginComponent39 => false,
+            Self::PluginComponent40 => false,
+            Self::PluginComponent41 => false,
+            Self::PluginComponent42 => false,
+            Self::PluginComponent43 => false,
+            Self::PluginComponent44 => false,
+            Self::PluginComponent45 => false,
+            Self::PluginComponent46 => false,
+            Self::PluginComponent47 => false,
+            Self::PluginComponent48 => false,
+            Self::PluginComponent49 => false,
+            Self::PluginComponent50 => false,
+            Self::PluginComponent51 => false,
+            Self::PluginComponent52 => false,
+            Self::PluginComponent53 => false,
+            Self::PluginComponent54 => false,
+            Self::PluginComponent55 => false,
+            Self::PluginComponent56 => false,
+            Self::PluginComponent57 => false,
+            Self::PluginComponent58 => false,
+            Self::PluginComponent59 => false,
+            Self::PluginComponent60 => false,
+            Self::PluginComponent61 => false,
+            Self::PluginComponent62 => false,
+            Self::PluginComponent63 => false,
         }
     }
 }

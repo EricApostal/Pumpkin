@@ -565,7 +565,7 @@ where
     fn ensure_accepting(&self, message: &'static str) -> wasmtime::Result<()> {
         match self.state() {
             DriverState::Failed(error) => Err(wasmtime::Error::msg(format!(
-                "Wasm plugin store driver failed: {error}"
+                "Wasm plugin store driver failed: {error:#}"
             ))),
             DriverState::Stopped => Err(wasmtime::Error::msg(message)),
             _ if self.shared.guest_call_failure.message().is_some() => Err(wasmtime::Error::msg(
@@ -579,7 +579,7 @@ where
     fn terminal_error(&self, fallback: &'static str) -> wasmtime::Error {
         match self.state() {
             DriverState::Failed(error) => {
-                wasmtime::Error::msg(format!("Wasm plugin store driver failed: {error}"))
+                wasmtime::Error::msg(format!("Wasm plugin store driver failed: {error:#}"))
             }
             DriverState::Stopped => wasmtime::Error::msg("Wasm plugin store driver has stopped"),
             _ => wasmtime::Error::msg(fallback),
@@ -598,7 +598,7 @@ where
             match join.wait().await {
                 Ok(()) => Err(wasmtime::Error::msg(fallback)),
                 Err(error) => Err(wasmtime::Error::msg(format!(
-                    "Wasm plugin store driver failed: {error}"
+                    "Wasm plugin store driver failed: {error:#}"
                 ))),
             }
         }
@@ -893,7 +893,7 @@ where
                     "Wasm plugin store driver stopped before becoming ready",
                 )),
                 Err(error) => Err(wasmtime::Error::msg(format!(
-                    "Wasm plugin store driver failed before becoming ready: {error}"
+                    "Wasm plugin store driver failed before becoming ready: {error:#}"
                 ))),
             };
         }
@@ -1012,7 +1012,7 @@ pub fn reconcile_shutdown_result<R>(
         (Ok(Err(error)), _) => Err(error),
         (Ok(Ok(value)), Ok(())) => Ok(value),
         (Ok(Ok(_)) | Err(_), Err(error)) => Err(wasmtime::Error::msg(format!(
-            "Wasm plugin store driver failed: {error}"
+            "Wasm plugin store driver failed: {error:#}"
         ))),
         (Err(_), Ok(())) => Err(wasmtime::Error::msg(
             "Wasm plugin store shutdown did not complete",

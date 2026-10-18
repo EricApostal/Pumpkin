@@ -112,6 +112,7 @@ impl PluginRuntime {
         config.wasm_gc(true);
         config.wasm_exceptions(true);
         config.wasm_function_references(true);
+        config.collector(wasmtime::Collector::Copying);
 
         let engine = Engine::new(&config).map_err(PluginInitError::EngineCreationFailed)?;
 
