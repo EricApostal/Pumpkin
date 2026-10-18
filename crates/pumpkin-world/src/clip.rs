@@ -255,6 +255,8 @@ fn clip_fluid(
             state.is_waterlogged()
                 || Fluid::from_state_id(state.id)
                     .is_some_and(|f| f.id == Fluid::WATER.id || f.id == Fluid::LAVA.id)
+                // Sources of fluids that plugins registered.
+                || Fluid::dynamic_fluid_state(state.id).is_some_and(|(_, fluid)| fluid.is_source)
         }
         ClipFluid::Any => {
             state.is_waterlogged()

@@ -254,7 +254,9 @@ pub fn entity_type_by_id(id: u32) -> Option<&'static EntityType> {
 pub fn entity_type_by_key(key: &str) -> Option<&'static EntityType> {
     match key.strip_prefix("minecraft:") {
         Some(path) => EntityType::from_name(path),
-        None if key.contains(':') => plugin_entity_type_by_key(key).map(|plugin| plugin.entity_type),
+        None if key.contains(':') => {
+            plugin_entity_type_by_key(key).map(|plugin| plugin.entity_type)
+        }
         None => EntityType::from_name(key),
     }
 }

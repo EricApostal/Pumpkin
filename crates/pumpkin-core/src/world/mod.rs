@@ -3276,6 +3276,16 @@ impl World {
             ))
             .await;
 
+        // A NeoForge client fires its recipes received event off this payload.
+        if client.flavour.load() == pumpkin_protocol::ConnectionFlavour::NeoForge {
+            client
+                .send_packet(&pumpkin_protocol::java::client::play::CCustomPayload::new(
+                    crate::net::neoforge::channels::RECIPE_CONTENT,
+                    &crate::net::neoforge::channels::EMPTY_RECIPE_CONTENT,
+                ))
+                .await;
+        }
+
         self.pair_new_player_with_tracked_entities(player);
 
         // Send the current ticking state to the new player so they are in sync.

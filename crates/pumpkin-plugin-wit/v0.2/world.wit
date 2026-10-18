@@ -406,8 +406,9 @@ interface %world {
     /// The fluid at a block position: a fluid block, or a block holding water (waterlogged blocks,
     /// kelp, seagrass, bubble columns).
     record fluid-state {
-        /// The still fluid, `minecraft:water` or `minecraft:lava`. The flowing variant has the same
-        /// tags, `is-source` tells the two apart.
+        /// The still fluid, `minecraft:water`, `minecraft:lava` or the key of a fluid registered
+        /// with `fluid-registry`. The flowing variant has the same tags, `is-source` tells the two
+        /// apart.
         fluid: string,
         /// The fluid amount: 8 for a source and for falling fluid, 1 for the thinnest flow.
         level: u8,

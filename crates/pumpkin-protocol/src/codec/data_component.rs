@@ -2678,7 +2678,7 @@ impl DataComponentCodec<Self> for EntityDataImpl {
         let id = nbt
             .get_string("id")
             .ok_or_else(|| WritingError::Message("entity_data has no 'id'".into()))?;
-        let type_id = EntityType::from_name(id.strip_prefix("minecraft:").unwrap_or(id))
+        let type_id = pumpkin_data::entity_registry::entity_type_by_key(id)
             .map(|entity_type| i32::from(entity_type.id))
             .ok_or_else(|| WritingError::Message(format!("Unknown entity type {id}")))?;
         nbt.child_tags.remove("id");

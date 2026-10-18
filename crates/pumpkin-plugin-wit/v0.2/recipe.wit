@@ -174,6 +174,11 @@ interface recipe {
     /// clients (the recipe book only knows the vanilla recipe displays), they are kept apart from
     /// datapack recipes, so a datapack reload does not remove them, and they are never removed or
     /// changed. Registering needs the `registry.recipes` permission.
+    ///
+    /// Datapack crafting, cooking, stonecutting and smithing (transform and trim) recipes are
+    /// loaded, `find-recipes` and `get-recipe-by-id` return them. A datapack reload replaces the
+    /// datapack recipes, the ones plugins registered with `register-shaped`,
+    /// `register-shapeless` and `register-cooking` are kept and applied again.
     resource recipe-manager {
         /// Registers a shaped crafting recipe.
         register-shaped: async func(id: string, recipe: shaped-recipe);
@@ -198,11 +203,11 @@ interface recipe {
         /// All recipes of a type. Vanilla types are "minecraft:crafting_shaped",
         /// "minecraft:crafting_shapeless", "minecraft:crafting_transmute", "minecraft:smelting",
         /// "minecraft:blasting", "minecraft:smoking", "minecraft:campfire_cooking",
-        /// "minecraft:stonecutting" and "minecraft:smithing_transform". Unknown types have none.
+        /// "minecraft:stonecutting", "minecraft:smithing_transform" and "minecraft:smithing_trim". Unknown types have none.
         find-recipes: func(recipe-type: string) -> list<recipe-info>;
 
-        /// The recipe with an id. Finds recipes of plugin defined types, dynamic recipes and the
-        /// vanilla cooking recipes.
+        /// The recipe with an id. Finds recipes of plugin defined types, dynamic recipes (datapacks included) and
+        /// the vanilla cooking recipes.
         get-recipe-by-id: func(id: string) -> option<recipe-info>;
 
         /// The crafting recipe a grid of items matches, like the crafting table: only the items

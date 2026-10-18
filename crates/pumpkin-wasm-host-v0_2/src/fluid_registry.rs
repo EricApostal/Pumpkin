@@ -70,6 +70,30 @@ impl Host for PluginHostState {
         })
     }
 
+    fn register_fluid_tag(
+        &mut self,
+        tag: String,
+        entries: Vec<String>,
+    ) -> wasmtime::Result<Result<(), String>> {
+        if !self
+            .permissions
+            .iter()
+            .any(|p| p == permissions::REGISTRY_FLUIDS)
+        {
+            return Ok(Err(format!(
+                "registering fluid tags needs the '{}' permission",
+                permissions::REGISTRY_FLUIDS
+            )));
+        }
+        if Fluid::is_dynamic_registry_frozen() {
+            return Ok(Err(
+                "fluid tags can only be registered before players connect".to_string()
+            ));
+        }
+        Fluid::register_dynamic_tag(&tag, &entries);
+        Ok(Ok(()))
+    }
+
     fn get_fluid_id(&mut self, key: String) -> wasmtime::Result<Option<u32>> {
         Ok(find_fluid(&key).map(|fluid| u32::from(fluid.id)))
     }

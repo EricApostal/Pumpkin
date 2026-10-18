@@ -12,8 +12,10 @@ use pumpkin_data::{Block, BlockDirection};
 use pumpkin_inventory::Inventory;
 use pumpkin_inventory::double::DoubleInventory;
 use pumpkin_util::math::position::BlockPos;
+use pumpkin_util::math::vector3::Vector3;
 
-use crate::block::entities::BlockEntity;
+use crate::block::entities::{BlockEntity, ExperienceContainer};
+use crate::entity::experience_orb::ExperienceOrbEntity;
 use crate::world::World;
 
 /// The slots of one container as seen from a side. Handler slot `n` is the `n`-th slot of
@@ -23,7 +25,12 @@ pub struct ItemHandler {
     /// `None` is the inside view: every slot, only the validity of the slot checked.
     side: Option<BlockDirection>,
     slots: Vec<usize>,
+    /// Pays out the experience of a furnace when its output is taken.
+    experience: Option<(Arc<World>, Vector3<f64>, Arc<dyn ExperienceContainer>)>,
 }
+
+/// The output slot of the furnaces.
+const FURNACE_OUTPUT_SLOT: usize = 2;
 
 impl ItemHandler {
     #[must_use]
@@ -36,14 +43,24 @@ impl ItemHandler {
             inventory,
             side,
             slots,
+            experience: None,
         }
     }
 
     /// The container at a position, a double chest as one container. `None` if the chunk is not
     /// loaded or the block entity has no slots.
     #[must_use]
-    pub fn at(world: &World, position: &BlockPos, side: Option<BlockDirection>) -> Option<Self> {
-        container_at(world, position).map(|inventory| Self::new(inventory, side))
+    pub fn at(
+        world: &Arc<World>,
+        position: &BlockPos,
+        side: Option<BlockDirection>,
+    ) -> Option<Self> {
+        let mut handler = Self::new(container_at(world, position)?, side);
+        handler.experience = world
+            .get_block_entity(position)
+            .and_then(BlockEntity::to_experience_container)
+            .map(|container| (world.clone(), position.to_f64(), container));
+        Some(handler)
     }
 
     #[must_use]
@@ -183,6 +200,14 @@ impl ItemHandler {
         let stack = self.inventory.remove_stack_specific(inner, taken);
         if !stack.is_empty() {
             self.inventory.mark_dirty();
+            if inner == FURNACE_OUTPUT_SLOT
+                && let Some((world, position, container)) = &self.experience
+            {
+                let xp = container.extract_experience();
+                if xp > 0 {
+                    ExperienceOrbEntity::spawn(world, *position, xp as u32);
+                }
+            }
         }
         stack
     }

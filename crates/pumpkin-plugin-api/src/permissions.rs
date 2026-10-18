@@ -107,3 +107,11 @@ pub const REGISTRY_RECIPES: &str = "registry.recipes";
 /// Allows the plugin to create fake players with `fake_player`: server side actors that behave like
 /// players (break blocks, use items, attack) without a connection.
 pub const FAKE_PLAYERS: &str = "fake-players";
+
+/// Allows the plugin to move items in and out of the containers of blocks with item handlers, and
+/// to give plugin block entities inventories.
+pub const CONTAINERS: &str = "containers";
+
+/// Allows the plugin to declare mods, channels and registries for the NeoForge client handshake
+/// with `neoforge`. Declarations are only possible while the server starts.
+pub const NEOFORGE: &str = "neoforge";

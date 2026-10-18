@@ -39,6 +39,7 @@ pub mod lan_broadcast;
 pub mod packet_limiter;
 pub use packet_limiter::PacketRateLimiter;
 pub mod management;
+pub mod neoforge;
 mod proxy;
 pub mod query;
 

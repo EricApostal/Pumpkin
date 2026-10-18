@@ -805,6 +805,8 @@ pub fn cleanup_event(event: &Event, state: &mut PluginHostState) {
         | Event::LivingVisibilityEvent(_)
         | Event::EntitySizeEvent(_)
         | Event::EntityTickEvent(_)
-        | Event::EntityEnteringSectionEvent(_) => {}
+        | Event::EntityEnteringSectionEvent(_)
+        | Event::EntityStartTrackingEvent(_)
+        | Event::EntityStopTrackingEvent(_) => {}
     }
 }

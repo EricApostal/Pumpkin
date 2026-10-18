@@ -71,6 +71,11 @@ interface fluid-registry {
     /// used block, variant or bucket item, an invalid definition, or when registration is closed.
     register-fluid: func(definition: fluid-definition) -> result<u32, string>;
 
+    /// Adds fluids to a fluid tag, creating it if needed, like `register-block-tag`. An entry is
+    /// a fluid key or `#tag` for another tag, entries registered later resolve when registration
+    /// closes. Needs the `registry.fluids` permission and fails once registration is closed.
+    register-fluid-tag: func(tag: string, entries: list<string>) -> result<_, string>;
+
     /// Returns the id of a fluid by key, vanilla (`minecraft:` prefix optional) or custom.
     get-fluid-id: func(key: string) -> option<u32>;
 

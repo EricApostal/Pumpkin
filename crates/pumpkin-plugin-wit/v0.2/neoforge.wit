@@ -1,0 +1,126 @@
+/// Declarations for the NeoForge client handshake.
+///
+/// The host owns the handshake. A plugin that adds content NeoForge clients must know about
+/// (blocks, items, network channels, config files) only describes it here, the host merges the
+/// declarations of all plugins into one handshake and runs it for every connecting client:
+/// the channel negotiation before the server brand, the registry synchronisation (the vanilla
+/// entries plus everything plugins registered through the registry interfaces, in registration
+/// order), `c:version` / `c:register`, the config files and the data map / feature flag checks.
+///
+/// A client that does not answer the NeoForge query (vanilla, Fabric) is handled by the policy.
+/// If any plugin declares `reject`, such clients are disconnected, otherwise they join without
+/// any NeoForge exchange. Nothing happens for servers where no plugin declares anything.
+///
+/// A plugin has one declaration, calling `declare` again replaces it. Declaring needs the
+/// `neoforge` permission and is only possible before players can connect.
+interface neoforge {
+    /// The connection phase a payload channel exists in.
+    enum channel-phase {
+        configuration,
+        play,
+    }
+
+    /// The direction a payload flows in.
+    enum channel-flow {
+        /// Server to client only.
+        clientbound,
+        /// Client to server only.
+        serverbound,
+        /// Both directions.
+        both,
+    }
+
+    /// What to do with a client that does not speak NeoForge.
+    enum non-neoforge-policy {
+        /// Disconnect it.
+        reject,
+        /// Let it join without the NeoForge exchange.
+        allow,
+    }
+
+    /// A mod the server "has". NeoForge has no mod list handshake, the name only appears in
+    /// messages and on the client's mismatch screen for the channels in the mod's namespace.
+    record mod-info {
+        /// The mod id, the namespace of its channels and registry entries.
+        id: string,
+        version: string,
+        /// Shown to players, defaults to the id.
+        display-name: option<string>,
+    }
+
+    /// A custom payload channel of the mod, as registered with `RegisterPayloadHandlersEvent`.
+    record network-channel {
+        /// Full resource location, `namespace:path`.
+        id: string,
+        version: string,
+        /// The phases the channel exists in, at least one.
+        phases: list<channel-phase>,
+        flow: channel-flow,
+        /// Whether a peer without the channel may still connect.
+        optional: bool,
+    }
+
+    /// Entries a plugin adds to a synced registry, after the entries the host knows (vanilla and
+    /// the ones registered through the registry interfaces). For a registry the host does not
+    /// know, the entries are the whole registry in id order.
+    record synced-registry {
+        /// Registry key, `minecraft:block` or `mymod:thing`.
+        key: string,
+        /// Entry keys in registration order.
+        entries: list<string>,
+    }
+
+    /// A server config file sent to clients (`neoforge:config_file`).
+    record config-file {
+        /// File name, for example `mymod-server.toml`.
+        name: string,
+        content: list<u8>,
+    }
+
+    /// An entry of a datapack registry that is added to the registry data NeoForge clients get
+    /// (other clients do not know the mod and do not receive it). A registry that is not part of
+    /// the vanilla registry data is sent as an extra registry.
+    record datapack-entry {
+        /// Registry, for example `minecraft:damage_type` or `mymod:thing`.
+        registry: string,
+        /// Entry key, `namespace:path`.
+        id: string,
+        /// The entry as network NBT (a nameless compound, as it is sent in registry data), none
+        /// for an entry whose data the client has.
+        data: option<list<u8>>,
+    }
+
+    /// A registry data map (`neoforge:known_registry_data_maps`).
+    record data-map {
+        registry: string,
+        id: string,
+        /// Whether a client without it is refused.
+        mandatory: bool,
+    }
+
+    /// Everything a plugin tells the handshake.
+    record declaration {
+        mod-info: mod-info,
+        channels: list<network-channel>,
+        registries: list<synced-registry>,
+        config-files: list<config-file>,
+        datapack-entries: list<datapack-entry>,
+        data-maps: list<data-map>,
+        /// Modded feature flags, `namespace:path`.
+        feature-flags: list<string>,
+        non-neoforge: non-neoforge-policy,
+        /// Shown to rejected clients, `{mods}` is replaced by the mod list. A default is used
+        /// when none is set.
+        reject-message: option<string>,
+    }
+
+    /// Sets the declaration of the calling plugin. Fails for an invalid identifier or channel,
+    /// duplicate entries, a missing permission or when players can connect already.
+    declare: func(declaration: declaration) -> result<_, string>;
+
+    /// Removes the declaration of the calling plugin.
+    withdraw: func();
+
+    /// Returns whether the player's connection completed the NeoForge handshake.
+    is-neoforge-player: func(player-uuid: string) -> bool;
+}

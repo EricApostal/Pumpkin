@@ -90,7 +90,9 @@ static ERROR_NOT_SUMMONABLE_ENTITY: CommandErrorType<1> = CommandErrorType::new(
 
 pub static ENTITY_TYPE_ARGUMENT: ResourceArgument =
     ResourceArgument(ENTITY_TYPE_REGISTRY, &|id: Identifier| {
-        EntityType::from_name(id.path()).map(|value| value as &'static (dyn Any + Send + Sync))
+        // Plugin types have a namespace of their own.
+        pumpkin_data::entity_registry::entity_type_by_key(&id.to_string())
+            .map(|value| value as &'static (dyn Any + Send + Sync))
     });
 
 pub static ENCHANTMENT_ARGUMENT: ResourceArgument =
@@ -173,7 +175,13 @@ impl<S: crate::source::CommandSource> ArgumentType<S> for ResourceArgument {
             let entity_types = EntityType::ALL
                 .iter()
                 .filter(|entity_type| entity_type.summonable)
-                .map(|entity_type| format!("minecraft:{}", entity_type.resource_name));
+                .map(|entity_type| format!("minecraft:{}", entity_type.resource_name))
+                .chain(
+                    pumpkin_data::entity_registry::plugin_entity_types()
+                        .into_iter()
+                        .filter(|plugin| plugin.definition.summonable)
+                        .map(|plugin| plugin.key.to_string()),
+                );
             suggestions_builder
                 .filter_and_suggest_iter(entity_types)
                 .build()

@@ -194,6 +194,18 @@ impl BlockEntity for PluginBlockEntity {
             .unwrap_or_else(|| Self::new(position, &UNREGISTERED, NbtCompound::new(), None))
     }
 
+    /// Writes the slots back to the chunk when hoppers or item handlers changed them.
+    fn tick(&self, world: &Arc<crate::world::World>) {
+        if self
+            .plugin_inventory()
+            .is_some_and(|inventory| inventory.take_dirty())
+        {
+            let mut nbt = NbtCompound::new();
+            self.write_internal(&mut nbt);
+            world.add_block_entity_nbt(self.position, &nbt);
+        }
+    }
+
     fn resource_location(&self) -> &'static str {
         self.entity_type.key
     }

@@ -638,8 +638,10 @@ impl Fluid {
         let (Some(a), Some(b)) = (registry.get_info(a), registry.get_info(b)) else {
             return false;
         };
-        a.flowing_variant.is_some_and(|fluid| fluid.id == b.fluid.id)
-            || b.flowing_variant.is_some_and(|fluid| fluid.id == a.fluid.id)
+        a.flowing_variant
+            .is_some_and(|fluid| fluid.id == b.fluid.id)
+            || b.flowing_variant
+                .is_some_and(|fluid| fluid.id == a.fluid.id)
     }
 
     /// The flowing variant of a registered still fluid.
@@ -760,8 +762,8 @@ mod tests {
             .unwrap();
         assert_eq!(first.id, Fluid::VANILLA_COUNT);
         assert_eq!(second.id, Fluid::VANILLA_COUNT + 1);
-        assert_eq!(registry.get_by_id(first.id), Some(first));
-        assert_eq!(registry.get_by_key("test_order:second"), Some(second));
+        assert!(registry.get_by_id(first.id) == Some(first));
+        assert!(registry.get_by_key("test_order:second") == Some(second));
         assert!(first.is_dynamic());
         assert!(!Fluid::WATER.is_dynamic());
         assert_eq!(first.resource_location(), "test_order:first");
@@ -811,10 +813,7 @@ mod tests {
         );
 
         let first = registry.register(registration("test_dup:a")).unwrap();
-        assert_eq!(
-            registry.register(registration("test_dup:a")).unwrap(),
-            first
-        );
+        assert!(registry.register(registration("test_dup:a")).unwrap() == first);
         let mut different = registration("test_dup:a");
         different.tick_rate = 30;
         assert_eq!(
@@ -826,10 +825,7 @@ mod tests {
             registry.register(registration("test_dup:b")).err(),
             Some(FluidRegistrationError::Frozen),
         );
-        assert_eq!(
-            registry.register(registration("test_dup:a")).unwrap(),
-            first
-        );
+        assert!(registry.register(registration("test_dup:a")).unwrap() == first);
         assert_eq!(registry.fluids().len(), 1);
     }
 
@@ -843,11 +839,8 @@ mod tests {
         still.flowing_variant = Some("test_family:flowing_goo".to_string());
         let still = registry.register(still).unwrap();
         let info = registry.get_info(still.id).unwrap();
-        assert_eq!(info.flowing_variant, Some(flowing));
-        assert_eq!(
-            registry.get_info(flowing.id).unwrap().still_variant.get(),
-            Some(&still)
-        );
+        assert!(info.flowing_variant == Some(flowing));
+        assert!(registry.get_info(flowing.id).unwrap().still_variant.get() == Some(&still));
 
         let mut again = registration("test_family:goo2");
         again.flowing_variant = Some("test_family:flowing_goo".to_string());
@@ -882,24 +875,24 @@ mod tests {
         let source_state = source_block.default_state.id;
         let flowing_state = flowing_block.default_state.id;
 
-        assert_eq!(Fluid::from_state_id(source_state), Some(still));
-        assert_eq!(Fluid::from_state_id(flowing_state), Some(flowing));
-        assert_eq!(Fluid::from_state_id(Block::STONE.default_state.id), None);
-        assert_eq!(Fluid::from_id(still.id), Some(still));
-        assert_eq!(Fluid::from_registry_key("test_block:goo"), Some(still));
+        assert!(Fluid::from_state_id(source_state) == Some(still));
+        assert!(Fluid::from_state_id(flowing_state) == Some(flowing));
+        assert!(Fluid::from_state_id(Block::STONE.default_state.id) == None);
+        assert!(Fluid::from_id(still.id) == Some(still));
+        assert!(Fluid::from_registry_key("test_block:goo") == Some(still));
         assert!(still.matches_type(flowing));
         assert!(flowing.matches_type(still));
         assert!(!still.matches_type(&Fluid::WATER));
-        assert_eq!(still.to_flowing(), flowing);
-        assert_eq!(flowing.to_still(), still);
-        assert_eq!(Fluid::FLOWING_WATER.to_still(), &Fluid::WATER);
+        assert!(still.to_flowing() == flowing);
+        assert!(flowing.to_still() == still);
+        assert!(Fluid::FLOWING_WATER.to_still() == &Fluid::WATER);
 
         let (fluid, state) = Fluid::dynamic_fluid_state(source_state).unwrap();
-        assert_eq!(fluid, flowing);
+        assert!(fluid == flowing);
         assert!(state.is_source && state.is_still && !state.falling);
         assert_eq!(state.level, 8);
         let (fluid, state) = Fluid::dynamic_fluid_state(flowing_state).unwrap();
-        assert_eq!(fluid, flowing);
+        assert!(fluid == flowing);
         assert!(!state.is_source);
 
         assert_eq!(
@@ -919,9 +912,9 @@ mod tests {
 
     #[test]
     fn vanilla_buckets() {
-        assert_eq!(Fluid::from_bucket_item(&Item::WATER_BUCKET), Some(&Fluid::WATER));
-        assert_eq!(Fluid::from_bucket_item(&Item::LAVA_BUCKET), Some(&Fluid::LAVA));
-        assert_eq!(Fluid::from_bucket_item(&Item::BUCKET), None);
+        assert!(Fluid::from_bucket_item(&Item::WATER_BUCKET) == Some(&Fluid::WATER));
+        assert!(Fluid::from_bucket_item(&Item::LAVA_BUCKET) == Some(&Fluid::LAVA));
+        assert!(Fluid::from_bucket_item(&Item::BUCKET) == None);
         assert_eq!(Fluid::WATER.bucket_item(), Some(&Item::WATER_BUCKET));
         assert_eq!(Fluid::FLOWING_LAVA.bucket_item(), Some(&Item::LAVA_BUCKET));
         assert_eq!(Fluid::EMPTY.bucket_item(), None);

@@ -4,6 +4,7 @@ use crate::entity::player::Player;
 use crate::server::Server;
 use pumpkin_data::Block;
 use pumpkin_data::BlockDirection;
+use pumpkin_data::fluid::Fluid;
 use pumpkin_data::item::Item;
 use pumpkin_data::item_stack::ItemStack;
 use pumpkin_util::Hand;
@@ -21,6 +22,8 @@ pub(crate) const fn should_try_block_placement(result: &BlockActionResult) -> bo
 #[derive(Default)]
 pub struct ItemRegistry {
     items: FxHashMap<u16, Arc<dyn ItemBehaviour>>,
+    /// The behaviour of the buckets of plugin fluids, which register after the items.
+    fluid_bucket: Option<Arc<dyn ItemBehaviour>>,
 }
 
 impl ItemRegistry {
@@ -30,6 +33,11 @@ impl ItemRegistry {
         for i in T::ids() {
             self.items.insert(i, val.clone());
         }
+    }
+
+    /// Sets the behaviour of the buckets that plugins register for their fluids.
+    pub fn set_fluid_bucket<T: ItemBehaviour + 'static>(&mut self, item: T) {
+        self.fluid_bucket = Some(Arc::new(item));
     }
 
     pub fn on_use(&self, stack: &ItemStack, player: &Player, hand: Hand) {
@@ -161,7 +169,11 @@ impl ItemRegistry {
 
     #[must_use]
     pub fn get_pumpkin_item(&self, item: u16) -> Option<&Arc<dyn ItemBehaviour>> {
-        self.items.get(&item)
+        self.items.get(&item).or_else(|| {
+            let fluid_bucket = self.fluid_bucket.as_ref()?;
+            let item = Item::from_id(item).filter(|item| item.is_dynamic())?;
+            Fluid::from_bucket_item(item).map(|_| fluid_bucket)
+        })
     }
 }
 

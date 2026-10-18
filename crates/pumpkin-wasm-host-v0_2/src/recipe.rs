@@ -231,7 +231,7 @@ impl HostRecipeManagerWithStore<PluginHostState> for HasSelf<PluginHostState> {
         let server = accessor.server()?;
         server
             .recipe_manager
-            .add_recipe(DynamicRecipe::Crafting(owned_recipe));
+            .add_plugin_recipe(DynamicRecipe::Crafting(owned_recipe));
         Ok(())
     }
 
@@ -266,7 +266,7 @@ impl HostRecipeManagerWithStore<PluginHostState> for HasSelf<PluginHostState> {
         let server = accessor.server()?;
         server
             .recipe_manager
-            .add_recipe(DynamicRecipe::Crafting(owned_recipe));
+            .add_plugin_recipe(DynamicRecipe::Crafting(owned_recipe));
         Ok(())
     }
 
@@ -313,7 +313,7 @@ impl HostRecipeManagerWithStore<PluginHostState> for HasSelf<PluginHostState> {
         };
 
         let server = accessor.server()?;
-        server.recipe_manager.add_recipe(dynamic_recipe);
+        server.recipe_manager.add_plugin_recipe(dynamic_recipe);
         Ok(())
     }
 }

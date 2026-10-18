@@ -680,8 +680,8 @@ impl ClientPacket for CRecipeBookAdd<'_> {
                         book_category,
                     )?;
                 }
-                DynamicRecipe::Brewing(_) => {
-                    // Brewing recipes are not displayed in the recipe book
+                DynamicRecipe::Brewing(_) | DynamicRecipe::Raw(_) => {
+                    // Brewing and raw recipes are not displayed in the recipe book
                     continue;
                 }
             }

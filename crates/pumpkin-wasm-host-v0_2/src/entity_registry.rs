@@ -79,6 +79,34 @@ impl Host for PluginHostState {
         )
     }
 
+    fn register_entity_type_tag(
+        &mut self,
+        tag: String,
+        entries: Vec<String>,
+    ) -> wasmtime::Result<Result<(), String>> {
+        if !self
+            .permissions
+            .iter()
+            .any(|p| p == permissions::REGISTRY_ENTITIES)
+        {
+            return Ok(Err(format!(
+                "registering entity type tags needs the '{}' permission",
+                permissions::REGISTRY_ENTITIES
+            )));
+        }
+        if entity_registry::is_plugin_entity_registry_frozen() {
+            return Ok(Err(
+                "entity type tags can only be registered before players connect".to_string(),
+            ));
+        }
+        pumpkin_data::dynamic_tag::register_tag(
+            pumpkin_data::tag::RegistryKey::EntityType,
+            &tag,
+            entries,
+        );
+        Ok(Ok(()))
+    }
+
     fn get_entity_type_id(&mut self, key: String) -> wasmtime::Result<Option<u32>> {
         Ok(entity_registry::entity_type_by_key(&key).map(|entity_type| u32::from(entity_type.id)))
     }

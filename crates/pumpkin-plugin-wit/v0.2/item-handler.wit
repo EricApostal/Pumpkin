@@ -17,7 +17,9 @@
 /// A handler holds the container it was made for. It keeps working after the block is gone, on a
 /// container nobody can reach any more, so ask for a new handler when the block may have changed.
 /// Changes made through a handler are marked, so they are saved and comparators see them. The
-/// experience a furnace collects is not paid out when the output is taken through a handler.
+/// experience a furnace collects is dropped as orbs above the furnace when its output slot is
+/// emptied through a handler, like a hopper does. Using these functions needs the `containers`
+/// permission.
 interface item-handler {
     use common.{block-pos};
     use item-stack.{item-stack};
@@ -51,7 +53,7 @@ interface item-handler {
 
     /// The item handler of the container at a position, seen from `side` (the face of the block
     /// the items go through). With no side the handler sees every slot. None if the chunk is not
-    /// loaded or the block has no container.
+    /// loaded or the block has no container, or the plugin lacks the `containers` permission.
     get-item-handler: func(target-world: borrow<%world>, pos: block-pos, side: option<block-direction>) -> option<item-handler>;
 
     /// Gives the plugin block entity at a position an inventory of `slot-count` slots (at most

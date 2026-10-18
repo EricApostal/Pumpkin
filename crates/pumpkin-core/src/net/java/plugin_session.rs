@@ -359,6 +359,8 @@ impl PendingConnection {
             return false;
         }
         let (session, handle) = ConnectionSession::new(phase);
+        // A flavour chosen by the host before a plugin could (the NeoForge handshake).
+        session.shared.flavour.store(self.flavour);
         server.plugin_connections.insert(self.id, handle);
         self.session = Some(session);
         true
@@ -498,6 +500,42 @@ impl PendingConnection {
     pub(super) async fn send_brand_and_continue_configuration(&mut self, server: &Arc<Server>) {
         self.send_packet_now(&server.get_branding()).await;
 
+        // The registries of the NeoForge handshake go out right after the brand and must be
+        // acknowledged before the rest of the configuration (registry data and tags).
+        if self.neoforge_after_brand().await {
+            debug!(
+                "Configuration of client {} waits for the NeoForge registry sync",
+                self.id
+            );
+            return;
+        }
+        self.continue_after_neoforge_registries(server).await;
+    }
+
+    /// The pre-brand wait of the NeoForge handshake is over: plugins may still hold the
+    /// connection before the brand, then the brand goes out.
+    pub(super) async fn proceed_after_neoforge_pre_brand(&mut self, server: &Arc<Server>) {
+        if self.begin_pre_brand_hook(server).await {
+            debug!(
+                "Configuration of client {} is held by a plugin before the brand",
+                self.id
+            );
+            return;
+        }
+        self.send_brand_and_continue_configuration(server).await;
+    }
+
+    /// Chooses the encoding of the play phase for the host, ahead of the plugin session.
+    pub(super) fn set_native_flavour(&mut self, flavour: ConnectionFlavour) {
+        self.flavour = flavour;
+        if let Some(session) = &self.session {
+            session.shared.flavour.store(flavour);
+        }
+    }
+
+    /// The part of the configuration after the NeoForge registry sync (or without one):
+    /// `ConfigurationStartEvent` and the rest of the configuration unless a plugin holds there.
+    pub(super) async fn continue_after_neoforge_registries(&mut self, server: &Arc<Server>) {
         if self.begin_configuration_hook(server).await {
             debug!("Configuration of client {} is held by a plugin", self.id);
             return;

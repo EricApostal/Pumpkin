@@ -8,6 +8,7 @@ use std::sync::{
 use pumpkin_data::item_stack::ItemStack;
 use pumpkin_macros::{Event, cancellable};
 use pumpkin_util::math::{position::BlockPos, vector3::Vector3};
+use uuid::Uuid;
 
 use crate::entity::player::Player;
 use crate::plugin::api::events::player::PlayerEvent;
@@ -229,8 +230,28 @@ impl EntityEnteringSectionEvent {
     }
 }
 
+/// Fired when a player starts tracking an entity, the server is about to send it to the player.
+/// Informational. Fired for plugin and vanilla entities.
+#[derive(Event, Clone)]
+pub struct EntityStartTrackingEvent {
+    /// The ID of the entity.
+    pub entity_id: i32,
+    /// The player that starts tracking it.
+    pub player: Uuid,
+}
+
+/// Fired when a player stops tracking an entity, the server removes it from the player.
+/// Informational.
+#[derive(Event, Clone)]
+pub struct EntityStopTrackingEvent {
+    /// The ID of the entity.
+    pub entity_id: i32,
+    /// The player that stops tracking it.
+    pub player: Uuid,
+}
+
 /// Highest entity type id that can tick for plugins.
-const MAX_TICKING_TYPES: usize = 1024;
+const MAX_TICKING_TYPES: usize = 2048;
 
 /// The tick interval of each entity type, 0 when it does not tick for plugins.
 static TICK_INTERVALS: [AtomicU32; MAX_TICKING_TYPES] =

@@ -83,11 +83,24 @@ pub struct OwnedBrewingRecipe {
     pub output_potion: Option<String>,
 }
 
+/// A recipe kept as plain ingredients and results (stonecutting, smithing). Not shown in the
+/// recipe book and not used by any station, it only answers queries.
+#[derive(Clone, Debug)]
+pub struct OwnedRawRecipe {
+    pub recipe_id: String,
+    /// The full recipe type key, `minecraft:stonecutting`.
+    pub recipe_type: String,
+    pub group: Option<String>,
+    pub ingredients: Vec<OwnedRecipeIngredient>,
+    pub results: Vec<OwnedRecipeResult>,
+}
+
 #[derive(Clone, Debug)]
 pub enum DynamicRecipe {
     Crafting(OwnedCraftingRecipe),
     Cooking(OwnedCookingRecipeType),
     Brewing(OwnedBrewingRecipe),
+    Raw(OwnedRawRecipe),
 }
 
 #[cfg(test)]

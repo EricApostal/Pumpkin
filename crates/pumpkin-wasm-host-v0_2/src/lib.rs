@@ -42,6 +42,7 @@ pub mod ipc;
 pub mod item_entity;
 pub mod item_handler;
 pub mod fluid_registry;
+pub mod neoforge;
 pub mod entity_registry;
 pub mod entity_ticking;
 pub mod item_registry;

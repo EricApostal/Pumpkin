@@ -109,6 +109,14 @@ pub const REGISTRY_RECIPES: &str = "registry.recipes";
 /// (break blocks, use items, attack) without a connection.
 pub const FAKE_PLAYERS: &str = "fake-players";
 
+/// Allows the plugin to move items in and out of the containers of blocks with item handlers, and
+/// to give plugin block entities inventories.
+pub const CONTAINERS: &str = "containers";
+
+/// Allows the plugin to declare mods, channels and registries for the NeoForge client handshake
+/// with `neoforge`. Declarations are only possible while the server starts.
+pub const NEOFORGE: &str = "neoforge";
+
 #[must_use]
 pub fn get_permission_description(permission: &str) -> Option<&'static str> {
     match permission {
@@ -157,6 +165,12 @@ pub fn get_permission_description(permission: &str) -> Option<&'static str> {
         REGISTRY_RECIPES => Some("Allows the plugin to register custom recipe types and recipes."),
         FAKE_PLAYERS => Some(
             "Allows the plugin to create fake players that break blocks, use items and attack like players.",
+        ),
+        NEOFORGE => Some(
+            "Allows the plugin to declare mods, channels and registries for the NeoForge handshake.",
+        ),
+        CONTAINERS => Some(
+            "Allows the plugin to move items in and out of block containers and give plugin block entities inventories.",
         ),
         p if p.starts_with(SYS_ENV_PREFIX) => {
             Some("Allows the plugin to read specific environment variables.")

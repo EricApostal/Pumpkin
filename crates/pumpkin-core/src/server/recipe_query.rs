@@ -17,7 +17,7 @@ use pumpkin_inventory::crafting::crafting_screen_handler::{MatchedCrafting, find
 use pumpkin_inventory::crafting::recipe_provider::RecipeProvider;
 use pumpkin_inventory::inventory::Inventory;
 use pumpkin_protocol::codec::recipe::{
-    DynamicRecipe, OwnedCookingRecipe, OwnedCookingRecipeType, OwnedCraftingRecipe,
+    DynamicRecipe, OwnedCookingRecipe, OwnedCookingRecipeType, OwnedCraftingRecipe, OwnedRawRecipe,
     OwnedRecipeIngredient, OwnedRecipeResult,
 };
 
@@ -35,6 +35,7 @@ pub const TYPE_SMOKING: &str = "minecraft:smoking";
 pub const TYPE_CAMPFIRE_COOKING: &str = "minecraft:campfire_cooking";
 pub const TYPE_STONECUTTING: &str = "minecraft:stonecutting";
 pub const TYPE_SMITHING_TRANSFORM: &str = "minecraft:smithing_transform";
+pub const TYPE_SMITHING_TRIM: &str = "minecraft:smithing_trim";
 
 /// The layout of a shaped crafting recipe.
 #[derive(Clone, Debug, PartialEq)]
@@ -346,6 +347,17 @@ fn owned_cooking_info(kind: &CookingRecipeKind, recipe: &OwnedCookingRecipe) -> 
     info
 }
 
+fn raw_info(recipe: &OwnedRawRecipe) -> RecipeInfo {
+    let mut info = RecipeInfo::new(
+        &recipe.recipe_type,
+        Some(recipe.recipe_id.clone()),
+        recipe.group.clone(),
+    );
+    info.ingredients = recipe.ingredients.iter().cloned().map(sized).collect();
+    info.results = recipe.results.iter().map(owned_output).collect();
+    info
+}
+
 fn plugin_info(recipe: &PluginRecipe) -> RecipeInfo {
     let mut info = RecipeInfo::new(&recipe.type_key, Some(recipe.id.clone()), None);
     info.ingredients.clone_from(&recipe.ingredients);
@@ -357,9 +369,18 @@ fn plugin_info(recipe: &PluginRecipe) -> RecipeInfo {
 }
 
 impl RecipeManager {
+    fn extend_raw(&self, found: &mut Vec<RecipeInfo>, type_key: &str) {
+        self.with_dynamic_recipes(|dynamic| {
+            found.extend(dynamic.iter().filter_map(|recipe| match recipe {
+                DynamicRecipe::Raw(raw) if raw.recipe_type == type_key => Some(raw_info(raw)),
+                _ => None,
+            }));
+        });
+    }
+
     /// All recipes of a type: `minecraft:crafting_shaped`, `crafting_shapeless`,
     /// `crafting_transmute`, `smelting`, `blasting`, `smoking`, `campfire_cooking`, `stonecutting`,
-    /// `smithing_transform` or the key of a plugin defined type. Unknown types have no recipes.
+    /// `smithing_transform`, `smithing_trim` or the key of a plugin defined type. Unknown types have no recipes.
     #[must_use]
     pub fn find_recipes(&self, type_key: &str) -> Vec<RecipeInfo> {
         let mut found = Vec::new();
@@ -412,6 +433,7 @@ impl RecipeManager {
                         .push(output(recipe.result.id, recipe.result.count));
                     info
                 }));
+                self.extend_raw(&mut found, type_key);
             }
             TYPE_SMITHING_TRANSFORM => {
                 found.extend(RECIPES_SMITHING_TRANSFORM.iter().map(|recipe| {
@@ -425,7 +447,9 @@ impl RecipeManager {
                         .push(output(recipe.result.id, recipe.result.count));
                     info
                 }));
+                self.extend_raw(&mut found, type_key);
             }
+            TYPE_SMITHING_TRIM => self.extend_raw(&mut found, type_key),
             _ => {
                 found.extend(
                     self.plugin_recipes()
@@ -459,6 +483,7 @@ impl RecipeManager {
                     (recipe.recipe_id == id).then(|| owned_cooking_info(&kind, recipe))
                 }
                 DynamicRecipe::Brewing(_) => None,
+                DynamicRecipe::Raw(raw) => (raw.recipe_id == id).then(|| raw_info(raw)),
             })
         });
         if dynamic.is_some() {
@@ -537,5 +562,162 @@ impl RecipeManager {
                 })
             })
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::server::plugin_recipe::PluginRecipe;
+
+    fn dynamic_smelting(id: &str, ingredient: &str, result: &str) -> DynamicRecipe {
+        DynamicRecipe::Cooking(OwnedCookingRecipeType::Smelting(OwnedCookingRecipe {
+            recipe_id: id.to_string(),
+            category: pumpkin_data::recipes::RecipeCategoryTypes::Misc,
+            group: None,
+            ingredient: OwnedRecipeIngredient::Simple(ingredient.to_string()),
+            cooking_time: 100,
+            experience: 0.5,
+            result: OwnedRecipeResult {
+                item_id: result.to_string(),
+                count: 2,
+            },
+        }))
+    }
+
+    #[test]
+    fn vanilla_and_dynamic_cooking_recipes_are_found() {
+        let manager = RecipeManager::new();
+        let vanilla = manager
+            .find_cooking_recipe(&Item::RAW_IRON, CookingRecipeKind::Smelting)
+            .expect("vanilla smelting recipe");
+        assert_eq!(vanilla.output.item_id, "minecraft:iron_ingot");
+
+        // Nothing cooks a stick, until a datapack or plugin adds it.
+        assert!(
+            manager
+                .find_cooking_recipe(&Item::STICK, CookingRecipeKind::Smelting)
+                .is_none()
+        );
+        manager.add_recipe(dynamic_smelting(
+            "test:stick_to_coal",
+            "minecraft:stick",
+            "minecraft:coal",
+        ));
+        let found = manager
+            .find_cooking_recipe(&Item::STICK, CookingRecipeKind::Smelting)
+            .expect("dynamic smelting recipe");
+        assert_eq!(found.id.as_deref(), Some("test:stick_to_coal"));
+        assert_eq!(found.output.count, 2);
+        assert!(
+            manager
+                .find_cooking_recipe(&Item::STICK, CookingRecipeKind::Blasting)
+                .is_none()
+        );
+
+        let all = manager.find_recipes(TYPE_SMELTING);
+        assert!(
+            all.iter()
+                .any(|info| info.id.as_deref() == Some("test:stick_to_coal"))
+        );
+        assert!(
+            manager
+                .find_recipe_by_id("test:stick_to_coal")
+                .is_some_and(|info| info.cooking.is_some())
+        );
+    }
+
+    #[test]
+    fn raw_recipes_are_found() {
+        let manager = RecipeManager::new();
+        manager.add_recipe(DynamicRecipe::Raw(OwnedRawRecipe {
+            recipe_id: "test:cut".to_string(),
+            recipe_type: TYPE_STONECUTTING.to_string(),
+            group: None,
+            ingredients: vec![OwnedRecipeIngredient::Simple("minecraft:stick".to_string())],
+            results: vec![OwnedRecipeResult {
+                item_id: "minecraft:coal".to_string(),
+                count: 3,
+            }],
+        }));
+        let all = manager.find_recipes(TYPE_STONECUTTING);
+        assert!(
+            all.iter()
+                .any(|info| info.id.as_deref() == Some("test:cut"))
+        );
+        let by_id = manager.find_recipe_by_id("test:cut").unwrap();
+        assert_eq!(by_id.results[0].count, 3);
+        assert!(manager.find_recipes(TYPE_SMITHING_TRIM).is_empty());
+    }
+
+    #[test]
+    fn registered_recipes_survive_set_recipes() {
+        let manager = RecipeManager::new();
+        manager.add_plugin_recipe(dynamic_smelting(
+            "test:kept",
+            "minecraft:stick",
+            "minecraft:coal",
+        ));
+        manager.set_recipes(vec![dynamic_smelting(
+            "test:pack",
+            "minecraft:dirt",
+            "minecraft:coal",
+        )]);
+        assert!(manager.find_recipe_by_id("test:kept").is_some());
+        assert!(manager.find_recipe_by_id("test:pack").is_some());
+        manager.set_recipes(Vec::new());
+        assert_eq!(manager.get_dynamic_recipes_internal().len(), 1);
+    }
+
+    #[test]
+    fn plugin_types_are_listed_with_their_sizes() {
+        let manager = RecipeManager::new();
+        manager
+            .plugin_recipes()
+            .register_type("test:pressing")
+            .unwrap();
+        manager
+            .plugin_recipes()
+            .add_recipe(PluginRecipe {
+                id: "test:plate".to_string(),
+                type_key: "test:pressing".to_string(),
+                ingredients: vec![SizedIngredient {
+                    ingredient: OwnedRecipeIngredient::Simple("minecraft:iron_ingot".to_string()),
+                    count: 3,
+                }],
+                results: vec![RecipeOutput {
+                    item_id: "minecraft:iron_block".to_string(),
+                    count: 1,
+                    chance: 0.5,
+                }],
+                fluid_ingredients: Vec::new(),
+                fluid_results: Vec::new(),
+                extra: vec![1, 2],
+            })
+            .unwrap();
+        let found = manager.find_recipes("test:pressing");
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].ingredients[0].count, 3);
+        assert_eq!(found[0].extra, vec![1, 2]);
+        assert_eq!(
+            manager.find_recipe_by_id("test:plate").as_ref(),
+            Some(&found[0])
+        );
+        assert!(manager.find_recipes("test:unknown").is_empty());
+    }
+
+    #[test]
+    fn crafting_grid_matches_vanilla_recipes() {
+        let manager = RecipeManager::new();
+        let planks = Some(&Item::OAK_PLANKS);
+        let found = manager
+            .find_crafting_recipe(2, 2, &[planks, planks, planks, planks])
+            .expect("crafting table recipe");
+        assert_eq!(found.output.item_id, "minecraft:crafting_table");
+        assert!(
+            manager
+                .find_crafting_recipe(1, 1, &[Some(&Item::STICK)])
+                .is_none()
+        );
     }
 }

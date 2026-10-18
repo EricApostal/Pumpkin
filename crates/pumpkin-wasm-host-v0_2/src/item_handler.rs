@@ -13,6 +13,7 @@ use crate::pumpkin::plugin::item_handler::{
 use crate::pumpkin::plugin::item_stack::ItemStack as WitHostItemStack;
 use crate::pumpkin::plugin::world::World as WitWorld;
 use pumpkin_core::block::item_handler::ItemHandler;
+use pumpkin_core::plugin::permissions;
 use pumpkin_data::item_stack::ItemStack;
 use pumpkin_util::math::position::BlockPos;
 use pumpkin_wasm_host_common::state::PluginHostState;
@@ -39,6 +40,19 @@ fn item_handler(
     state.get(res).cloned()
 }
 
+fn permission_error(state: &PluginHostState) -> Option<String> {
+    (!state
+        .permissions
+        .iter()
+        .any(|p| p == permissions::CONTAINERS))
+    .then(|| {
+        format!(
+            "item handlers and plugin inventories need the '{}' permission",
+            permissions::CONTAINERS
+        )
+    })
+}
+
 impl Host for PluginHostState {
     fn get_item_handler(
         &mut self,
@@ -46,6 +60,10 @@ impl Host for PluginHostState {
         pos: WitBlockPos,
         side: Option<WitBlockDirection>,
     ) -> wasmtime::Result<Option<Resource<WitItemHandler>>> {
+        // No error channel, so a plugin without the permission sees no container.
+        if permission_error(self).is_some() {
+            return Ok(None);
+        }
         let world = Arc::clone(self.get(&target_world)?);
         let side = side.map(from_wit_block_direction);
         ItemHandler::at(&world, &from_wit_position(&pos), side)
@@ -60,6 +78,9 @@ impl Host for PluginHostState {
         slot_count: u32,
         slot_limit: u8,
     ) -> wasmtime::Result<Result<(), String>> {
+        if let Some(error) = permission_error(self) {
+            return Ok(Err(error));
+        }
         let world = Arc::clone(self.get(&target_world)?);
         Ok(world
             .with_plugin_block_entity(&from_wit_position(&pos), |entity| {
@@ -75,6 +96,9 @@ impl Host for PluginHostState {
         target_world: Resource<WitWorld>,
         pos: WitBlockPos,
     ) -> wasmtime::Result<Result<Vec<Resource<WitHostItemStack>>, String>> {
+        if let Some(error) = permission_error(self) {
+            return Ok(Err(error));
+        }
         let world = Arc::clone(self.get(&target_world)?);
         let Some(stacks) = world.with_plugin_block_entity(&from_wit_position(&pos), |entity| {
             entity.unregister_inventory()

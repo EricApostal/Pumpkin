@@ -17,16 +17,17 @@ impl PendingConnection {
         }
         self.connection_state.store(ConnectionState::Config);
 
-        // A plugin may speak before the brand (a NeoForge client classifies the connection when
-        // it sees the brand), the brand then goes out on release.
-        if self.begin_pre_brand_hook(server).await {
+        // The NeoForge handshake speaks before the brand when plugins declared one: a NeoForge
+        // client classifies the connection by what it sees first. The configuration goes on when
+        // the client answered (or did not).
+        if self.neoforge_begin().await {
             debug!(
-                "Configuration of client {} is held by a plugin before the brand",
+                "Configuration of client {} waits for the NeoForge query",
                 self.id
             );
             return None;
         }
-        self.send_brand_and_continue_configuration(server).await;
+        self.proceed_after_neoforge_pre_brand(server).await;
         debug!("login acknowledged");
         None
     }

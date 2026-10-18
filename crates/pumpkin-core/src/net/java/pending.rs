@@ -48,6 +48,7 @@ use crate::{
 
 use super::{
     JavaClient,
+    neoforge_session::NeoForgeState,
     plugin_session::{ConnectionSession, sleep_until_deadline},
 };
 
@@ -94,6 +95,8 @@ pub struct PendingConnection {
     pub(super) session: Option<ConnectionSession>,
     /// For the connection packet events.
     pub(super) server: Weak<Server>,
+    /// The NeoForge handshake, present while plugins declared one.
+    pub neoforge: Option<NeoForgeState>,
 }
 
 impl PendingConnection {
@@ -126,6 +129,7 @@ impl PendingConnection {
             vine_challenge: None,
             session: None,
             server,
+            neoforge: None,
         }
     }
 
@@ -186,6 +190,7 @@ impl PendingConnection {
             loop {
                 // A held client may be silent while the plugin works, the hold timeout limits it.
                 let hold_deadline = self.hold_deadline();
+                let neoforge_deadline = self.neoforge_deadline();
                 tokio::select! {
                     () = close_token.cancelled() => {
                         debug!("Canceling pending connection packet processing");
@@ -202,6 +207,13 @@ impl PendingConnection {
                     () = sleep_until_deadline(hold_deadline) => {
                         self.kick_hold_expired().await;
                         break None;
+                    },
+                    // The NeoForge handshake runs on the packets and this deadline, the read
+                    // goes on meanwhile.
+                    () = sleep_until_deadline(neoforge_deadline) => {
+                        if !self.neoforge_timeout().await {
+                            break None;
+                        }
                     },
                     res = &mut read => break Some(res),
                     Some(command) = self.next_plugin_command() => {
@@ -628,7 +640,8 @@ impl PendingConnection {
                 Ok(None)
             }
             id if id == SConfigPong::to_id(version) => {
-                let _pong = SConfigPong::read(&mut payload, &version)?;
+                let pong = SConfigPong::read(&mut payload, &version)?;
+                self.neoforge_pong(pong.id).await;
                 Ok(None)
             }
             id if id == SAcceptCodeOfConduct::to_id(version) => {
@@ -684,7 +697,10 @@ impl PendingConnection {
                 Ok(brand) => self.brand = Some(brand.to_string()),
                 Err(e) => self.kick(TextComponent::text(e.to_string())).await,
             }
-        } else {
+        } else if !self
+            .neoforge_payload(plugin_message.channel, plugin_message.data)
+            .await
+        {
             self.fire_configuration_payload(plugin_message.channel, plugin_message.data)
                 .await;
         }

@@ -61,6 +61,12 @@ interface entity-registry {
     /// a known key, or when registration is closed.
     register-entity-type: func(definition: entity-type-definition) -> result<u32, string>;
 
+    /// Adds entity types to an entity type tag, creating it if needed, like `register-block-tag`.
+    /// An entry is an entity type key or `#tag` for another tag. Needs the `registry.entities`
+    /// permission and fails once registration is closed. The tags are not part of the client tag
+    /// sync.
+    register-entity-type-tag: func(tag: string, entries: list<string>) -> result<_, string>;
+
     /// Returns the id of an entity type by key, vanilla (`minecraft:` prefix optional) or custom.
     get-entity-type-id: func(key: string) -> option<u32>;
 

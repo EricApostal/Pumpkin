@@ -167,6 +167,10 @@ impl BlockBehaviour for DynamicBlock {
     }
 
     fn placed(&self, args: PlacedArgs<'_>) {
+        // Output left behind by a replacement without the callbacks must not carry over.
+        if opted_in_any(args.block, STORED_OUTPUT).is_some() {
+            args.world.plugin_redstone.remove(args.position);
+        }
         let Some(info) = opted_in(args.block, BlockCallbacks::PLACED) else {
             return;
         };

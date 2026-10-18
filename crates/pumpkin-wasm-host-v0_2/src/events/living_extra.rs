@@ -10,7 +10,8 @@ use wasmtime::component::Resource;
 use pumpkin_core::plugin::{
     Context, EventPriority,
     api::events::entity::{
-        EntityEnteringSectionEvent, EntitySizeEvent, EntityTickEvent, LivingBreatheEvent,
+        EntityEnteringSectionEvent, EntitySizeEvent, EntityStartTrackingEvent,
+        EntityStopTrackingEvent, EntityTickEvent, LivingBreatheEvent,
         LivingDropsEvent, LivingEquipmentChangeEvent, LivingVisibilityEvent, PlayerTickEvent,
     },
 };
@@ -22,12 +23,15 @@ use crate::{
     },
     pumpkin::plugin::{
         event::{
-            EntityEnteringSectionEventData, EntitySizeEventData, EntityTickEventData, Event,
+            EntityEnteringSectionEventData, EntitySizeEventData, EntityTickEventData,
+            EntityTrackingEventData, Event,
             EventType, LivingBreatheEventData, LivingDropsEventData,
             LivingEquipmentChangeEventData, LivingVisibilityEventData, PlayerTickEventData,
         },
         item_stack::ItemStack as WitItemStack,
+        uuid::Uuid as WitUuid,
     },
+    uuid::UuidExt,
 };
 
 /// Registers one of the events of this file.
@@ -63,6 +67,12 @@ pub fn register_living_extra_event(
         }
         EventType::EntityEnteringSectionEvent => {
             ctx.register_event::<EntityEnteringSectionEvent, _>(handler, priority, blocking);
+        }
+        EventType::EntityStartTrackingEvent => {
+            ctx.register_event::<EntityStartTrackingEvent, _>(handler, priority, blocking);
+        }
+        EventType::EntityStopTrackingEvent => {
+            ctx.register_event::<EntityStopTrackingEvent, _>(handler, priority, blocking);
         }
         _ => {
             tracing::error!("unexpected event routed to register_living_extra_event");
@@ -270,6 +280,54 @@ impl ToFromWasmEvent for EntityEnteringSectionEvent {
                 entity_id: data.entity_id,
                 old_section: from_wasm_block_position(data.old_section),
                 new_section: from_wasm_block_position(data.new_section),
+            },
+            _ => panic!("unexpected event type"),
+        }
+    }
+
+    /// Informational.
+    fn apply_wasm_event(&mut self, event: Event, state: &mut PluginHostState) {
+        cleanup_event(&event, state);
+    }
+}
+
+impl ToFromWasmEvent for EntityStartTrackingEvent {
+    fn to_wasm_event(&self, _state: &mut PluginHostState) -> Event {
+        Event::EntityStartTrackingEvent(EntityTrackingEventData {
+            entity_id: self.entity_id,
+            player: WitUuid::to_wit(&self.player),
+        })
+    }
+
+    fn from_wasm_event(event: Event, _state: &mut PluginHostState) -> Self {
+        match event {
+            Event::EntityStartTrackingEvent(data) => Self {
+                entity_id: data.entity_id,
+                player: WitUuid::from_wit(&data.player),
+            },
+            _ => panic!("unexpected event type"),
+        }
+    }
+
+    /// Informational.
+    fn apply_wasm_event(&mut self, event: Event, state: &mut PluginHostState) {
+        cleanup_event(&event, state);
+    }
+}
+
+impl ToFromWasmEvent for EntityStopTrackingEvent {
+    fn to_wasm_event(&self, _state: &mut PluginHostState) -> Event {
+        Event::EntityStopTrackingEvent(EntityTrackingEventData {
+            entity_id: self.entity_id,
+            player: WitUuid::to_wit(&self.player),
+        })
+    }
+
+    fn from_wasm_event(event: Event, _state: &mut PluginHostState) -> Self {
+        match event {
+            Event::EntityStopTrackingEvent(data) => Self {
+                entity_id: data.entity_id,
+                player: WitUuid::from_wit(&data.player),
             },
             _ => panic!("unexpected event type"),
         }

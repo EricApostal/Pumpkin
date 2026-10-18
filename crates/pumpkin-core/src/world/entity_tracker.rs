@@ -38,6 +38,7 @@ use crate::entity::player::Player;
 use crate::entity::{Entity, EntityBase};
 use crate::net::ClientPlatform;
 use crate::net::java::JavaClient;
+use crate::plugin::api::events::entity::{EntityStartTrackingEvent, EntityStopTrackingEvent};
 use crate::world::World;
 use crate::world::chunker::get_view_distance;
 
@@ -436,6 +437,7 @@ impl TrackedEntity {
                 if matches!(player.client.as_ref(), ClientPlatform::Bedrock(_)) {
                     self.bedrock_watchers.fetch_add(1, Relaxed);
                 }
+                self.fire_tracking_event(player.gameprofile.id, true);
                 self.add_pairing(player);
             }
         } else {
@@ -447,6 +449,29 @@ impl TrackedEntity {
         let effective_range = self.get_effective_range();
         for player in players {
             self.update_player_in_range(player, effective_range);
+        }
+    }
+
+    /// Fires the start or stop tracking event if anybody listens.
+    fn fire_tracking_event(&self, player: Uuid, start: bool) {
+        let Some(server) = self.entity.get_entity().world.load().server.upgrade() else {
+            return;
+        };
+        let plugins = &server.plugin_manager;
+        if start {
+            if plugins.has_handlers::<EntityStartTrackingEvent>() {
+                let mut event = EntityStartTrackingEvent {
+                    entity_id: self.entity_id,
+                    player,
+                };
+                plugins.fire_blocking(&server, &mut event);
+            }
+        } else if plugins.has_handlers::<EntityStopTrackingEvent>() {
+            let mut event = EntityStopTrackingEvent {
+                entity_id: self.entity_id,
+                player,
+            };
+            plugins.fire_blocking(&server, &mut event);
         }
     }
 
@@ -633,6 +658,9 @@ impl TrackedEntity {
         World::broadcast_java_grouped(&je_packet, recipients_by_version);
         World::broadcast_bedrock_grouped(&be_packet, bedrock_recipients.into_iter());
 
+        for id in self.seen_by.iter() {
+            self.fire_tracking_event(*id, false);
+        }
         self.seen_by.clear();
         self.bedrock_watchers.store(0, Relaxed);
     }
@@ -643,16 +671,18 @@ impl TrackedEntity {
             if matches!(player.client.as_ref(), ClientPlatform::Bedrock(_)) {
                 self.bedrock_watchers.fetch_sub(1, Relaxed);
             }
+            self.fire_tracking_event(player.gameprofile.id, false);
             self.remove_pairing(player);
         }
     }
 
     /// Forgets the player as a viewer without a removal packet; the client already dropped it.
     pub fn forget_player(&self, player: &Player) {
-        if self.seen_by.remove(&player.gameprofile.id).is_some()
-            && matches!(player.client.as_ref(), ClientPlatform::Bedrock(_))
-        {
-            self.bedrock_watchers.fetch_sub(1, Relaxed);
+        if self.seen_by.remove(&player.gameprofile.id).is_some() {
+            if matches!(player.client.as_ref(), ClientPlatform::Bedrock(_)) {
+                self.bedrock_watchers.fetch_sub(1, Relaxed);
+            }
+            self.fire_tracking_event(player.gameprofile.id, false);
         }
     }
 

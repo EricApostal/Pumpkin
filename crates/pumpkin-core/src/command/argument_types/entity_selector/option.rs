@@ -10,7 +10,7 @@ use crate::command::suggestion::suggestions::SuggestionsBuilder;
 use pumpkin_data::entity::EntityType;
 use pumpkin_data::translation;
 use pumpkin_util::GameMode;
-use pumpkin_util::identifier::{Identifier, VANILLA_NAMESPACE};
+use pumpkin_util::identifier::Identifier;
 use pumpkin_util::math::bounds::{DoubleBounds, FloatDegreeBounds, IntBounds};
 use pumpkin_util::text::TextComponent;
 use std::str::FromStr;
@@ -302,8 +302,9 @@ impl EntitySelectorOption {
 
                 let entity_type = Identifier::parse(&string)
                     .ok()
-                    .filter(|identifier| identifier.namespace() == VANILLA_NAMESPACE)
-                    .and_then(|identifier| EntityType::from_name(identifier.path()));
+                    .and_then(|identifier| {
+                        pumpkin_data::entity_registry::entity_type_by_key(&identifier.to_string())
+                    });
 
                 if let Some(entity_type) = entity_type {
                     if entity_type.id == EntityType::PLAYER.id && !invert {

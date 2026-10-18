@@ -615,7 +615,7 @@ impl pumpkin::plugin::world::Host for PluginHostState {
         tag: String,
     ) -> wasmtime::Result<bool> {
         Ok(
-            pumpkin_data::entity::EntityType::from_name(&entity_type_key)
+            pumpkin_data::entity_registry::entity_type_by_key(&entity_type_key)
                 .and_then(|entity_type| Taggable::is_tagged_with(entity_type, &tag))
                 .unwrap_or(false),
         )
@@ -762,21 +762,29 @@ impl pumpkin::plugin::world::HostWorld for PluginHostState {
         world: Resource<World>,
         pos: WitBlockPos,
     ) -> wasmtime::Result<Option<WitFluidState>> {
-        let (fluid, state) = self
-            .get(&world)?
-            .get_fluid_and_fluid_state(&BlockPos::new(pos.x, pos.y, pos.z));
-        if state.is_empty {
-            return Ok(None);
-        }
-        let key = if fluid.matches_type(&pumpkin_data::fluid::Fluid::WATER) {
-            "minecraft:water"
+        let world = self.get(&world)?;
+        let pos = BlockPos::new(pos.x, pos.y, pos.z);
+        let (fluid, state) = world.get_fluid_and_fluid_state(&pos);
+        let (key, state) = if state.is_empty {
+            // A block of a fluid that a plugin registered.
+            let Some((fluid, state)) =
+                pumpkin_data::fluid::Fluid::dynamic_fluid_state(world.get_block_state_id(&pos))
+            else {
+                return Ok(None);
+            };
+            if state.is_empty {
+                return Ok(None);
+            }
+            (fluid.to_still().resource_location().into_owned(), state)
+        } else if fluid.matches_type(&pumpkin_data::fluid::Fluid::WATER) {
+            ("minecraft:water".to_string(), state)
         } else if fluid.matches_type(&pumpkin_data::fluid::Fluid::LAVA) {
-            "minecraft:lava"
+            ("minecraft:lava".to_string(), state)
         } else {
             return Ok(None);
         };
         Ok(Some(WitFluidState {
-            fluid: key.to_string(),
+            fluid: key,
             level: u8::try_from(state.level.clamp(0, 8)).unwrap_or(8),
             is_source: state.is_source,
             is_falling: state.falling,

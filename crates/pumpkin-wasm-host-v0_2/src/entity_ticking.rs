@@ -13,4 +13,12 @@ impl Host for PluginHostState {
         set_entity_tick_interval(entity_type.id, interval);
         Ok(())
     }
+
+    fn set_plugin_entity_ticking(&mut self, key: String, interval: u32) -> wasmtime::Result<bool> {
+        let Some(entity_type) = pumpkin_data::entity_registry::plugin_entity_type_by_key(&key)
+        else {
+            return Ok(false);
+        };
+        Ok(set_entity_tick_interval(entity_type.entity_type.id, interval))
+    }
 }

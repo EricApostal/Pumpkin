@@ -72,6 +72,8 @@ world plugin {
     import entity-registry;
     /// Provides custom fluid registration.
     import fluid-registry;
+    /// Declares what the host-run NeoForge client handshake needs to know about the plugin.
+    import neoforge;
     /// Provides placement rules (property values chosen when a player places) for custom blocks.
     import block-placement;
     /// Provides opt-in callbacks (events) for the hooks of custom blocks.

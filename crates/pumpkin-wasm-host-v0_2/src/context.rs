@@ -1869,7 +1869,9 @@ impl pumpkin::plugin::context::HostContext for PluginHostState {
             | EventType::EntitySizeEvent
             | EventType::PlayerTickEvent
             | EventType::EntityTickEvent
-            | EventType::EntityEnteringSectionEvent) => {
+            | EventType::EntityEnteringSectionEvent
+            | EventType::EntityStartTrackingEvent
+            | EventType::EntityStopTrackingEvent) => {
                 crate::events::living_extra::register_living_extra_event(
                     ctx, &handler, priority, blocking, event_type,
                 );

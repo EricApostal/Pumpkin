@@ -1,7 +1,7 @@
 use pumpkin_data::recipes::RecipeCategoryTypes;
 use pumpkin_protocol::codec::recipe::{
     DynamicRecipe, OwnedBrewingRecipe, OwnedCookingRecipe, OwnedCookingRecipeType,
-    OwnedCraftingRecipe, OwnedRecipeIngredient, OwnedRecipeResult,
+    OwnedCraftingRecipe, OwnedRawRecipe, OwnedRecipeIngredient, OwnedRecipeResult,
 };
 use serde_json::Value;
 
@@ -23,8 +23,58 @@ pub fn parse_recipe(namespace: &str, name: &str, json_str: &str) -> Option<Dynam
         "campfire_cooking" => parse_cooking(recipe_id, &value, 600)
             .map(|c| DynamicRecipe::Cooking(OwnedCookingRecipeType::CampfireCooking(c))),
         "brewing" => parse_brewing(recipe_id, &value).map(DynamicRecipe::Brewing),
+        "stonecutting" => parse_stonecutting(recipe_id, &value).map(DynamicRecipe::Raw),
+        "smithing_transform" | "smithing_trim" => {
+            parse_smithing(recipe_id, recipe_type, &value).map(DynamicRecipe::Raw)
+        }
         _ => None,
     }
+}
+
+fn parse_group(value: &Value) -> Option<String> {
+    value
+        .get("group")
+        .and_then(Value::as_str)
+        .map(ToString::to_string)
+}
+
+fn parse_stonecutting(recipe_id: String, value: &Value) -> Option<OwnedRawRecipe> {
+    let ingredient = parse_ingredient(value.get("ingredient")?)?;
+    let mut result = parse_result(value.get("result")?)?;
+    // The old format has a string result and a separate count.
+    if value.get("result")?.is_string()
+        && let Some(count) = value.get("count").and_then(Value::as_u64)
+    {
+        result.count = count.min(99) as u8;
+    }
+    Some(OwnedRawRecipe {
+        recipe_id,
+        recipe_type: "minecraft:stonecutting".to_string(),
+        group: parse_group(value),
+        ingredients: vec![ingredient],
+        results: vec![result],
+    })
+}
+
+fn parse_smithing(recipe_id: String, recipe_type: &str, value: &Value) -> Option<OwnedRawRecipe> {
+    let ingredients = vec![
+        parse_ingredient(value.get("template")?)?,
+        parse_ingredient(value.get("base")?)?,
+        parse_ingredient(value.get("addition")?)?,
+    ];
+    // A trim recipe has no result, the trim is applied to the base item.
+    let results = if recipe_type == "smithing_transform" {
+        vec![parse_result(value.get("result")?)?]
+    } else {
+        Vec::new()
+    };
+    Some(OwnedRawRecipe {
+        recipe_id,
+        recipe_type: format!("minecraft:{recipe_type}"),
+        group: None,
+        ingredients,
+        results,
+    })
 }
 
 fn normalize_id(id: &str) -> String {
@@ -321,6 +371,29 @@ mod tests {
         } else {
             panic!("Expected smelting recipe");
         }
+    }
+
+    #[test]
+    fn parse_stonecutting_and_smithing_recipes() {
+        let cut = r#"{"type":"minecraft:stonecutting","ingredient":"minecraft:stone","result":{"id":"minecraft:stone_slab","count":2}}"#;
+        let Some(DynamicRecipe::Raw(raw)) = parse_recipe("t", "slab", cut) else {
+            panic!("Expected raw recipe");
+        };
+        assert_eq!(raw.recipe_type, "minecraft:stonecutting");
+        assert_eq!(raw.results[0].count, 2);
+
+        let smith = r#"{"type":"minecraft:smithing_transform","template":"minecraft:a","base":"minecraft:b","addition":"minecraft:c","result":{"id":"minecraft:d"}}"#;
+        let Some(DynamicRecipe::Raw(raw)) = parse_recipe("t", "s", smith) else {
+            panic!("Expected raw recipe");
+        };
+        assert_eq!(raw.ingredients.len(), 3);
+        assert_eq!(raw.results[0].item_id, "minecraft:d");
+
+        let trim = r#"{"type":"minecraft:smithing_trim","template":"minecraft:a","base":"minecraft:b","addition":"minecraft:c"}"#;
+        let Some(DynamicRecipe::Raw(raw)) = parse_recipe("t", "trim", trim) else {
+            panic!("Expected raw recipe");
+        };
+        assert!(raw.results.is_empty());
     }
 
     #[test]

@@ -139,6 +139,7 @@ pub fn default_registry() -> Arc<ItemRegistry> {
     manager.register(GoatHornItem);
     manager.register(EmptyBucketItem);
     manager.register(FilledBucketItem);
+    manager.set_fluid_bucket(FilledBucketItem);
     manager.register(MilkBucketItem);
     manager.register(ShovelItem);
     manager.register(SpawnEggItem);

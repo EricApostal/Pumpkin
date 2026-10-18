@@ -150,6 +150,19 @@ pub(crate) fn try_pickup_fluid_at(
 ) -> Option<&'static Item> {
     let (block, state) = world.get_block_and_state_id(&block_pos);
 
+    // A source of a fluid that a plugin registered, with a bucket.
+    if let Some((fluid, fluid_state)) = Fluid::dynamic_fluid_state(state)
+        && fluid_state.is_source
+        && let Some(bucket) = fluid.bucket_item()
+    {
+        world.set_block_state(
+            &block_pos,
+            Block::AIR.default_state.id,
+            BlockFlags::NOTIFY_ALL,
+        );
+        return Some(bucket);
+    }
+
     if block == &Block::POWDER_SNOW {
         world.break_block(
             &block_pos,
@@ -202,9 +215,11 @@ fn try_pickup_bucket_item(
     Some(&Item::WATER_BUCKET)
 }
 
-pub(crate) const fn should_evaporate_in_nether(item: &Item, world: &World) -> bool {
+pub(crate) fn should_evaporate_in_nether(item: &Item, world: &World) -> bool {
     item.id != Item::LAVA_BUCKET.id
         && item.id != Item::POWDER_SNOW_BUCKET.id
+        // Only water and mob buckets evaporate, not the buckets of plugin fluids.
+        && Fluid::from_bucket_item(item).is_none_or(|fluid| fluid.matches_type(&Fluid::WATER))
         && world.dimension.water_evaporates
 }
 
@@ -246,6 +261,16 @@ pub(crate) fn try_place_filled_bucket(
     let (block, state) = world.get_block_and_state(&pos);
     if item.id == Item::POWDER_SNOW_BUCKET.id {
         return try_place_powder_snow(world, pos, direction);
+    }
+
+    // A bucket of a fluid that a plugin registered.
+    if let Some(fluid) = Fluid::from_bucket_item(item).filter(|fluid| fluid.is_dynamic()) {
+        let target = if state.replaceable() {
+            pos
+        } else {
+            pos.offset(direction.to_offset())
+        };
+        return crate::block::fluid::plugin_fluid::try_place_fluid(world, target, fluid);
     }
 
     if item.id == Item::WATER_BUCKET.id && block.is_waterlogged(state.id) {

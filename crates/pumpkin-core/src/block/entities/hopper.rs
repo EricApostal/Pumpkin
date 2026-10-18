@@ -5,7 +5,7 @@ use pumpkin_data::block_properties::{FacingHopper, HopperLikeProperties};
 use pumpkin_data::item_stack::ItemStack;
 use pumpkin_data::tag;
 use pumpkin_data::tag::Taggable;
-use pumpkin_data::{BlockId, BlockStateId};
+use pumpkin_data::{BlockDirection, BlockId, BlockStateId};
 use pumpkin_inventory::{Clearable, Inventory, sync_write_items_to_nbt};
 use pumpkin_nbt::compound::NbtCompound;
 use pumpkin_nbt::tag::NbtTag;
@@ -228,11 +228,13 @@ impl HopperBlockEntity {
         if let Some(entity) = world.get_block_entity(pos_up)
             && let Some(container) = entity.clone().get_inventory()
         {
-            // TODO check WorldlyContainer
-            for i in 0..container.size() {
+            // The hopper takes through the bottom face of the container above.
+            for i in container.slots_for_face(BlockDirection::Down) {
                 let mut item = container.get_stack(i);
-                if !item.is_empty() && container.can_transfer_to(self, i, &item) {
-                    //TODO WorldlyContainer
+                if !item.is_empty()
+                    && container.can_take_item_through_face(i, &item, BlockDirection::Down)
+                    && container.can_transfer_to(self, i, &item)
+                {
                     let _backup = item.clone();
                     let one_item = item.split(1);
                     if Self::add_one_item(container.as_ref(), self, &one_item) {

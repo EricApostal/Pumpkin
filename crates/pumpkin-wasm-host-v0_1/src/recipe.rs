@@ -51,7 +51,7 @@ impl HostRecipeManager for PluginHostState {
             .ok_or_else(|| wasmtime::Error::msg("Server not available"))?;
         server
             .recipe_manager
-            .add_recipe(DynamicRecipe::Crafting(owned_recipe));
+            .add_plugin_recipe(DynamicRecipe::Crafting(owned_recipe));
         Ok(())
     }
 
@@ -89,7 +89,7 @@ impl HostRecipeManager for PluginHostState {
             .ok_or_else(|| wasmtime::Error::msg("Server not available"))?;
         server
             .recipe_manager
-            .add_recipe(DynamicRecipe::Crafting(owned_recipe));
+            .add_plugin_recipe(DynamicRecipe::Crafting(owned_recipe));
         Ok(())
     }
 
@@ -139,7 +139,7 @@ impl HostRecipeManager for PluginHostState {
             .server
             .as_ref()
             .ok_or_else(|| wasmtime::Error::msg("Server not available"))?;
-        server.recipe_manager.add_recipe(dynamic_recipe);
+        server.recipe_manager.add_plugin_recipe(dynamic_recipe);
         Ok(())
     }
 

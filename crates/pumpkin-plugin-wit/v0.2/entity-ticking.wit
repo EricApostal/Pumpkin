@@ -13,4 +13,8 @@ interface entity-ticking {
     /// Sets how often the entities of a type fire `entity-tick-event`, in ticks. 0 stops it, a
     /// later call replaces the interval. Applies to every plugin that listens to the event.
     set-entity-ticking: func(entity-type: entity-type, interval: u32);
+
+    /// Like `set-entity-ticking` for an entity type registered with `entity-registry`, by its
+    /// key. Returns false when no type has the key.
+    set-plugin-entity-ticking: func(key: string, interval: u32) -> bool;
 }

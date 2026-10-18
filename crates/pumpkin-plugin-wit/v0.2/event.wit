@@ -2245,6 +2245,14 @@ interface event {
         new-section: block-pos
     }
 
+    /// Fired when a player starts or stops tracking an entity, which is when the server sends the
+    /// add-entity or remove-entity packet. Used by `entity-start-tracking-event` and
+    /// `entity-stop-tracking-event`, for plugin and vanilla entities.
+    record entity-tracking-event-data {
+        entity-id: s32,
+        player: uuid
+    }
+
     /// A neighbour of a custom block that set `neighbor-update` in `block-callbacks` changed.
     record custom-block-neighbor-update-event-data {
         target-world: %world,
@@ -2713,6 +2721,8 @@ interface event {
         player-tick-event,
         entity-tick-event,
         entity-entering-section-event,
+        entity-start-tracking-event,
+        entity-stop-tracking-event,
         custom-block-neighbor-update-event,
         custom-block-placed-event,
         custom-block-state-replaced-event,
@@ -3027,6 +3037,8 @@ interface event {
         player-tick-event(player-tick-event-data),
         entity-tick-event(entity-tick-event-data),
         entity-entering-section-event(entity-entering-section-event-data),
+        entity-start-tracking-event(entity-tracking-event-data),
+        entity-stop-tracking-event(entity-tracking-event-data),
         custom-block-neighbor-update-event(custom-block-neighbor-update-event-data),
         custom-block-placed-event(custom-block-placed-event-data),
         custom-block-state-replaced-event(custom-block-state-replaced-event-data),

@@ -1401,6 +1401,7 @@ impl ToFromWasmEvent for ProjectileHitEvent {
                 entity_id: data.entity_id,
                 hit_position: from_wasm_position(data.hit_position),
                 hit_entity_id: data.hit_entity_id,
+                hit_block_pos: None,
                 cancelled: data.cancelled,
             },
             _ => panic!("unexpected event type"),
