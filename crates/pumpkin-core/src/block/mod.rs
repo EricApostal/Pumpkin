@@ -17,6 +17,7 @@ use std::sync::Arc;
 pub mod blocks;
 pub mod entities;
 pub mod fluid;
+pub mod item_handler;
 pub mod registry;
 pub mod viewer;
 

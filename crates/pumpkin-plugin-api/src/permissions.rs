@@ -71,6 +71,9 @@ pub const REGISTRY_ITEMS: &str = "registry.items";
 /// Registration is only possible while the server starts, before players can connect.
 pub const REGISTRY_BLOCKS: &str = "registry.blocks";
 
+/// Allows the plugin to register custom fluids with `fluid_registry` while the server starts.
+pub const REGISTRY_FLUIDS: &str = "registry.fluids";
+
 /// Allows the plugin to register custom block entity types with `plugin_block_entity`.
 ///
 /// Registration is only possible while the server starts, before players can connect.
@@ -90,6 +93,11 @@ pub const REGISTRY_COMPONENTS: &str = "registry.components";
 ///
 /// Registration is only possible while the server starts, before players can connect.
 pub const REGISTRY_DAMAGE_TYPES: &str = "registry.damage-types";
+
+/// Allows the plugin to register custom entity types with `entity_registry`.
+///
+/// Registration is only possible while the server starts, before players can connect.
+pub const REGISTRY_ENTITIES: &str = "registry.entities";
 
 /// Allows the plugin to register custom recipe types and add recipes of those types with `recipe`.
 ///

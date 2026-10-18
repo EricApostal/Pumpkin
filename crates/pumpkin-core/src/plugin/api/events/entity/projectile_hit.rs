@@ -1,5 +1,5 @@
 use pumpkin_macros::{Event, cancellable};
-use pumpkin_util::math::vector3::Vector3;
+use pumpkin_util::math::{position::BlockPos, vector3::Vector3};
 
 /// An event that occurs when a projectile hits an entity or block.
 #[cancellable]
@@ -11,6 +11,8 @@ pub struct ProjectileHitEvent {
     pub hit_position: Vector3<f64>,
     /// ID of hit entity if applicable.
     pub hit_entity_id: Option<i32>,
+    /// Position of the hit block, none when an entity was hit.
+    pub hit_block_pos: Option<BlockPos>,
 }
 
 impl ProjectileHitEvent {
@@ -19,11 +21,13 @@ impl ProjectileHitEvent {
         entity_id: i32,
         hit_position: Vector3<f64>,
         hit_entity_id: Option<i32>,
+        hit_block_pos: Option<BlockPos>,
     ) -> Self {
         Self {
             entity_id,
             hit_position,
             hit_entity_id,
+            hit_block_pos,
             cancelled: false,
         }
     }

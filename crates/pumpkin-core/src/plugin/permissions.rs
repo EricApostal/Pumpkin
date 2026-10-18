@@ -71,6 +71,9 @@ pub const REGISTRY_ITEMS: &str = "registry.items";
 /// Allows the plugin to register custom blocks (and block tags) while the server starts.
 pub const REGISTRY_BLOCKS: &str = "registry.blocks";
 
+/// Allows the plugin to register custom fluids while the server starts.
+pub const REGISTRY_FLUIDS: &str = "registry.fluids";
+
 /// Allows the plugin to register custom block entity types while the server starts.
 ///
 /// Block entity types are a registry that clients synchronise, their ids are handed to clients.
@@ -91,6 +94,11 @@ pub const REGISTRY_COMPONENTS: &str = "registry.components";
 ///
 /// Damage types are a registry that clients synchronise, their ids are handed to clients.
 pub const REGISTRY_DAMAGE_TYPES: &str = "registry.damage-types";
+
+/// Allows the plugin to register custom entity types while the server starts.
+///
+/// Entity types are a registry that clients synchronise, their ids are handed to clients.
+pub const REGISTRY_ENTITIES: &str = "registry.entities";
 
 /// Allows the plugin to register custom recipe types and add recipes of those types.
 ///
@@ -140,10 +148,12 @@ pub fn get_permission_description(permission: &str) -> Option<&'static str> {
         SYS_INFO_OS => Some("Allows the plugin to read OS information."),
         REGISTRY_ITEMS => Some("Allows the plugin to register custom items and item tags."),
         REGISTRY_BLOCKS => Some("Allows the plugin to register custom blocks and block tags."),
+        REGISTRY_FLUIDS => Some("Allows the plugin to register custom fluids."),
         REGISTRY_BLOCK_ENTITIES => Some("Allows the plugin to register custom block entity types."),
         REGISTRY_MENUS => Some("Allows the plugin to register custom menu types."),
         REGISTRY_COMPONENTS => Some("Allows the plugin to register custom data component types."),
         REGISTRY_DAMAGE_TYPES => Some("Allows the plugin to register custom damage types."),
+        REGISTRY_ENTITIES => Some("Allows the plugin to register custom entity types."),
         REGISTRY_RECIPES => Some("Allows the plugin to register custom recipe types and recipes."),
         FAKE_PLAYERS => Some(
             "Allows the plugin to create fake players that break blocks, use items and attack like players.",

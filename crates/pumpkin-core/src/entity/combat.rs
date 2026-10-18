@@ -15,6 +15,7 @@ use crate::{
 };
 
 use crate::net::ClientPlatform;
+use crate::plugin::api::events::entity::entity_knockback::EntityKnockbackEvent;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AttackType {
@@ -67,6 +68,44 @@ pub fn knockback_after_resistance(strength: f64, resistance: f64) -> f64 {
     strength * (1.0 - resistance)
 }
 
+/// Fires `EntityKnockbackEvent` for a knockback of `victim`, `x` and `z` are the direction the
+/// knockback functions of `Entity` take. The event carries the velocity that is added, away from
+/// the direction. Returns the strength and direction to apply, none if a handler cancelled the
+/// knockback or left it without a direction.
+pub fn fire_knockback_event(
+    victim: &Entity,
+    hit_by: Option<i32>,
+    strength: f64,
+    x: f64,
+    z: f64,
+) -> Option<(f64, f64, f64)> {
+    let norm = x.hypot(z);
+    if norm < 1.0E-3 || strength <= 0.0 {
+        return Some((strength, x, z));
+    }
+    let Some(server) = victim.world.load().server.upgrade() else {
+        return Some((strength, x, z));
+    };
+    if !server.plugin_manager.has_handlers::<EntityKnockbackEvent>() {
+        return Some((strength, x, z));
+    }
+    let mut event = EntityKnockbackEvent {
+        entity_id: victim.entity_id,
+        hit_by_id: hit_by,
+        knockback: Vector3::new(-x / norm * strength, 0.0, -z / norm * strength),
+        cancelled: false,
+    };
+    server.plugin_manager.fire_blocking(&server, &mut event);
+    if event.cancelled {
+        return None;
+    }
+    let strength = event.knockback.x.hypot(event.knockback.z);
+    if strength <= 0.0 {
+        return None;
+    }
+    Some((strength, -event.knockback.x, -event.knockback.z))
+}
+
 pub fn handle_knockback(attacker: &Entity, victim: &dyn EntityBase, strength: f64) {
     let resistance = victim.get_living_entity().map_or(0.0, |living| {
         living.get_attribute_value(&Attributes::KNOCKBACK_RESISTANCE)
@@ -75,11 +114,16 @@ pub fn handle_knockback(attacker: &Entity, victim: &dyn EntityBase, strength: f6
 
     if strength > 0.0 {
         let yaw = attacker.yaw.load();
-        victim.get_entity().knockback(
+        let victim_entity = victim.get_entity();
+        if let Some((strength, x, z)) = fire_knockback_event(
+            victim_entity,
+            Some(attacker.entity_id),
             strength,
             f64::from((yaw.to_radians()).sin()),
             f64::from(-(yaw.to_radians()).cos()),
-        );
+        ) {
+            victim_entity.knockback(strength, x, z);
+        }
     }
 
     let velocity = attacker.velocity.load();

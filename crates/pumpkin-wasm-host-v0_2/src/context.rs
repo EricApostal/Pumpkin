@@ -1862,6 +1862,18 @@ impl pumpkin::plugin::context::HostContext for PluginHostState {
             | EventType::CustomBlockComparatorOutputEvent) => {
                 register_custom_block_event(ctx, &handler, priority, blocking, event_type);
             }
+            event_type @ (EventType::LivingDropsEvent
+            | EventType::LivingEquipmentChangeEvent
+            | EventType::LivingBreatheEvent
+            | EventType::LivingVisibilityEvent
+            | EventType::EntitySizeEvent
+            | EventType::PlayerTickEvent
+            | EventType::EntityTickEvent
+            | EventType::EntityEnteringSectionEvent) => {
+                crate::events::living_extra::register_living_extra_event(
+                    ctx, &handler, priority, blocking, event_type,
+                );
+            }
             event_type => {
                 register_player_event(ctx, &handler, priority, blocking, event_type);
             }

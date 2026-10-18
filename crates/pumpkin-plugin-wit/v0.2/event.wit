@@ -822,6 +822,8 @@ interface event {
         entity-id: s32,
         hit-position: position,
         hit-entity-id: option<s32>,
+        /// The block that was hit, none when an entity was hit.
+        hit-block-pos: option<block-pos>,
         cancelled: bool
     }
 
@@ -2174,6 +2176,75 @@ interface event {
         tick: s32
     }
 
+    /// Fired when a living entity dies, before its loot and equipment drop. `drops` can be
+    /// changed (stacks removed, added, edited), cancelling drops nothing.
+    record living-drops-event-data {
+        entity-id: s32,
+        killer-id: option<s32>,
+        position: position,
+        drops: list<item-stack>,
+        cancelled: bool
+    }
+
+    /// Fired when the stack in an equipment slot of a living entity changed. Informational.
+    /// `old-stack` is what the last event reported for the slot (empty for the first one).
+    record living-equipment-change-event-data {
+        entity-id: s32,
+        /// `mainhand`, `offhand`, `feet`, `legs`, `chest`, `head`, `body` or `saddle`.
+        slot: string,
+        old-stack: item-stack,
+        new-stack: item-stack
+    }
+
+    /// Fired each tick a player loses or regains air. `air-change` is added to the air supply,
+    /// cancelling keeps the air as it is.
+    record living-breathe-event-data {
+        entity-id: s32,
+        submerged: bool,
+        air: s32,
+        air-change: s32,
+        cancelled: bool
+    }
+
+    /// Fired when a mob checks how far it sees a target. `multiplier` scales the range.
+    record living-visibility-event-data {
+        entity-id: s32,
+        looking-entity-id: s32,
+        multiplier: f64
+    }
+
+    /// Fired when the pose of an entity changed, `width`, `height` and `eye-height` are the
+    /// dimensions it gets and can be changed.
+    record entity-size-event-data {
+        entity-id: s32,
+        pose: string,
+        width: f32,
+        height: f32,
+        eye-height: f32
+    }
+
+    /// Fired every tick for every player, after the player ticked.
+    record player-tick-event-data {
+        player: player
+    }
+
+    /// Fired for the entities of the types set with `entity-ticking.set-entity-ticking`, after
+    /// they ticked. Players have `player-tick-event`.
+    record entity-tick-event-data {
+        entity-id: s32,
+        entity-type: string,
+        /// The tick of the server.
+        tick: s32
+    }
+
+    /// Fired when an entity moved into another 16x16x16 chunk section. The positions are section
+    /// coordinates.
+    record entity-entering-section-event-data {
+        entity-id: s32,
+        old-section: block-pos,
+        new-section: block-pos
+    }
+
     /// A neighbour of a custom block that set `neighbor-update` in `block-callbacks` changed.
     record custom-block-neighbor-update-event-data {
         target-world: %world,
@@ -2634,6 +2705,14 @@ interface event {
         block-entity-unload-event,
         block-entity-tick-event,
         world-tick-event,
+        living-drops-event,
+        living-equipment-change-event,
+        living-breathe-event,
+        living-visibility-event,
+        entity-size-event,
+        player-tick-event,
+        entity-tick-event,
+        entity-entering-section-event,
         custom-block-neighbor-update-event,
         custom-block-placed-event,
         custom-block-state-replaced-event,
@@ -2940,6 +3019,14 @@ interface event {
         block-entity-unload-event(block-entity-unload-event-data),
         block-entity-tick-event(block-entity-tick-event-data),
         world-tick-event(world-tick-event-data),
+        living-drops-event(living-drops-event-data),
+        living-equipment-change-event(living-equipment-change-event-data),
+        living-breathe-event(living-breathe-event-data),
+        living-visibility-event(living-visibility-event-data),
+        entity-size-event(entity-size-event-data),
+        player-tick-event(player-tick-event-data),
+        entity-tick-event(entity-tick-event-data),
+        entity-entering-section-event(entity-entering-section-event-data),
         custom-block-neighbor-update-event(custom-block-neighbor-update-event-data),
         custom-block-placed-event(custom-block-placed-event-data),
         custom-block-state-replaced-event(custom-block-state-replaced-event-data),

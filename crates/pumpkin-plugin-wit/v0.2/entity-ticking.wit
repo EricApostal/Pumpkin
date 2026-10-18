@@ -1,0 +1,16 @@
+package pumpkin:plugin@0.2.0;
+
+/// Opt-in ticking of entities for plugins.
+///
+/// The server does not tell plugins about the ticks of entities unless a plugin opts a type in with
+/// `set-entity-ticking`. Then, every `interval` ticks, an `entity-tick-event` is fired for each
+/// entity of that type that ticked (loaded, in a chunk that ticks). Entities are spread over the
+/// ticks of the interval by their id. Players are not entities of this kind, they have the
+/// `player-tick-event`. Nothing is fired while no type has an interval or nobody listens.
+interface entity-ticking {
+    use entity-types.{entity-type};
+
+    /// Sets how often the entities of a type fire `entity-tick-event`, in ticks. 0 stops it, a
+    /// later call replaces the interval. Applies to every plugin that listens to the event.
+    set-entity-ticking: func(entity-type: entity-type, interval: u32);
+}

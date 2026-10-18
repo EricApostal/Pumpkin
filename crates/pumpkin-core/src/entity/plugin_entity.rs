@@ -99,7 +99,8 @@ impl PluginEntity {
         let world = entity.world.load();
         let players = world.players.load();
         let recipients = entity.java_metadata_recipients(&world, &players);
-        let recipients_by_version = World::collect_java_recipients_by_version(recipients.into_iter());
+        let recipients_by_version =
+            World::collect_java_recipients_by_version(recipients.into_iter());
         for (version, recipients) in recipients_by_version {
             let packet =
                 CSetEntityMetadata::new(entity.entity_id.into(), buffer.clone().into_boxed_slice());
@@ -133,12 +134,9 @@ impl PluginEntity {
         };
         entity.entity_dimension.store(dimensions);
         let pos = entity.pos.load();
-        entity.bounding_box.store(BoundingBox::new_from_pos(
-            pos.x,
-            pos.y,
-            pos.z,
-            &dimensions,
-        ));
+        entity
+            .bounding_box
+            .store(BoundingBox::new_from_pos(pos.x, pos.y, pos.z, &dimensions));
     }
 
     /// The payload of the type's `spawn_data_channel`: the entity id and the spawn data.

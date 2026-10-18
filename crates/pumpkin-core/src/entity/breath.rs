@@ -1,5 +1,6 @@
 use crate::entity::EntityBase;
 use crate::entity::player::Player;
+use crate::plugin::api::events::entity::LivingBreatheEvent;
 use pumpkin_data::damage::DamageType;
 use pumpkin_data::effect::StatusEffect;
 use pumpkin_protocol::codec::var_int::VarInt;
@@ -58,7 +59,8 @@ impl BreathManager {
         let prev = self.air_supply.load(Ordering::Relaxed);
 
         if in_water {
-            let mut new_air = (prev - AIR_DEPLETION_RATE).max(0);
+            let mut new_air =
+                (prev + self.breathe(player, prev, -AIR_DEPLETION_RATE, true)).clamp(0, MAX_AIR);
             if new_air != prev {
                 let server = player.world().server.upgrade();
                 if let Some(server) = server {
@@ -87,7 +89,8 @@ impl BreathManager {
                 }
             }
         } else {
-            let mut new_air = (prev + AIR_RECOVERY_RATE).min(MAX_AIR);
+            let mut new_air =
+                (prev + self.breathe(player, prev, AIR_RECOVERY_RATE, false)).clamp(0, MAX_AIR);
             if new_air != prev {
                 let server = player.world().server.upgrade();
                 if let Some(server) = server {
@@ -106,6 +109,22 @@ impl BreathManager {
             }
             self.drowning_tick.store(0, Ordering::Relaxed);
         }
+    }
+
+    /// The change of the air supply this tick, plugins can change it with `LivingBreatheEvent`.
+    fn breathe(&self, player: &Player, air: i32, change: i32, submerged: bool) -> i32 {
+        if air == MAX_AIR && !submerged {
+            return change;
+        }
+        let Some(server) = player.world().server.upgrade() else {
+            return change;
+        };
+        if !server.plugin_manager.has_handlers::<LivingBreatheEvent>() {
+            return change;
+        }
+        let mut event = LivingBreatheEvent::new(player.entity_id(), submerged, air, change);
+        server.plugin_manager.fire_blocking(&server, &mut event);
+        if event.cancelled { 0 } else { event.air_change }
     }
 
     pub fn send_air_supply(&self, player: &Player) {

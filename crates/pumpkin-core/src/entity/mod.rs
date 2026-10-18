@@ -1,3 +1,4 @@
+use crate::plugin::api::events::entity::{EntityEnteringSectionEvent, EntitySizeEvent};
 use crate::{
     entity::item::ItemEntity,
     net::{ClientPlatform, bedrock::BedrockClient, java::JavaClient},
@@ -90,6 +91,7 @@ pub mod marker;
 pub mod mob;
 pub mod passive;
 pub mod player;
+pub mod plugin_entity;
 pub mod projectile;
 pub mod projectile_deflection;
 pub mod spawn_util;
@@ -733,6 +735,10 @@ pub trait EntityBase: Send + Sync + std::any::Any {
         None
     }
 
+    fn get_plugin_entity(&self) -> Option<&plugin_entity::PluginEntity> {
+        None
+    }
+
     fn get_player(&self) -> Option<&Player> {
         None
     }
@@ -1343,6 +1349,15 @@ impl Entity {
                 self.current_biome.store(Arc::new(biome));
                 self.last_biome_update_pos.store(new_bp);
 
+                let old_section_y = get_section_cord(block_pos_vec.y);
+                let new_section_y = get_section_cord(floor_y);
+                if old_section_y != new_section_y
+                    || get_section_cord(block_pos_vec.x) != get_section_cord(floor_x)
+                    || get_section_cord(block_pos_vec.z) != get_section_cord(floor_z)
+                {
+                    self.fire_entering_section_event(block_pos_vec, new_block_pos);
+                }
+
                 let chunk_pos = self.chunk_pos.load();
                 if get_section_cord(floor_x) != chunk_pos.x
                     || get_section_cord(floor_z) != chunk_pos.y
@@ -1354,6 +1369,29 @@ impl Entity {
                 }
             }
         }
+    }
+
+    /// Fires `EntityEnteringSectionEvent` if anybody listens.
+    fn fire_entering_section_event(&self, old_pos: Vector3<i32>, new_pos: Vector3<i32>) {
+        let Some(server) = self.world.load().server.upgrade() else {
+            return;
+        };
+        if !server
+            .plugin_manager
+            .has_handlers::<EntityEnteringSectionEvent>()
+        {
+            return;
+        }
+        let section = |pos: Vector3<i32>| {
+            BlockPos(Vector3::new(
+                get_section_cord(pos.x),
+                get_section_cord(pos.y),
+                get_section_cord(pos.z),
+            ))
+        };
+        let mut event =
+            EntityEnteringSectionEvent::new(self.entity_id, section(old_pos), section(new_pos));
+        server.plugin_manager.fire_blocking(&server, &mut event);
     }
 
     /// Returns entity rotation as vector
@@ -3048,7 +3086,20 @@ impl Entity {
             }
         }
 
-        let dimension = self.get_dimensions(pose);
+        let mut dimension = self.get_dimensions(pose);
+        if let Some(server) = self.world.load().server.upgrade()
+            && server.plugin_manager.has_handlers::<EntitySizeEvent>()
+        {
+            let mut event = EntitySizeEvent::new(
+                self.entity_id,
+                (pose as u8).to_string(),
+                dimension.width,
+                dimension.height,
+                dimension.eye_height,
+            );
+            server.plugin_manager.fire_blocking(&server, &mut event);
+            dimension = EntityDimensions::new(event.width, event.height, event.eye_height);
+        }
         let position = self.pos.load();
         let aabb = BoundingBox::new_from_pos(position.x, position.y, position.z, &dimension);
         self.pose.store(pose);
@@ -4002,7 +4053,7 @@ impl Entity {
         let position = self.pos.load();
         nbt.put_string(
             "id",
-            format!("minecraft:{}", self.entity_type.resource_name),
+            self.entity_type.resource_location().into_owned(),
         );
         nbt.put_uuid("UUID", self.entity_uuid);
         nbt.put(

@@ -796,23 +796,8 @@ impl EntityBase for ArrowEntity {
 
     #[allow(clippy::too_many_lines)]
     fn on_hit(&self, hit: ProjectileHit) {
-        let (hit_pos, hit_entity) = match hit {
-            ProjectileHit::Block { hit_pos, .. } => (hit_pos, None),
-            ProjectileHit::Entity {
-                ref entity,
-                hit_pos,
-                ..
-            } => (hit_pos, Some(entity.get_entity().entity_id)),
-        };
-        let mut hit_event =
-            crate::plugin::api::events::entity::projectile_hit::ProjectileHitEvent::new(
-                self.entity.entity_id,
-                hit_pos,
-                hit_entity,
-            );
-        if let Some(server) = self.entity.world.load().server.upgrade() {
-            server.plugin_manager.fire_blocking(&server, &mut hit_event);
-        }
+        // The arrow has hit already, a handler can not undo it.
+        super::fire_projectile_hit_event(&self.entity, &hit);
 
         let entity = self.get_entity();
         let world = entity.world.load();

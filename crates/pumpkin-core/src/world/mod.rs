@@ -1670,6 +1670,42 @@ impl World {
         // Plugin handlers run below, they must not find the lock held.
         drop(active_chunks);
 
+        // Sequential, and only when a plugin listens.
+        if server
+            .plugin_manager
+            .has_handlers::<crate::plugin::api::events::entity::PlayerTickEvent>()
+        {
+            for player in players.iter() {
+                let mut event =
+                    crate::plugin::api::events::entity::PlayerTickEvent::new(player.clone());
+                server.plugin_manager.fire_blocking(server, &mut event);
+            }
+        }
+        if crate::plugin::api::events::entity::any_entity_ticking()
+            && server
+                .plugin_manager
+                .has_handlers::<crate::plugin::api::events::entity::EntityTickEvent>()
+        {
+            let tick = server.tick_count.load(Relaxed);
+            for (entity, _) in &tickable {
+                let entity = entity.get_entity();
+                let interval =
+                    crate::plugin::api::events::entity::entity_tick_interval(entity.entity_type.id);
+                if interval == 0
+                    || (interval > 1
+                        && (tick as u32).wrapping_add(entity.entity_id as u32) % interval != 0)
+                {
+                    continue;
+                }
+                let mut event = crate::plugin::api::events::entity::EntityTickEvent::new(
+                    entity.entity_id,
+                    format!("minecraft:{}", entity.entity_type.resource_name),
+                    tick,
+                );
+                server.plugin_manager.fire_blocking(server, &mut event);
+            }
+        }
+
         let t_be = std::time::Instant::now();
         let be_handle = handle;
         block_entities.par_chunks(16).for_each(|batch| {
@@ -4302,8 +4338,7 @@ impl World {
                             debug!("Entity has no ID");
                             continue;
                         };
-                        let Some(entity_type) =
-                            EntityType::from_name(id.strip_prefix("minecraft:").unwrap_or(id))
+                        let Some(entity_type) = pumpkin_data::entity_registry::entity_type_by_key(id)
                         else {
                             warn!("Entity has no valid Entity Type {id}");
                             continue;
@@ -7286,9 +7321,7 @@ impl WorldPortalExt for WorldPortal {
             let Some(id) = nbt.get_string("id") else {
                 continue;
             };
-            let Some(entity_type) =
-                EntityType::from_name(id.strip_prefix("minecraft:").unwrap_or(id))
-            else {
+            let Some(entity_type) = pumpkin_data::entity_registry::entity_type_by_key(id) else {
                 warn!("Unknown structure entity type: {id}");
                 continue;
             };

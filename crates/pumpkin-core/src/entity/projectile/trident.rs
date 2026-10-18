@@ -285,6 +285,11 @@ impl EntityBase for TridentEntity {
         if let Some(h) = hit
             && !self.has_hit.swap(true, Ordering::SeqCst)
         {
+            // A cancelled hit lets the trident fly on and hit again.
+            if super::fire_projectile_hit_event(&self.entity, &h) {
+                self.has_hit.store(false, Ordering::SeqCst);
+                return;
+            }
             caller.on_hit(h);
         }
     }

@@ -17,6 +17,7 @@ use crate::pumpkin::plugin::common::Position as WitPosition;
 use crate::pumpkin::plugin::game_rules::{
     GameRule as WitGameRule, GameRuleValue as WitGameRuleValue,
 };
+use crate::pumpkin::plugin::fluid_registry::FluidStack as WitFluidStack;
 use crate::pumpkin::plugin::world::{
     Block as WitBlock, BlockDirection as WitBlockDirection, BlockEntityType,
     BlockFlags as WitBlockFlags, BlockPos as WitBlockPos, BlockState as WitBlockState,
@@ -783,6 +784,65 @@ impl pumpkin::plugin::world::HostWorld for PluginHostState {
         }))
     }
 
+    fn try_place_fluid(
+        &mut self,
+        world: Resource<World>,
+        pos: WitBlockPos,
+        fluid_key: String,
+    ) -> wasmtime::Result<bool> {
+        let world = self.get(&world)?;
+        let pos = BlockPos::new(pos.x, pos.y, pos.z);
+        let Some(fluid) = pumpkin_data::fluid::Fluid::from_registry_key(
+            fluid_key.strip_prefix("minecraft:").unwrap_or(&fluid_key),
+        ) else {
+            return Ok(false);
+        };
+        if !world.is_loaded(&pos) {
+            return Ok(false);
+        }
+        Ok(pumpkin_core::block::fluid::plugin_fluid::try_place_fluid(
+            &world, pos, fluid,
+        ))
+    }
+
+    fn try_pickup_fluid(
+        &mut self,
+        world: Resource<World>,
+        pos: WitBlockPos,
+    ) -> wasmtime::Result<Option<WitFluidStack>> {
+        let world = self.get(&world)?;
+        let pos = BlockPos::new(pos.x, pos.y, pos.z);
+        if !world.is_loaded(&pos) {
+            return Ok(None);
+        }
+        Ok(
+            pumpkin_core::block::fluid::plugin_fluid::try_pickup_fluid(&world, pos).map(|fluid| {
+                WitFluidStack {
+                    fluid: fluid.resource_location().into_owned(),
+                    amount: 1000,
+                    data: None,
+                }
+            }),
+        )
+    }
+
+    fn schedule_fluid_tick(
+        &mut self,
+        world: Resource<World>,
+        pos: WitBlockPos,
+        delay: u8,
+    ) -> wasmtime::Result<()> {
+        let world = self.get(&world)?;
+        let pos = BlockPos::new(pos.x, pos.y, pos.z);
+        if world.is_loaded(&pos) {
+            let (fluid, state) = world.get_fluid_and_fluid_state(&pos);
+            if !state.is_empty {
+                world.schedule_fluid_tick(fluid, pos, delay, TickPriority::Normal);
+            }
+        }
+        Ok(())
+    }
+
     fn get_time_of_day(&mut self, world: Resource<World>) -> wasmtime::Result<u64> {
         Ok(self.get(&world)?.get_time_of_day() as u64)
     }
@@ -1382,6 +1442,25 @@ impl pumpkin::plugin::world::HostWorldWithStore<PluginHostState> for HasSelf<Plu
         let spawned_entity = Arc::clone(&entity);
         run_blocking(accessor, move || world.spawn_entity(spawned_entity)).await?;
         accessor.add_res(entity)
+    }
+
+    async fn spawn_plugin_entity(
+        accessor: &Accessor<PluginHostState, Self>,
+        world: Resource<World>,
+        type_key: String,
+        pos: WitPosition,
+        synced_data: Option<Vec<u8>>,
+        spawn_data: Option<Vec<u8>>,
+    ) -> wasmtime::Result<Result<Resource<pumpkin::plugin::world::Entity>, String>> {
+        let world = accessor.with(|mut host| world_from_state(host.get(), &world))?;
+        let spawned = run_blocking(accessor, move || {
+            super::entity_registry::spawn_plugin_entity(&world, &type_key, pos, synced_data, spawn_data)
+        })
+        .await?;
+        match spawned {
+            Ok(entity) => Ok(Ok(accessor.add_res(entity)?)),
+            Err(error) => Ok(Err(error)),
+        }
     }
 
     async fn spawn_item(

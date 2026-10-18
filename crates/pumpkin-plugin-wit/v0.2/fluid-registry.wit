@@ -1,0 +1,92 @@
+/// Registration of custom fluids.
+///
+/// Vanilla fluids have the ids `0..get-vanilla-fluid-count()`, custom fluids get
+/// `get-vanilla-fluid-count() + n` where `n` is the registration order. Like vanilla, a still
+/// fluid and its flowing variant are two entries (`water` and `flowing_water`).
+///
+/// A fluid may name a plugin block (see `block-registry`) that holds it in the world. The server
+/// has no flow physics for registered fluids, plugins move them with `world.schedule-fluid-tick`
+/// and block callbacks. Fluids without a block are virtual: they exist in registries, tanks and
+/// buckets only.
+///
+/// Registration closes when the server starts accepting connections (after plugin load and
+/// `server-load-event`) and needs the `registry.fluids` permission.
+interface fluid-registry {
+    /// The block that holds a fluid.
+    record fluid-placement {
+        /// Full key of a block registered by a plugin.
+        block: string,
+        /// Whether the block holds flowing fluid (`level` 1 to 8 and `falling` properties).
+        /// Otherwise every state of the block is a source.
+        flowing: bool,
+    }
+
+    /// A fluid to add to the fluid registry.
+    record fluid-definition {
+        /// Full resource location, `namespace:path`, lowercase. The `minecraft` namespace is
+        /// reserved.
+        key: string,
+        /// The block that holds the fluid, none for a virtual fluid.
+        placement: option<fluid-placement>,
+        /// Key of the registered fluid that is the flowing variant of this (still) fluid.
+        flowing-variant: option<string>,
+        /// Key of the registered plugin item that is the bucket of this fluid.
+        bucket-item: option<string>,
+        /// Ticks between flow steps, at least 1.
+        tick-rate: u8,
+        /// How much the amount drops per block of flow, 1 to 8.
+        level-decrease-per-block: u8,
+        /// How far from a hole the fluid looks for a slope, at most 8.
+        slope-find-distance: u8,
+        can-convert-to-source: bool,
+        /// Emitted light, 0 to 15.
+        luminance: u8,
+        /// Vanilla water is 1000 and lava 3000.
+        density: s32,
+        /// In kelvin, water is 300 and lava 1300.
+        temperature: s32,
+        /// Vanilla water is 1000 and lava 6000.
+        viscosity: s32,
+        /// Fluid tags the fluid joins, `namespace:path`.
+        tags: list<string>,
+    }
+
+    /// An amount of a fluid, as held by tanks and buckets.
+    record fluid-stack {
+        /// Full resource location of the fluid, `minecraft:water` for vanilla ones.
+        fluid: string,
+        /// Amount in millibuckets, a bucket holds 1000.
+        amount: u32,
+        /// Plugin defined data that travels with the fluid, such as a potion type.
+        data: option<list<u8>>,
+    }
+
+    /// A fluid and its id.
+    record fluid-entry {
+        key: string,
+        id: u32,
+    }
+
+    /// Registers a fluid and returns its id. Fails for an invalid or duplicate key, an unknown or
+    /// used block, variant or bucket item, an invalid definition, or when registration is closed.
+    register-fluid: func(definition: fluid-definition) -> result<u32, string>;
+
+    /// Returns the id of a fluid by key, vanilla (`minecraft:` prefix optional) or custom.
+    get-fluid-id: func(key: string) -> option<u32>;
+
+    /// Returns the full resource location (`minecraft:` prefixed for vanilla) of a fluid id.
+    get-fluid-key: func(id: u32) -> option<string>;
+
+    /// Returns the number of vanilla fluids. This is also the id of the first custom fluid.
+    get-vanilla-fluid-count: func() -> u32;
+
+    /// Returns all custom fluids in id order.
+    get-registered-fluids: func() -> list<fluid-entry>;
+
+    /// Returns the fluid a bucket item holds as a full bucket (1000 millibuckets), none when the
+    /// item is not a fluid bucket. The flowing variants share the bucket of their still fluid.
+    fluid-from-bucket: func(item-key: string) -> option<fluid-stack>;
+
+    /// Returns the key of the bucket item of a fluid, none when it has none.
+    bucket-for-fluid: func(fluid-key: string) -> option<string>;
+}

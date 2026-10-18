@@ -40,6 +40,10 @@ pub mod i18n;
 pub mod inventory;
 pub mod ipc;
 pub mod item_entity;
+pub mod item_handler;
+pub mod fluid_registry;
+pub mod entity_registry;
+pub mod entity_ticking;
 pub mod item_registry;
 pub mod item_stack;
 pub mod java_dialogs;
@@ -265,6 +269,9 @@ mod resource_with {
     }
     impl FromResource for plugin::item_stack::ItemStack {
         type Internal = Arc<Mutex<pumpkin_data::item_stack::ItemStack>>;
+    }
+    impl FromResource for plugin::item_handler::ItemHandler {
+        type Internal = Arc<pumpkin_core::block::item_handler::ItemHandler>;
     }
     impl FromResource for plugin::recipe::RecipeManager {
         type Internal = Arc<RecipeManager>;

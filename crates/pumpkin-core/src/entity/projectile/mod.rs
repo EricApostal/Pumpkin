@@ -238,6 +238,12 @@ impl ThrownItemEntity {
                 return;
             }
 
+            // A cancelled hit lets the projectile fly on and hit again.
+            if fire_projectile_hit_event(entity, &h) {
+                self.has_hit.store(false, Ordering::SeqCst);
+                return;
+            }
+
             if let ProjectileHit::Block { pos, hit_pos, .. } = &h {
                 let block = world.get_block(pos);
                 let state = world.get_block_state(pos);
@@ -340,6 +346,31 @@ fn get_hit_face(hit_pos: Vector3<f64>, block_pos: BlockPos) -> BlockDirection {
     } else {
         BlockDirection::South
     }
+}
+
+/// Fires `ProjectileHitEvent` for a hit of a projectile, returns whether a handler cancelled it.
+pub fn fire_projectile_hit_event(projectile: &Entity, hit: &ProjectileHit) -> bool {
+    let Some(server) = projectile.world.load().server.upgrade() else {
+        return false;
+    };
+    if !server
+        .plugin_manager
+        .has_handlers::<crate::plugin::api::events::entity::projectile_hit::ProjectileHitEvent>()
+    {
+        return false;
+    }
+    let (hit_entity, hit_block) = match hit {
+        ProjectileHit::Block { pos, .. } => (None, Some(*pos)),
+        ProjectileHit::Entity { entity, .. } => (Some(entity.get_entity().entity_id), None),
+    };
+    let mut event = crate::plugin::api::events::entity::projectile_hit::ProjectileHitEvent::new(
+        projectile.entity_id,
+        hit.hit_pos(),
+        hit_entity,
+        hit_block,
+    );
+    server.plugin_manager.fire_blocking(&server, &mut event);
+    event.cancelled
 }
 
 pub enum ProjectileHit {

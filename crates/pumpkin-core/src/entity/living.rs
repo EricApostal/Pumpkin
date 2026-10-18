@@ -24,6 +24,9 @@ use tracing::warn;
 
 use super::experience_orb::ExperienceOrbEntity;
 use super::{Entity, EntityBase, NBTStorageInit};
+use crate::plugin::api::events::entity::{
+    LivingDropsEvent, LivingEquipmentChangeEvent,
+};
 use crate::block::OnLandedUponArgs;
 use crate::entity::NBTStorage;
 use crate::entity::ageable::AgeableMob;
@@ -96,6 +99,8 @@ pub struct LivingEntity {
     pub active_effects: std::sync::Mutex<FxHashMap<&'static StatusEffect, Effect>>,
     pub entity_equipment: Arc<std::sync::Mutex<EntityEquipment>>,
     pub equipment_drop_chances: Arc<std::sync::Mutex<FxHashMap<EquipmentSlot, f32>>>,
+    /// What `LivingEquipmentChangeEvent` last reported per slot, only kept while it has handlers.
+    reported_equipment: std::sync::Mutex<FxHashMap<EquipmentSlot, ItemStack>>,
     pub movement_input: AtomicCell<Vector3<f64>>,
     pub equipment_slots: Arc<FxHashMap<usize, EquipmentSlot>>,
 
@@ -295,6 +300,7 @@ impl LivingEntity {
             active_effects: std::sync::Mutex::new(FxHashMap::default()),
             entity_equipment: Arc::new(std::sync::Mutex::new(EntityEquipment::new())),
             equipment_drop_chances: Arc::new(std::sync::Mutex::new(FxHashMap::default())),
+            reported_equipment: std::sync::Mutex::new(FxHashMap::default()),
             equipment_slots: Arc::new(build_equipment_slots()),
             jumping: AtomicBool::new(false),
             jumping_cooldown: AtomicU8::new(0),
@@ -386,10 +392,42 @@ impl LivingEntity {
         }
     }
 
+    /// Fires `LivingEquipmentChangeEvent` for the slots whose stack differs from the last report.
+    fn fire_equipment_change_events(&self, equipment: &[(EquipmentSlot, ItemStack)]) {
+        let Some(server) = self.entity.world.load().server.upgrade() else {
+            return;
+        };
+        if !server
+            .plugin_manager
+            .has_handlers::<LivingEquipmentChangeEvent>()
+        {
+            return;
+        }
+        for (slot, stack) in equipment {
+            let old = self
+                .reported_equipment
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .insert(slot.clone(), stack.clone())
+                .unwrap_or_else(|| ItemStack::EMPTY.clone());
+            if old.are_equal(stack) {
+                continue;
+            }
+            let mut event = LivingEquipmentChangeEvent::new(
+                self.entity.entity_id,
+                slot.to_name().to_string(),
+                old,
+                stack.clone(),
+            );
+            server.plugin_manager.fire_blocking(&server, &mut event);
+        }
+    }
+
     pub fn send_equipment_changes(&self, equipment: &[(EquipmentSlot, ItemStack)]) {
         if equipment.is_empty() {
             return;
         }
+        self.fire_equipment_change_events(equipment);
         self.apply_and_send_equipment_attribute_modifiers(equipment);
 
         if equipment
@@ -2108,8 +2146,7 @@ impl LivingEntity {
                 ..Default::default()
             };
 
-            // Drop loot
-            self.drop_loot(&params);
+            let mut drops = self.collect_loot(&params);
 
             // Award experience
             if params.killed_by_player.unwrap_or(false)
@@ -2122,7 +2159,8 @@ impl LivingEntity {
             }
             self.entity.pose.store(EntityPose::Dying);
 
-            self.drop_equipment(looting_level);
+            drops.extend(self.collect_equipment_drops(looting_level));
+            self.drop_death_stacks(killer, drops);
 
             // Broadcast death message if it's a player and the gamerule is enabled
             self.broadcast_death_message(&*dyn_self, damage_type, source, cause);
@@ -2148,9 +2186,34 @@ impl LivingEntity {
         }
     }
 
-    fn drop_equipment(&self, looting_level: u32) {
+    /// Drops the stacks of a death, after plugins had the chance to change them.
+    fn drop_death_stacks(&self, killer: Option<&dyn EntityBase>, mut drops: Vec<ItemStack>) {
         let world = self.entity.world.load();
+        if let Some(server) = world.server.upgrade()
+            && server.plugin_manager.has_handlers::<LivingDropsEvent>()
+        {
+            let mut event = LivingDropsEvent::new(
+                self.entity.entity_id,
+                killer.map(|killer| killer.get_entity().entity_id),
+                self.entity.pos.load(),
+                drops,
+            );
+            server.plugin_manager.fire_blocking(&server, &mut event);
+            if event.cancelled {
+                return;
+            }
+            drops = event.drops;
+        }
         let block_pos = self.entity.block_pos.load();
+        for stack in drops {
+            if !stack.is_empty() {
+                world.drop_stack(&block_pos, stack);
+            }
+        }
+    }
+
+    fn collect_equipment_drops(&self, looting_level: u32) -> Vec<ItemStack> {
+        let mut drops = Vec::new();
 
         let drop_chances = self
             .equipment_drop_chances
@@ -2196,8 +2259,9 @@ impl LivingEntity {
                 let outer = rng.random_range(0..=inner);
                 item.set_damage((max_damage - outer).max(0));
             }
-            world.drop_stack(&block_pos, item);
+            drops.push(item);
         }
+        drops
     }
 
     fn broadcast_death_message(
@@ -2320,17 +2384,16 @@ impl LivingEntity {
         }
     }
 
-    fn drop_loot(&self, params: &LootContextParameters) {
+    fn collect_loot(&self, params: &LootContextParameters) -> Vec<ItemStack> {
         let resource_name = self.get_entity().entity_type.resource_name;
         let key = format!("minecraft:entities/{resource_name}");
         let world = self.entity.world.load();
-        if let Some(loot_table) = world.get_loot_table(&key) {
+        world.get_loot_table(&key).map_or_else(Vec::new, |loot_table| {
             let seed: i64 = rand::random();
-            let pos = self.entity.block_pos.load();
-            for stack in crate::world::loot::generate_loot_from_handle(&loot_table, seed, params) {
-                world.drop_stack(&pos, stack);
-            }
-        }
+            crate::world::loot::generate_loot_from_handle(&loot_table, seed, params)
+                .into_iter()
+                .collect()
+        })
     }
 
     fn tick_effects(&self) {
@@ -3227,8 +3290,15 @@ impl LivingEntity {
                 let dx = source_pos.x - target_pos.x;
                 let dz = source_pos.z - target_pos.z;
                 let resistance = self.get_attribute_value(&Attributes::KNOCKBACK_RESISTANCE);
-                self.entity
-                    .apply_knockback(knockback_after_resistance(0.4, resistance), dx, dz);
+                if let Some((strength, x, z)) = crate::entity::combat::fire_knockback_event(
+                    &self.entity,
+                    Some(source.get_entity().entity_id),
+                    knockback_after_resistance(0.4, resistance),
+                    dx,
+                    dz,
+                ) {
+                    self.entity.apply_knockback(strength, x, z);
+                }
             }
         }
 

@@ -2,6 +2,7 @@ use pumpkin_util::Difficulty;
 
 use crate::entity::EntityBase;
 use crate::entity::living::{LivingEntity, can_be_seen_as_enemy};
+use crate::plugin::api::events::entity::LivingVisibilityEvent;
 use crate::world::World;
 use std::sync::Arc;
 
@@ -125,7 +126,20 @@ impl TargetPredicate {
             // Vanilla `getVisibilityPercent`: sneaking, invisibility (by armor cover) and mob heads
             // shrink the range, min 2 blocks. Only piglin_ai::visibility_percent has it, move to
             // `LivingEntity` and gate on `use_distance_scaling_factor` (revenge ignores it).
-            let max_dist = self.base_max_distance.max(MIN_DISTANCE);
+            let mut max_dist = self.base_max_distance;
+            if let Some(server) = world.server.upgrade()
+                && server
+                    .plugin_manager
+                    .has_handlers::<LivingVisibilityEvent>()
+            {
+                let mut event = LivingVisibilityEvent::new(
+                    target.get_entity().entity_id,
+                    tester.get_entity().entity_id,
+                );
+                server.plugin_manager.fire_blocking(&server, &mut event);
+                max_dist *= event.multiplier.max(0.0);
+            }
+            let max_dist = max_dist.max(MIN_DISTANCE);
             let dist_sq = tester
                 .get_entity()
                 .pos

@@ -1,0 +1,69 @@
+/// Registration of custom entity types.
+///
+/// Vanilla entity types have the ids `0..get-vanilla-entity-type-count()`, custom types get
+/// `get-vanilla-entity-type-count() + n` where `n` is the registration order. Spawn them with
+/// `world.spawn-plugin-entity`.
+///
+/// Registration closes when the server starts accepting connections (after plugin load and
+/// `server-load-event`) and needs the `registry.entities` permission.
+interface entity-registry {
+    /// The spawn category of a type, only used for the category counts of natural spawning (which
+    /// never spawns custom types).
+    enum entity-category {
+        misc,
+        creature,
+        monster,
+        ambient,
+        axolotls,
+        underground-water-creature,
+        water-creature,
+        water-ambient,
+    }
+
+    /// An entity type to add to the entity type registry.
+    record entity-type-definition {
+        /// Full resource location, `namespace:path`, lowercase, `a-z 0-9 _ - .` (and `/` in the
+        /// path). The `minecraft` namespace is reserved. Also the `id` saved with the entity.
+        key: string,
+        category: entity-category,
+        /// Width of the hitbox, in blocks (0 to 64).
+        width: f32,
+        /// Height of the hitbox, in blocks (0 to 64).
+        height: f32,
+        /// Height of the eyes above the feet. 85% of the height if not given.
+        eye-height: option<f32>,
+        fire-immune: bool,
+        /// How far clients see the entity, in chunks (at most 256). 0 means it is never sent.
+        tracking-range: u32,
+        /// Ticks between the position updates sent to clients (at least 1).
+        update-interval: u32,
+        /// Whether movement is sent as deltas.
+        track-deltas: bool,
+        /// Whether `/summon` may create it.
+        summonable: bool,
+        /// Whether the entity is saved with its chunk.
+        saveable: bool,
+        /// Whether players can target the entity (attack, interact).
+        pickable: bool,
+        /// Whether other entities collide with it, like with a boat.
+        collidable: bool,
+        /// Encoded entity metadata entries (index, serializer id, value; without the 0xFF end
+        /// marker) that a new entity starts with, at most 8192 bytes.
+        default-synced-data: list<u8>,
+        /// Channel (`namespace:path`) of the custom payload sent right after the add entity packet
+        /// to every client that starts to track an entity of the type. The payload is the entity's
+        /// `VarInt` id followed by its spawn data.
+        spawn-data-channel: option<string>,
+    }
+
+    /// Registers an entity type and returns its network id. Registering the same definition again
+    /// returns the existing id. Fails for an invalid key or definition, a different definition for
+    /// a known key, or when registration is closed.
+    register-entity-type: func(definition: entity-type-definition) -> result<u32, string>;
+
+    /// Returns the id of an entity type by key, vanilla (`minecraft:` prefix optional) or custom.
+    get-entity-type-id: func(key: string) -> option<u32>;
+
+    /// Returns the number of vanilla entity types. This is also the id of the first custom type.
+    get-vanilla-entity-type-count: func() -> u32;
+}

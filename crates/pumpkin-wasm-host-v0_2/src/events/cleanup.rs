@@ -789,5 +789,22 @@ pub fn cleanup_event(event: &Event, state: &mut PluginHostState) {
         Event::CustomBlockComparatorOutputEvent(data) => {
             cleanup_world(state, &data.target_world);
         }
+        Event::LivingDropsEvent(data) => {
+            for res in &data.drops {
+                cleanup_item_stack(state, res);
+            }
+        }
+        Event::LivingEquipmentChangeEvent(data) => {
+            cleanup_item_stack(state, &data.old_stack);
+            cleanup_item_stack(state, &data.new_stack);
+        }
+        Event::PlayerTickEvent(data) => {
+            cleanup_player(state, &data.player);
+        }
+        Event::LivingBreatheEvent(_)
+        | Event::LivingVisibilityEvent(_)
+        | Event::EntitySizeEvent(_)
+        | Event::EntityTickEvent(_)
+        | Event::EntityEnteringSectionEvent(_) => {}
     }
 }

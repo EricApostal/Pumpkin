@@ -58,6 +58,8 @@ world plugin {
     import recipe;
     /// Provides inventory manipulation and management.
     import inventory;
+    /// Provides sided access to the items of container blocks and plugin inventories.
+    import item-handler;
     /// Provides datapack inspection and management.
     import datapack;
     /// Provides custom enchantment registration and management.
@@ -66,12 +68,18 @@ world plugin {
     import item-registry;
     /// Provides custom block registration.
     import block-registry;
+    /// Provides custom entity type registration.
+    import entity-registry;
+    /// Provides custom fluid registration.
+    import fluid-registry;
     /// Provides placement rules (property values chosen when a player places) for custom blocks.
     import block-placement;
     /// Provides opt-in callbacks (events) for the hooks of custom blocks.
     import block-callbacks;
     /// Provides custom block entity types and the block entities of plugin blocks.
     import plugin-block-entity;
+    /// Provides opt-in ticking of the entities of a type.
+    import entity-ticking;
     /// Provides custom menu types and menus of plugin defined types.
     import menus;
     /// Provides custom data component types and their values on item stacks.

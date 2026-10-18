@@ -27,6 +27,7 @@ pub mod entity;
 pub mod hanging;
 pub mod host_features;
 pub mod inventory;
+pub mod living_extra;
 pub mod player;
 pub mod raid;
 pub mod server;

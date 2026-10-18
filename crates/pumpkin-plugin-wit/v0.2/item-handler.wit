@@ -1,0 +1,68 @@
+/// Item handlers: moving items into and out of the containers of blocks, seen from one side, like
+/// a hopper does.
+///
+/// An `item-handler` is a view of the slots of the container at a position. Its slots are
+/// numbered from 0 and are the slots reachable through the side the handler was made for: a
+/// furnace seen from below has the output slot first and the fuel slot second, seen from above
+/// only the input slot. The side decides which slots can be filled and emptied, with the rules
+/// the hoppers use (a brewing stand takes potions only from below, a furnace gives out only
+/// empty buckets from its fuel slot, a shulker box takes no shulker box). With no side the
+/// handler sees every slot, and only the validity of an item for a slot is checked.
+///
+/// The containers that have a handler are the block entities that hold items: chests (a double
+/// chest is one handler with the slots of both halves), trapped chests, barrels, shulker boxes,
+/// furnaces, smokers, blast furnaces, hoppers, brewing stands, dispensers, droppers, and the
+/// plugin inventories made with `register-plugin-inventory`.
+///
+/// A handler holds the container it was made for. It keeps working after the block is gone, on a
+/// container nobody can reach any more, so ask for a new handler when the block may have changed.
+/// Changes made through a handler are marked, so they are saved and comparators see them. The
+/// experience a furnace collects is not paid out when the output is taken through a handler.
+interface item-handler {
+    use common.{block-pos};
+    use item-stack.{item-stack};
+    use %world.{%world, block-direction};
+
+    resource item-handler {
+        /// The number of slots the side can reach.
+        slot-count: func() -> u32;
+
+        /// A copy of the stack in a slot, none if the slot is empty or does not exist.
+        get-stack: func(slot: u32) -> option<item-stack>;
+
+        /// The most items the slot takes, before the max stack size of the item. 0 if the slot
+        /// does not exist.
+        get-slot-limit: func(slot: u32) -> u8;
+
+        /// Whether the stack may be put into the slot through this side, no matter what the slot
+        /// holds or how full it is.
+        is-item-valid: async func(slot: u32, stack: borrow<item-stack>) -> bool;
+
+        /// Puts the stack into one slot, or when `slot` is none into the slots in order, first on
+        /// the stacks it merges with and then into empty slots. Returns what did not fit, none if
+        /// everything went in. With `simulate` nothing changes and the result is what would be
+        /// returned. The given stack is not changed.
+        insert: async func(slot: option<u32>, stack: borrow<item-stack>, simulate: bool) -> option<item-stack>;
+
+        /// Takes up to `amount` items out of a slot, as far as this side may take them. Returns
+        /// the items taken, none if there are none. With `simulate` nothing changes.
+        extract: func(slot: u32, amount: u8, simulate: bool) -> option<item-stack>;
+    }
+
+    /// The item handler of the container at a position, seen from `side` (the face of the block
+    /// the items go through). With no side the handler sees every slot. None if the chunk is not
+    /// loaded or the block has no container.
+    get-item-handler: func(target-world: borrow<%world>, pos: block-pos, side: option<block-direction>) -> option<item-handler>;
+
+    /// Gives the plugin block entity at a position an inventory of `slot-count` slots (at most
+    /// 4096) that take `slot-limit` items at most (1 to 99), or resizes the one it has. Growing
+    /// keeps the items, shrinking fails if a slot that would go is not empty. The inventory is
+    /// saved with the entity, every slot is open to every side, and hoppers and `get-item-handler`
+    /// see it. Fails if there is no plugin block entity at the position.
+    register-plugin-inventory: func(target-world: borrow<%world>, pos: block-pos, slot-count: u32, slot-limit: u8) -> result<_, string>;
+
+    /// Takes the inventory away from the plugin block entity at a position and returns the items
+    /// that were in it. Fails if there is no such entity, an entity without an inventory returns
+    /// an empty list.
+    unregister-plugin-inventory: func(target-world: borrow<%world>, pos: block-pos) -> result<list<item-stack>, string>;
+}

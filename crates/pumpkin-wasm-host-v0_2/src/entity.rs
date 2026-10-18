@@ -737,6 +737,57 @@ impl HostEntity for PluginHostState {
         Ok(entity.get_item_entity().is_some())
     }
 
+    fn get_plugin_type_key(&mut self, this: Resource<Entity>) -> wasmtime::Result<Option<String>> {
+        let entity = self.get(&this)?;
+        Ok(entity
+            .get_plugin_entity()
+            .map(|plugin| plugin.plugin_type().key.to_string()))
+    }
+
+    fn get_plugin_synced_data(
+        &mut self,
+        this: Resource<Entity>,
+    ) -> wasmtime::Result<Option<Vec<u8>>> {
+        let entity = self.get(&this)?;
+        Ok(entity.get_plugin_entity().map(|plugin| plugin.synced_data()))
+    }
+
+    fn set_plugin_synced_data(
+        &mut self,
+        this: Resource<Entity>,
+        data: Vec<u8>,
+    ) -> wasmtime::Result<Result<(), String>> {
+        let entity = self.get(&this)?;
+        Ok(super::entity_registry::set_synced_data(entity.as_ref(), data))
+    }
+
+    fn get_plugin_spawn_data(
+        &mut self,
+        this: Resource<Entity>,
+    ) -> wasmtime::Result<Option<Vec<u8>>> {
+        let entity = self.get(&this)?;
+        Ok(entity.get_plugin_entity().map(|plugin| plugin.spawn_data()))
+    }
+
+    fn set_plugin_spawn_data(
+        &mut self,
+        this: Resource<Entity>,
+        data: Vec<u8>,
+    ) -> wasmtime::Result<Result<(), String>> {
+        let entity = self.get(&this)?;
+        Ok(super::entity_registry::set_spawn_data(entity.as_ref(), data))
+    }
+
+    fn set_plugin_size(
+        &mut self,
+        this: Resource<Entity>,
+        width: f32,
+        height: f32,
+    ) -> wasmtime::Result<Result<(), String>> {
+        let entity = self.get(&this)?;
+        Ok(super::entity_registry::set_size(entity.as_ref(), width, height))
+    }
+
     fn is_living(&mut self, this: Resource<Entity>) -> wasmtime::Result<bool> {
         let entity = self.get(&this)?;
         Ok(entity.get_living_entity().is_some())

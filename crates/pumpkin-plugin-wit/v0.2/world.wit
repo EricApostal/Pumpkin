@@ -9,6 +9,7 @@ interface %world {
     use biomes.{biome};
     use attributes.{attribute, modifier-operation, attribute-modifier};
     use item-stack.{item-stack};
+    use fluid-registry.{fluid-stack};
     use damage-types.{damage-type};
     use game-rules.{game-rule, game-rule-value};
 
@@ -546,6 +547,22 @@ interface %world {
 
         /// Returns whether this entity is a dropped item.
         is-item: func() -> bool;
+
+        /// Returns the key of the registered type if this is a plugin entity, or none otherwise.
+        get-plugin-type-key: func() -> option<string>;
+        /// Returns the synced data (encoded entity metadata entries) of a plugin entity.
+        get-plugin-synced-data: func() -> option<list<u8>>;
+        /// Replaces the synced data of a plugin entity and sends it to the clients that track it.
+        /// Fails for other entities or data over 8192 bytes.
+        set-plugin-synced-data: func(data: list<u8>) -> result<_, string>;
+        /// Returns the spawn data of a plugin entity.
+        get-plugin-spawn-data: func() -> option<list<u8>>;
+        /// Replaces the spawn data of a plugin entity. Clients that track it already keep what they
+        /// got, the ones that start to track it later receive the new bytes. Fails for other
+        /// entities or data over 16384 bytes.
+        set-plugin-spawn-data: func(data: list<u8>) -> result<_, string>;
+        /// Changes the hitbox size of a plugin entity.
+        set-plugin-size: func(width: f32, height: f32) -> result<_, string>;
     }
 
     /// Represents a dropped item (the entity of an item lying in the world).
@@ -931,6 +948,21 @@ interface %world {
         /// loaded. How a block reacts to pistons is `piston-behavior` of `get-block-state`.
         get-fluid-state: func(pos: block-pos) -> option<fluid-state>;
 
+        /// Places a source of the fluid at `pos` like a bucket does: waterlogs a block that can
+        /// hold water, otherwise needs air, fluid or a replaceable block. Returns false when the
+        /// spot is taken, the chunk is not loaded, or the fluid has no block (virtual fluids,
+        /// flowing variants). `fluid-key` is vanilla or registered with `fluid-registry`.
+        try-place-fluid: func(pos: block-pos, fluid-key: string) -> bool;
+
+        /// Removes the source fluid at `pos` like a bucket does (waterlogged blocks, water, lava
+        /// and sources of registered fluids) and returns one bucket (1000 millibuckets) of it.
+        /// Flowing fluid is not picked up.
+        try-pickup-fluid: func(pos: block-pos) -> option<fluid-stack>;
+
+        /// Schedules a fluid tick for the fluid at `pos` after `delay` ticks. Does nothing without
+        /// a fluid at `pos`.
+        schedule-fluid-tick: func(pos: block-pos, delay: u8);
+
         /// Returns what the block at `pos` would drop when broken with `tool` (none for bare
         /// hands), with the enchantments, such as fortune and silk touch, of the tool applied. The
         /// block is not broken, no event fires and nothing spawns. Loot tables roll randomly, so
@@ -1089,6 +1121,11 @@ interface %world {
 
         /// Spawns an entity of the specified type at the given position.
         spawn-entity: async func(entity-type: entity-type, pos: position) -> entity;
+
+        /// Spawns an entity of a type registered with `entity-registry`, by key. The synced data and
+        /// spawn data (see `entity.set-plugin-synced-data`) replace the defaults of the type if given.
+        /// Fails for an unknown key or when a plugin cancelled the spawn.
+        spawn-plugin-entity: async func(type-key: string, pos: position, synced-data: option<list<u8>>, spawn-data: option<list<u8>>) -> result<entity, string>;
 
         /// Returns a list of all entities in this world.
         get-entities: func() -> list<entity>;

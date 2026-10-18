@@ -2,6 +2,7 @@ pub mod flowing_trait;
 pub mod lava;
 pub mod pathfinder;
 pub mod physics;
+pub mod plugin_fluid;
 pub mod water;
 
 // Re-export for backward compatibility

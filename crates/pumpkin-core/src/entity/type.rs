@@ -139,6 +139,12 @@ pub fn from_type(
     let entity = Entity::from_uuid(uuid, world.clone(), position, entity_type);
 
     let mob: Arc<dyn EntityBase> = match entity_type.id {
+        _ if entity_type.is_plugin() => match entity_type.plugin_type() {
+            Some(plugin_type) => {
+                crate::entity::plugin_entity::PluginEntity::new(entity, plugin_type)
+            }
+            None => Arc::new(entity),
+        },
         // Zombie
         id if id == EntityType::ZOMBIE.id => ZombieEntity::new(entity),
         id if id == EntityType::DROWNED.id => DrownedEntity::new(entity),
