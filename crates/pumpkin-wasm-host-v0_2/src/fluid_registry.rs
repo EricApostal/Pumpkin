@@ -87,7 +87,7 @@ impl Host for PluginHostState {
         }
         if Fluid::is_dynamic_registry_frozen() {
             return Ok(Err(
-                "fluid tags can only be registered before players connect".to_string()
+                "fluid tags can only be registered before players connect".to_string(),
             ));
         }
         Fluid::register_dynamic_tag(&tag, &entries);

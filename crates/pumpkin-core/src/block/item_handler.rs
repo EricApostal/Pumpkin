@@ -18,6 +18,8 @@ use crate::block::entities::{BlockEntity, ExperienceContainer};
 use crate::entity::experience_orb::ExperienceOrbEntity;
 use crate::world::World;
 
+type ExperienceSink = (Arc<World>, Vector3<f64>, Arc<dyn ExperienceContainer>);
+
 /// The slots of one container as seen from a side. Handler slot `n` is the `n`-th slot of
 /// `slots_for_face(side)`, so a furnace seen from below has the output first.
 pub struct ItemHandler {
@@ -26,7 +28,7 @@ pub struct ItemHandler {
     side: Option<BlockDirection>,
     slots: Vec<usize>,
     /// Pays out the experience of a furnace when its output is taken.
-    experience: Option<(Arc<World>, Vector3<f64>, Arc<dyn ExperienceContainer>)>,
+    experience: Option<ExperienceSink>,
 }
 
 /// The output slot of the furnaces.
@@ -71,9 +73,10 @@ impl ItemHandler {
     /// Copy of the stack in a handler slot, empty if out of range.
     #[must_use]
     pub fn get_stack(&self, slot: usize) -> ItemStack {
-        self.slots
-            .get(slot)
-            .map_or_else(|| ItemStack::EMPTY.clone(), |&s| self.inventory.get_stack(s))
+        self.slots.get(slot).map_or_else(
+            || ItemStack::EMPTY.clone(),
+            |&s| self.inventory.get_stack(s),
+        )
     }
 
     /// Most items the slot takes, before the max stack size of the item.
@@ -89,14 +92,19 @@ impl ItemHandler {
     /// Whether the stack may be put into the slot through the side, ignoring what it holds.
     #[must_use]
     pub fn is_item_valid(&self, slot: usize, stack: &ItemStack) -> bool {
-        self.slots.get(slot).is_some_and(|&s| self.can_place(s, stack))
+        self.slots
+            .get(slot)
+            .is_some_and(|&s| self.can_place(s, stack))
     }
 
     fn can_place(&self, slot: usize, stack: &ItemStack) -> bool {
-        match self.side {
-            Some(face) => self.inventory.can_place_item_through_face(slot, stack, face),
-            None => self.inventory.is_valid_slot_for(slot, stack),
-        }
+        self.side.map_or_else(
+            || self.inventory.is_valid_slot_for(slot, stack),
+            |face| {
+                self.inventory
+                    .can_place_item_through_face(slot, stack, face)
+            },
+        )
     }
 
     /// Puts as much of `stack` as fits into one slot, or into the slots in order when `slot` is
@@ -120,7 +128,13 @@ impl ItemHandler {
                         if remainder.is_empty() {
                             return remainder;
                         }
-                        self.insert_into(inner, &mut remainder, simulate, !allow_empty, allow_empty);
+                        self.insert_into(
+                            inner,
+                            &mut remainder,
+                            simulate,
+                            !allow_empty,
+                            allow_empty,
+                        );
                     }
                 }
             }
@@ -217,7 +231,9 @@ impl ItemHandler {
 #[must_use]
 pub fn container_at(world: &World, position: &BlockPos) -> Option<Arc<dyn Inventory>> {
     let (block, state) = world.get_block_and_state_id(position);
-    let inventory = world.get_block_entity(position).and_then(BlockEntity::get_inventory)?;
+    let inventory = world
+        .get_block_entity(position)
+        .and_then(BlockEntity::get_inventory)?;
     if block != &Block::CHEST && block != &Block::TRAPPED_CHEST {
         return Some(inventory);
     }
@@ -237,7 +253,11 @@ pub fn container_at(world: &World, position: &BlockPos) -> Option<Arc<dyn Invent
             (ChestType::Left, ChestType::Right) | (ChestType::Right, ChestType::Left)
         );
     let other = paired
-        .then(|| world.get_block_entity(&other_pos).and_then(BlockEntity::get_inventory))
+        .then(|| {
+            world
+                .get_block_entity(&other_pos)
+                .and_then(BlockEntity::get_inventory)
+        })
         .flatten();
     Some(match other {
         // The right half comes first, like the screen of the chest.

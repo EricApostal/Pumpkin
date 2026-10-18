@@ -1,4 +1,6 @@
-//! The decisions of the handshake that do not depend on a connection: whether a client that
+//! The decisions of the handshake that do not depend on a connection.
+//!
+//! That is whether a client that
 //! answered the query may join and with which channels. The connection driven part is in
 //! `net::java::neoforge_session`.
 
@@ -13,8 +15,10 @@ use super::{
 
 /// How long to wait for the client's answer to the query and its pong.
 pub const PRE_BRAND_TIMEOUT_MS: u64 = 3000;
-/// How long to wait for the query answer after the pong arrived. A client handles packets in
-/// order, so the answer of a NeoForge client is there before its pong. A vanilla client answers
+/// How long to wait for the query answer after the pong arrived.
+///
+/// A client handles packets in
+/// order, so the answer of a `NeoForge` client is there before its pong. A vanilla client answers
 /// the ping only, this is how soon it is recognised.
 pub const PRE_BRAND_GRACE_MS: u64 = 1000;
 /// How long the client has to apply the registries and acknowledge them.
@@ -127,12 +131,15 @@ mod tests {
         for phase in [Phase::Configuration, Phase::Play] {
             components.insert(phase, own_registrations(phase));
         }
-        components.get_mut(&Phase::Play).unwrap().push(QueryComponent {
-            id: "demo:net".into(),
-            version: version.into(),
-            flow: Some(Flow::Clientbound),
-            optional: false,
-        });
+        components
+            .get_mut(&Phase::Play)
+            .unwrap()
+            .push(QueryComponent {
+                id: "demo:net".into(),
+                version: version.into(),
+                flow: Some(Flow::Clientbound),
+                optional: false,
+            });
         ModdedNetworkQuery { components }
     }
 
@@ -162,7 +169,10 @@ mod tests {
             panic!("expected a rejection");
         };
         assert!(message.contains("Demo 1.2"), "{message}");
-        assert!(message.contains("neoforge:frozen_registry_sync_start"), "{message}");
+        assert!(
+            message.contains("neoforge:frozen_registry_sync_start"),
+            "{message}"
+        );
     }
 
     #[test]

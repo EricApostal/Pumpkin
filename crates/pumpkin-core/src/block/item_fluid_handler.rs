@@ -52,10 +52,7 @@ pub fn register_fluid_container(
     CONTAINERS
         .write()
         .unwrap_or_else(std::sync::PoisonError::into_inner)
-        .insert(
-            item.id,
-            FluidContainerDef { capacity, allowed },
-        );
+        .insert(item.id, FluidContainerDef { capacity, allowed });
     Ok(())
 }
 
@@ -327,9 +324,15 @@ mod tests {
         let mut bucket = ItemStack::new(1, &Item::BUCKET);
         assert_eq!(capacity(&bucket), 1000);
         assert_eq!(fill(&mut bucket, &fluid("minecraft:water", 999), false), 0);
-        assert_eq!(fill(&mut bucket, &fluid("minecraft:lava", 5000), true), 1000);
+        assert_eq!(
+            fill(&mut bucket, &fluid("minecraft:lava", 5000), true),
+            1000
+        );
         assert_eq!(bucket.item.id, Item::BUCKET.id);
-        assert_eq!(fill(&mut bucket, &fluid("minecraft:lava", 5000), false), 1000);
+        assert_eq!(
+            fill(&mut bucket, &fluid("minecraft:lava", 5000), false),
+            1000
+        );
         assert_eq!(bucket.item.id, Item::LAVA_BUCKET.id);
         assert!(drain(&mut bucket, Some("minecraft:water"), 1000, false).is_none());
         assert!(drain(&mut bucket, None, 500, false).is_none());
@@ -341,7 +344,10 @@ mod tests {
     #[test]
     fn stacks_of_buckets_have_no_tank() {
         let mut buckets = ItemStack::new(2, &Item::BUCKET);
-        assert_eq!(fill(&mut buckets, &fluid("minecraft:water", 1000), false), 0);
+        assert_eq!(
+            fill(&mut buckets, &fluid("minecraft:water", 1000), false),
+            0
+        );
     }
 
     #[test]
@@ -349,7 +355,10 @@ mod tests {
         let mut bottle = ItemStack::new(1, &Item::GLASS_BOTTLE);
         assert_eq!(fill(&mut bottle, &fluid("minecraft:lava", 1000), false), 0);
         assert_eq!(fill(&mut bottle, &fluid("minecraft:water", 249), false), 0);
-        assert_eq!(fill(&mut bottle, &fluid("minecraft:water", 1000), false), 250);
+        assert_eq!(
+            fill(&mut bottle, &fluid("minecraft:water", 1000), false),
+            250
+        );
         assert_eq!(bottle.item.id, Item::POTION.id);
         assert_eq!(contents(&bottle).unwrap().amount, 250);
         assert_eq!(drain(&mut bottle, None, 250, false).unwrap().amount, 250);
@@ -366,14 +375,24 @@ mod tests {
         assert!(is_fluid_valid(&stack, "water"));
         assert!(!is_fluid_valid(&stack, "lava"));
         assert_eq!(fill(&mut stack, &fluid("minecraft:lava", 100), false), 0);
-        assert_eq!(fill(&mut stack, &fluid("minecraft:water", 2000), false), 2000);
-        assert_eq!(fill(&mut stack, &fluid("minecraft:water", 2000), false), 1000);
+        assert_eq!(
+            fill(&mut stack, &fluid("minecraft:water", 2000), false),
+            2000
+        );
+        assert_eq!(
+            fill(&mut stack, &fluid("minecraft:water", 2000), false),
+            1000
+        );
         assert_eq!(contents(&stack).unwrap().amount, 3000);
         assert_eq!(drain(&mut stack, None, 1200, true).unwrap().amount, 1200);
         assert_eq!(contents(&stack).unwrap().amount, 3000);
         assert_eq!(drain(&mut stack, None, 1200, false).unwrap().amount, 1200);
         assert_eq!(drain(&mut stack, None, 5000, false).unwrap().amount, 1800);
         assert!(contents(&stack).is_none());
-        assert!(stack.custom_data_compound().is_none_or(|c| c.get(CONTENT_NAMESPACE).is_none()));
+        assert!(
+            stack
+                .custom_data_compound()
+                .is_none_or(|c| c.get(CONTENT_NAMESPACE).is_none())
+        );
     }
 }

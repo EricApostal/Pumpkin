@@ -139,7 +139,9 @@ pub struct CustomBlockUpdateShapeEvent {
     pub new_state_index: u16,
 }
 
-/// A redstone reader asks a custom block for its power, for the `weak_power` (`strong` is false)
+/// A redstone reader asks a custom block for its power.
+///
+/// It is asked for the `weak_power` (`strong` is false)
 /// or `strong_power` (`strong` is true) callback. A handler sets `power`, 0 to 15. Fired only when
 /// the plugin did not store an output for the block, see `World::set_plugin_redstone_output`.
 #[derive(Event, Clone)]
@@ -156,7 +158,9 @@ pub struct CustomBlockRedstonePowerEvent {
     pub power: u8,
 }
 
-/// A comparator reads a custom block that set the `comparator-output` callback. A handler sets
+/// A comparator reads a custom block that set the `comparator-output` callback.
+///
+/// A handler sets
 /// `output`, `None` means the block has no analog output. Fired only when the plugin did not
 /// store an output for the block, see `World::set_plugin_comparator_output`.
 #[derive(Event, Clone)]

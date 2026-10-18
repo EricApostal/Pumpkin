@@ -21,7 +21,9 @@ pub const CLIENT_DATA_KEY: &str = "PluginClientData";
 static UNREGISTERED: PluginBlockEntityType =
     PluginBlockEntityType::new("pumpkin:unregistered", u32::MAX, &[]);
 
-/// A block entity of a type that a plugin registered. The server only stores its data: the plugin
+/// A block entity of a type that a plugin registered.
+///
+/// The server only stores its data: the plugin
 /// owns the behaviour. It holds two compound tags, the save data (written to the chunk) and the
 /// optional client data (the update tag that is sent to the players watching the chunk).
 ///
@@ -69,7 +71,9 @@ impl PluginBlockEntity {
             nbt.get_compound(SAVE_DATA_KEY).cloned().unwrap_or_default(),
             nbt.get_compound(CLIENT_DATA_KEY).cloned(),
         );
-        if let Some(inventory) = nbt.get_compound(INVENTORY_KEY).and_then(PluginInventory::from_nbt)
+        if let Some(inventory) = nbt
+            .get_compound(INVENTORY_KEY)
+            .and_then(PluginInventory::from_nbt)
         {
             *entity
                 .inventory
@@ -91,15 +95,16 @@ impl PluginBlockEntity {
         if !id.contains(':') || id.starts_with("minecraft:") {
             return None;
         }
-        if let Some(entity) = Self::try_from_nbt(nbt, position) {
-            Some(Arc::new(entity))
-        } else {
-            warn!(
-                "Skipping block entity '{id}' at ({}, {}, {}): its type is not registered",
-                position.0.x, position.0.y, position.0.z
-            );
-            None
-        }
+        Self::try_from_nbt(nbt, position).map_or_else(
+            || {
+                warn!(
+                    "Skipping block entity '{id}' at ({}, {}, {}): its type is not registered",
+                    position.0.x, position.0.y, position.0.z
+                );
+                None
+            },
+            |entity| Some(Arc::new(entity) as Arc<dyn BlockEntity>),
+        )
     }
 
     #[must_use]
@@ -179,7 +184,10 @@ impl PluginBlockEntity {
     /// The tanks a plugin registered, if any.
     #[must_use]
     pub fn plugin_tanks(&self) -> Option<Arc<PluginTanks>> {
-        self.tanks.lock().unwrap_or_else(PoisonError::into_inner).clone()
+        self.tanks
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
     }
 
     /// Gives the entity `tank_count` fluid tanks of `capacity` millibuckets each, or resizes the

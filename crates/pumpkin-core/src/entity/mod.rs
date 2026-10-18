@@ -2019,7 +2019,8 @@ impl Entity {
         let world = self.world.load();
         let pos = self.block_pos.load();
         let (block, state) = world.get_block_and_state(&pos);
-        let speed_factor_here = world.block_physics(&pos, block, state, CustomBlockPhysicsKind::SpeedFactor);
+        let speed_factor_here =
+            world.block_physics(&pos, block, state, CustomBlockPhysicsKind::SpeedFactor);
         if block != &Block::WATER && block != &Block::BUBBLE_COLUMN {
             if speed_factor_here == 1.0 {
                 let below_pos = self.get_block_pos_below_that_affects_my_movement();
@@ -3216,18 +3217,18 @@ impl Entity {
                         pumpkin_data::block_registry::ShapeKind::Selection,
                     );
                     // A block without a shape counts as touched.
-                    let touched = match &dynamic {
-                        Some(shapes) => {
-                            shapes.is_empty()
-                                || shapes.iter().any(|o| o.at_pos(pos).intersects(&aabb))
-                        }
-                        None => {
+                    let touched = dynamic.as_ref().map_or_else(
+                        || {
                             state.outline_shapes.is_empty()
                                 || state
                                     .get_block_outline_shapes_at(&pos)
                                     .any(|o| o.at_pos(pos).intersects(&aabb))
-                        }
-                    };
+                        },
+                        |shapes| {
+                            shapes.is_empty()
+                                || shapes.iter().any(|o| o.at_pos(pos).intersects(&aabb))
+                        },
+                    );
                     if touched {
                         world
                             .block_registry
@@ -4069,10 +4070,7 @@ impl Entity {
 impl Entity {
     pub fn write_nbt(&self, nbt: &mut NbtCompound) {
         let position = self.pos.load();
-        nbt.put_string(
-            "id",
-            self.entity_type.resource_location().into_owned(),
-        );
+        nbt.put_string("id", self.entity_type.resource_location().into_owned());
         nbt.put_uuid("UUID", self.entity_uuid);
         nbt.put(
             "Pos",

@@ -1,15 +1,15 @@
-//! Resource locations (identifiers) as the NeoForge payloads carry them.
+//! Resource locations (identifiers) as the `NeoForge` payloads carry them.
 
 use super::buf::CodecError;
 
 /// The namespace of an identifier without one.
 pub const DEFAULT_NAMESPACE: &str = "minecraft";
 
-fn is_namespace_char(c: char) -> bool {
+const fn is_namespace_char(c: char) -> bool {
     matches!(c, 'a'..='z' | '0'..='9' | '_' | '.' | '-')
 }
 
-fn is_path_char(c: char) -> bool {
+const fn is_path_char(c: char) -> bool {
     is_namespace_char(c) || c == '/'
 }
 
@@ -42,7 +42,9 @@ pub fn normalize(text: &str) -> Result<String, CodecError> {
 /// The namespace of a canonical identifier.
 #[must_use]
 pub fn namespace_of(identifier: &str) -> &str {
-    identifier.split_once(':').map_or("", |(namespace, _)| namespace)
+    identifier
+        .split_once(':')
+        .map_or("", |(namespace, _)| namespace)
 }
 
 #[cfg(test)]

@@ -24,9 +24,6 @@ use tracing::warn;
 
 use super::experience_orb::ExperienceOrbEntity;
 use super::{Entity, EntityBase, NBTStorageInit};
-use crate::plugin::api::events::entity::{
-    LivingDropsEvent, LivingEquipmentChangeEvent,
-};
 use crate::block::OnLandedUponArgs;
 use crate::entity::NBTStorage;
 use crate::entity::ageable::AgeableMob;
@@ -36,6 +33,7 @@ use crate::entity::attributes::ModifierOperation;
 use crate::entity::combat::{CombatRules, CombatTracker, FallLocation, knockback_after_resistance};
 use crate::entity::mob::equipment::DEFAULT_EQUIPMENT_DROP_CHANCE;
 use crate::entity::player::statistics::{CustomStatistic, StatisticCategory};
+use crate::plugin::api::events::entity::{LivingDropsEvent, LivingEquipmentChangeEvent};
 use crate::server::Server;
 use crate::world::loot::LootContextParameters;
 use crossbeam::atomic::AtomicCell;
@@ -1721,9 +1719,9 @@ impl LivingEntity {
             .plugin_flags
             .has(crate::entity::plugin_flags::FLAG_FLUID_MOVEMENT_EVENTS)
             && let Some(server) = self.entity.world.load().server.upgrade()
-            && server.plugin_manager.has_handlers::<
-                crate::plugin::api::events::entity::EntityFluidMovementEvent,
-            >()
+            && server
+                .plugin_manager
+                .has_handlers::<crate::plugin::api::events::entity::EntityFluidMovementEvent>()
         {
             let mut event = crate::plugin::api::events::entity::EntityFluidMovementEvent::new(
                 self.entity.entity_id,
@@ -2435,7 +2433,7 @@ impl LivingEntity {
             .and_then(pumpkin_data::damage_type_registry::damage_type_key);
         event.killer_uuid = killer.map(|killer| killer.get_entity().entity_uuid);
         event.killer_id = killer.map(|killer| killer.get_entity().entity_id);
-        event.tool = params.tool.clone();
+        event.tool.clone_from(&params.tool);
         event.looting_level = looting_level;
         event.entity_id = Some(entity.entity_id);
         event.entity_type = Some(format!("minecraft:{}", entity.entity_type.resource_name));
@@ -2446,12 +2444,14 @@ impl LivingEntity {
         let resource_name = self.get_entity().entity_type.resource_name;
         let key = format!("minecraft:entities/{resource_name}");
         let world = self.entity.world.load();
-        world.get_loot_table(&key).map_or_else(Vec::new, |loot_table| {
-            let seed: i64 = rand::random();
-            crate::world::loot::generate_loot_from_handle(&loot_table, seed, params)
-                .into_iter()
-                .collect()
-        })
+        world
+            .get_loot_table(&key)
+            .map_or_else(Vec::new, |loot_table| {
+                let seed: i64 = rand::random();
+                crate::world::loot::generate_loot_from_handle(&loot_table, seed, params)
+                    .into_iter()
+                    .collect()
+            })
     }
 
     fn tick_effects(&self) {

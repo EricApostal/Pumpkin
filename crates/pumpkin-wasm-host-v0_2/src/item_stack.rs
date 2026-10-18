@@ -21,7 +21,6 @@ use wasmtime::component::{Accessor, HasSelf, Resource};
 
 use super::common::{WitNbtTree, from_wit_nbt_tree, to_wit_nbt_tree};
 use pumpkin_data::Enchantment;
-use pumpkin_data::enchantment_registry::enchantment_from_key;
 use pumpkin_data::attributes::Attributes;
 use pumpkin_data::data_component::DataComponent;
 use pumpkin_data::data_component_impl::DataComponentImpl;
@@ -29,6 +28,7 @@ use pumpkin_data::data_component_impl::combat::{Modifier, Operation};
 use pumpkin_data::data_component_impl::{
     AttributeModifiersImpl, CustomNameImpl, EnchantmentsImpl, LoreImpl,
 };
+use pumpkin_data::enchantment_registry::enchantment_from_key;
 use pumpkin_nbt::tag::NbtTag;
 use pumpkin_protocol::codec::data_component::{deserialize, serialize};
 use std::borrow::Cow;
@@ -54,7 +54,9 @@ pub(crate) fn from_wit_enchantment(id: WitEnchantment) -> &'static Enchantment {
 }
 
 /// The enchantments in the enchantments component, vanilla and plugin ones.
-fn enchantment_list(stack: &pumpkin_data::item_stack::ItemStack) -> Vec<(&'static Enchantment, i32)> {
+fn enchantment_list(
+    stack: &pumpkin_data::item_stack::ItemStack,
+) -> Vec<(&'static Enchantment, i32)> {
     stack
         .get_data_component::<EnchantmentsImpl>()
         .map(|e| e.enchantment.clone().into_owned())

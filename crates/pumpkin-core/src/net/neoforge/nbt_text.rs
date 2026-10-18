@@ -15,7 +15,7 @@ const TAG_COMPOUND: u8 = 10;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NbtText {
     Literal(String),
-    Translatable { key: String, args: Vec<NbtText> },
+    Translatable { key: String, args: Vec<Self> },
 }
 
 impl NbtText {
@@ -211,10 +211,10 @@ mod tests {
             "neoforge.network.negotiation.failure.mod",
             vec![
                 NbtText::literal("Mod"),
-                NbtText::translatable("neoforge.network.negotiation.failure.version.mismatch", vec![
-                    NbtText::literal("1"),
-                    NbtText::literal("2"),
-                ]),
+                NbtText::translatable(
+                    "neoforge.network.negotiation.failure.version.mismatch",
+                    vec![NbtText::literal("1"), NbtText::literal("2")],
+                ),
             ],
         );
         let bytes = encode(&text);
@@ -229,7 +229,9 @@ mod tests {
         let bytes = encode(&NbtText::translatable("k", vec![]));
         assert_eq!(
             bytes,
-            [10, 8, 0, 9, b't', b'r', b'a', b'n', b's', b'l', b'a', b't', b'e', 0, 1, b'k', 0]
+            [
+                10, 8, 0, 9, b't', b'r', b'a', b'n', b's', b'l', b'a', b't', b'e', 0, 1, b'k', 0
+            ]
         );
     }
 

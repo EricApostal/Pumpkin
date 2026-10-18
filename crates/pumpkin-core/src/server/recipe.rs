@@ -5,6 +5,7 @@ pub use pumpkin_protocol::codec::recipe::DynamicRecipe;
 
 use super::plugin_recipe::PluginRecipeRegistry;
 
+#[expect(clippy::struct_field_names)]
 pub struct RecipeManager {
     dynamic_recipes: RwLock<Vec<DynamicRecipe>>,
     /// Recipes plugins registered, re-applied after a datapack reload.

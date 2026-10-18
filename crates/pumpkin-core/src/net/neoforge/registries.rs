@@ -1,6 +1,6 @@
 //! The registries the handshake synchronises, built from the host's registry data.
 //!
-//! A real NeoForge server sends the registries that contain modded entries, with every entry of
+//! A real `NeoForge` server sends the registries that contain modded entries, with every entry of
 //! the registry: the vanilla ones in the ids the host puts on the wire, then the ones plugins
 //! registered, in registration order (the host numbers them `vanilla count + index`, which is
 //! the order of these lists). A registry without plugin entries is not sent, the client keeps
@@ -109,6 +109,7 @@ fn with_plugin_entries(
 /// The registries that contain plugin registered entries, with all their entries. Needs the
 /// dynamic registries to be frozen to be final.
 #[must_use]
+#[expect(clippy::too_many_lines)]
 pub fn host_registries() -> Vec<SyncedRegistry> {
     let mut out = Vec::new();
 
@@ -168,7 +169,10 @@ pub fn host_registries() -> Vec<SyncedRegistry> {
         with_plugin_entries(
             ENTITY_TYPE,
             prefixed(vanilla),
-            entity_types.iter().map(|entity| entity.key.to_string()).collect(),
+            entity_types
+                .iter()
+                .map(|entity| entity.key.to_string())
+                .collect(),
             &mut out,
         );
     }
@@ -279,8 +283,12 @@ mod tests {
     #[test]
     fn without_plugin_entries_no_registry_is_synced() {
         // Other tests of this crate may register entries into the global registries, so only
-        // check that every listed registry is complete.
-        for registry in host_registries() {
+        // check that every listed registry is complete. Plugin owned registries have no
+        // vanilla entries, so they are skipped.
+        for registry in host_registries()
+            .into_iter()
+            .filter(|registry| registry.key.starts_with("minecraft:"))
+        {
             assert!(registry.entries.len() > 1, "{}", registry.key);
             assert!(registry.entries[0].starts_with("minecraft:"));
         }

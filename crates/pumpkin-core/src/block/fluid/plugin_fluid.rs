@@ -54,11 +54,7 @@ pub fn try_pickup_fluid(world: &Arc<World>, pos: BlockPos) -> Option<&'static Fl
         if !state.is_source {
             return None;
         }
-        world.set_block_state(
-            &pos,
-            Block::AIR.default_state.id,
-            BlockFlags::NOTIFY_ALL,
-        );
+        world.set_block_state(&pos, Block::AIR.default_state.id, BlockFlags::NOTIFY_ALL);
         return Some(fluid.to_still());
     }
     // Powder snow has a bucket but no fluid.

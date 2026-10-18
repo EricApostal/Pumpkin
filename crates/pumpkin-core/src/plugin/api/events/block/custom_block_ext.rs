@@ -16,7 +16,9 @@ use pumpkin_util::math::vector3::Vector3;
 use crate::entity::player::Player;
 use crate::world::World;
 
-/// The shape of a custom block with the `dynamic_shape` callback is asked for. A handler changes
+/// The shape of a custom block with the `dynamic_shape` callback is asked for.
+///
+/// A handler changes
 /// `shapes`, boxes in block units (`0..1` is the block). It starts as the shape that is registered
 /// for the state. The answer is cached per position until `World::invalidate_block_shape`.
 #[derive(Event, Clone)]

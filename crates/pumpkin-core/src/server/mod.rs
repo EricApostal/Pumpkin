@@ -560,9 +560,8 @@ impl Server {
         for player in self.get_all_players() {
             if let crate::net::ClientPlatform::Java(java_client) = player.client.as_ref() {
                 if java_client.flavour.load() == pumpkin_protocol::ConnectionFlavour::NeoForge {
-                    let content = crate::net::neoforge::recipe_sync::recipe_content(
-                        &self.recipe_manager,
-                    );
+                    let content =
+                        crate::net::neoforge::recipe_sync::recipe_content(&self.recipe_manager);
                     let payload = pumpkin_protocol::java::client::play::CCustomPayload::new(
                         crate::net::neoforge::channels::RECIPE_CONTENT,
                         &content,
@@ -582,8 +581,8 @@ impl Server {
         }
 
         // Plugins that build lookup tables from recipes and tags rebuild them here.
-        let tag_count = u32::try_from(pumpkin_data::dynamic_tag::runtime_tag_count())
-            .unwrap_or(u32::MAX);
+        let tag_count =
+            u32::try_from(pumpkin_data::dynamic_tag::runtime_tag_count()).unwrap_or(u32::MAX);
         let mut reloaded = crate::plugin::api::events::world::DatapackReloadEvent::new(
             u32::try_from(dynamic_recipes.len()).unwrap_or(u32::MAX),
             tag_count,

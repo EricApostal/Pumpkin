@@ -1,4 +1,4 @@
-//! A minimal reader and writer for the `VarInt` / string encodings of the NeoForge payloads.
+//! A minimal reader and writer for the `VarInt` / string encodings of the `NeoForge` payloads.
 
 use std::fmt;
 

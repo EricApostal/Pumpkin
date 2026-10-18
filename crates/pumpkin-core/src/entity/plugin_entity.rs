@@ -13,7 +13,7 @@
 //!
 //! The synced data can also be set entry by entry ([`PluginEntity::set_synced_entry`]), the
 //! entries are sent in their own packet and follow the blob when a client starts to track.
-//! Spawn data goes to NeoForge clients in the `neoforge:advanced_add_entity` payload, to the
+//! Spawn data goes to `NeoForge` clients in the `neoforge:advanced_add_entity` payload, to the
 //! other clients in the `spawn_data_channel` payload of the type (a plugin must handle it).
 //!
 //! Plugin entities have no physics of their own: the plugin moves them with [`PluginEntity::move_by`]
@@ -28,10 +28,10 @@ use pumpkin_data::entity_registry::PluginEntityType;
 use pumpkin_data::packet::CURRENT_MC_VERSION;
 use pumpkin_nbt::{compound::NbtCompound, tag::NbtTag};
 use pumpkin_protocol::{
+    ConnectionFlavour,
     codec::var_int::VarInt,
     java::client::play::{CCustomPayload, CSetEntityMetadata, Metadata},
     ser::NetworkWriteExt,
-    ConnectionFlavour,
 };
 use pumpkin_util::math::boundingbox::{BoundingBox, EntityDimensions};
 use pumpkin_util::math::vector3::Vector3;
@@ -44,7 +44,7 @@ use crate::{
     world::World,
 };
 
-/// The payload NeoForge clients take the spawn data of an entity from.
+/// The payload `NeoForge` clients take the spawn data of an entity from.
 const ADVANCED_ADD_ENTITY: &str = "neoforge:advanced_add_entity";
 /// Key of the entries of the synced data in the saved entity.
 const SYNCED_ENTRIES_KEY: &str = "PluginSyncedEntries";
@@ -121,7 +121,7 @@ impl PluginEntity {
     /// Replaces the synced data (and drops the entries set one by one) and sends it to the Java
     /// clients that track the entity.
     pub fn set_synced_data(&self, data: Vec<u8>) {
-        *lock(&self.synced_data) = data.clone();
+        lock(&self.synced_data).clone_from(&data);
         lock(&self.synced_entries).clear();
         self.send_metadata(data);
     }
@@ -129,7 +129,7 @@ impl PluginEntity {
     /// Sets one entry of the synced data: `data` is the serializer id (`VarInt`) and the value.
     /// Empty data forgets the entry on the server (clients keep what they got). The entry is sent
     /// to the clients that track the entity.
-    pub fn set_synced_entry(&self, index: u8, data: Vec<u8>) {
+    pub fn set_synced_entry(&self, index: u8, data: &[u8]) {
         if index == 255 {
             return;
         }
@@ -137,9 +137,9 @@ impl PluginEntity {
             lock(&self.synced_entries).remove(&index);
             return;
         }
-        lock(&self.synced_entries).insert(index, data.clone());
+        lock(&self.synced_entries).insert(index, data.to_owned());
         let mut entry = vec![index];
-        entry.extend_from_slice(&data);
+        entry.extend_from_slice(data);
         self.send_metadata(entry);
     }
 
@@ -191,7 +191,8 @@ impl PluginEntity {
     /// the one of the type) the position updates of this entity use. A short interval makes
     /// clients interpolate in smaller steps.
     pub fn set_tracking(&self, update_interval: u32, track_deltas: Option<bool>) {
-        self.update_interval.store(update_interval, Ordering::Relaxed);
+        self.update_interval
+            .store(update_interval, Ordering::Relaxed);
         *lock(&self.track_deltas) = track_deltas;
     }
 
@@ -200,7 +201,11 @@ impl PluginEntity {
     pub fn effective_tracking(&self, update_interval: u32, track_deltas: bool) -> (u32, bool) {
         let interval = self.update_interval.load(Ordering::Relaxed);
         (
-            if interval == 0 { update_interval } else { interval },
+            if interval == 0 {
+                update_interval
+            } else {
+                interval
+            },
             lock(&self.track_deltas).unwrap_or(track_deltas),
         )
     }
@@ -352,9 +357,8 @@ impl EntityBase for PluginEntity {
         }
         if let Some(compound) = nbt.get_compound(SYNCED_ENTRIES_KEY) {
             let mut entries = lock(&self.synced_entries);
-            for (key, _) in &compound.child_tags {
-                if let (Ok(index), Some(data)) =
-                    (key.parse::<u8>(), from_nbt_bytes(compound, key))
+            for key in compound.child_tags.keys() {
+                if let (Ok(index), Some(data)) = (key.parse::<u8>(), from_nbt_bytes(compound, key))
                 {
                     entries.insert(index, data);
                 }

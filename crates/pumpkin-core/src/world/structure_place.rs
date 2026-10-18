@@ -6,11 +6,11 @@ use std::io::Cursor;
 use std::sync::Arc;
 
 use pumpkin_data::{Block, BlockStateId, Mirror, Rotation};
+use pumpkin_nbt::Nbt;
 use pumpkin_nbt::compound::NbtCompound;
 use pumpkin_nbt::deserializer::NbtReadHelperJava;
 use pumpkin_nbt::nbt_compress::{read_gzip_compound_tag, write_gzip_compound_tag_to_bytes};
 use pumpkin_nbt::tag::NbtTag;
-use pumpkin_nbt::Nbt;
 use pumpkin_util::math::{position::BlockPos, vector3::Vector3};
 use pumpkin_util::random::{RandomImpl, hash_block_pos, legacy_rand::LegacyRand};
 use pumpkin_world::generation::structure::template::{
@@ -57,7 +57,11 @@ pub fn template_to_bytes(template: &StructureTemplate, compress: bool) -> Result
 #[must_use]
 pub fn transformed_yaw(yaw: f32, rotation: Rotation, mirror: Mirror) -> f32 {
     let wrapped = yaw.rem_euclid(360.0);
-    let wrapped = if wrapped >= 180.0 { wrapped - 360.0 } else { wrapped };
+    let wrapped = if wrapped >= 180.0 {
+        wrapped - 360.0
+    } else {
+        wrapped
+    };
     let mirrored = match mirror {
         Mirror::LeftRight => 180.0 - wrapped,
         Mirror::FrontBack => -wrapped,
@@ -131,7 +135,9 @@ impl World {
         let size = Vector3::new(high.x - low.x + 1, high.y - low.y + 1, high.z - low.z + 1);
         let volume = i64::from(size.x) * i64::from(size.y) * i64::from(size.z);
         if volume > MAX_CAPTURE_VOLUME {
-            return Err(format!("the area has {volume} blocks, at most {MAX_CAPTURE_VOLUME}"));
+            return Err(format!(
+                "the area has {volume} blocks, at most {MAX_CAPTURE_VOLUME}"
+            ));
         }
 
         let mut blocks = Vec::new();
@@ -263,7 +269,7 @@ impl World {
             }
 
             let mut change = BlockChange::new(pos, state_id);
-            change.block_entity = info.nbt.clone();
+            change.block_entity.clone_from(&info.nbt);
             changes.push(change);
         }
 
@@ -310,14 +316,22 @@ mod tests {
     use super::*;
 
     fn world_pos(x: i32, z: i32, rotation: Rotation, mirror: Mirror) -> (i32, i32) {
-        let pos = template_to_world(Vector3::new(x, 0, z), BlockPos::new(0, 0, 0), rotation, mirror);
+        let pos = template_to_world(
+            Vector3::new(x, 0, z),
+            BlockPos::new(0, 0, 0),
+            rotation,
+            mirror,
+        );
         (pos.0.x, pos.0.z)
     }
 
     #[test]
     fn rotation_turns_around_the_origin() {
         assert_eq!(world_pos(2, 1, Rotation::None, Mirror::None), (2, 1));
-        assert_eq!(world_pos(2, 1, Rotation::Clockwise90, Mirror::None), (-1, 2));
+        assert_eq!(
+            world_pos(2, 1, Rotation::Clockwise90, Mirror::None),
+            (-1, 2)
+        );
         assert_eq!(world_pos(2, 1, Rotation::Rotate180, Mirror::None), (-2, -1));
         assert_eq!(
             world_pos(2, 1, Rotation::CounterClockwise90, Mirror::None),
@@ -360,11 +374,13 @@ mod tests {
     fn structure_bytes_round_trip() {
         let mut template = StructureTemplate::default();
         template.size = Vector3::new(1, 1, 1);
-        template.palettes.push(Palette::new(vec![StructureBlockInfo::new(
-            Vector3::new(0, 0, 0),
-            PaletteEntry::new("minecraft:stone".to_string()),
-            None,
-        )]));
+        template
+            .palettes
+            .push(Palette::new(vec![StructureBlockInfo::new(
+                Vector3::new(0, 0, 0),
+                PaletteEntry::new("minecraft:stone".to_string()),
+                None,
+            )]));
         let template = StructureTemplate::from_nbt_compound(&template.save()).unwrap();
         for compress in [true, false] {
             let bytes = template_to_bytes(&template, compress).unwrap();

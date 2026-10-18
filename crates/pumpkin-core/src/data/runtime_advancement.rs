@@ -79,13 +79,16 @@ struct Entry {
     advancement: &'static Advancement,
 }
 
+/// An advancement, the criterion and its `plugin_tag`.
+type TriggerEntry = (&'static Advancement, String, Option<String>);
+
 #[derive(Default)]
 struct Built {
     entries: HashMap<String, Entry>,
     /// Runtime children by full id of the parent (generated or runtime).
     children: HashMap<String, Vec<&'static Advancement>>,
     /// Criteria by trigger id: the advancement, the criterion and its `plugin_tag`.
-    by_trigger: HashMap<String, Vec<(&'static Advancement, String, Option<String>)>>,
+    by_trigger: HashMap<String, Vec<TriggerEntry>>,
 }
 
 #[derive(Default)]
@@ -122,19 +125,22 @@ fn valid_id(id: &str) -> Result<String, String> {
 }
 
 fn in_generated_tree(id: &str) -> bool {
-    Identifier::parse(id).is_ok_and(|identifier| ADVANCEMENT_TREE.get_node_from_id(&identifier).is_some())
+    Identifier::parse(id)
+        .is_ok_and(|identifier| ADVANCEMENT_TREE.get_node_from_id(&identifier).is_some())
 }
 
 fn parse_text(value: &Value, what: &str) -> Result<TextComponent, String> {
-    serde_json::from_value::<TextComponent>(value.clone()).map_err(|e| format!("invalid {what}: {e}"))
+    serde_json::from_value::<TextComponent>(value.clone())
+        .map_err(|e| format!("invalid {what}: {e}"))
 }
 
 fn parse_display(display: &Value) -> Result<DisplayDef, String> {
     let object = display.as_object().ok_or("display must be an object")?;
     let title = parse_text(object.get("title").ok_or("display needs a title")?, "title")?;
-    let description = object
-        .get("description")
-        .map_or_else(|| Ok(TextComponent::text("")), |v| parse_text(v, "description"))?;
+    let description = object.get("description").map_or_else(
+        || Ok(TextComponent::text("")),
+        |v| parse_text(v, "description"),
+    )?;
     let icon = object.get("icon");
     let (icon_item, icon_count, icon_model) = match icon {
         Some(Value::String(item)) => (valid_id(item)?, 1, None),
@@ -151,7 +157,10 @@ fn parse_display(display: &Value) -> Result<DisplayDef, String> {
             // Of the components only the item model is applied.
             let model = icon
                 .get("components")
-                .and_then(|c| c.get("minecraft:item_model").or_else(|| c.get("item_model")))
+                .and_then(|c| {
+                    c.get("minecraft:item_model")
+                        .or_else(|| c.get("item_model"))
+                })
                 .and_then(Value::as_str)
                 .map(ToOwned::to_owned);
             (valid_id(item)?, count, model)
@@ -164,7 +173,8 @@ fn parse_display(display: &Value) -> Result<DisplayDef, String> {
         Some("goal") => 2,
         Some(other) => return Err(format!("unknown frame '{other}'")),
     };
-    let flag = |key: &str, default: bool| object.get(key).and_then(Value::as_bool).unwrap_or(default);
+    let flag =
+        |key: &str, default: bool| object.get(key).and_then(Value::as_bool).unwrap_or(default);
     Ok(DisplayDef {
         title,
         description,
@@ -304,7 +314,8 @@ fn make_advancement(def: &Def, x: f32, y: f32) -> &'static Advancement {
         .collect();
     let criteria: Vec<&'static str> = def.criteria.iter().map(|c| leak_str(&c.name)).collect();
     // The ids were validated when the definition was parsed.
-    let id = Identifier::parse(&def.id).unwrap_or_else(|_| Identifier::from_static("minecraft", "invalid"));
+    let id = Identifier::parse(&def.id)
+        .unwrap_or_else(|_| Identifier::from_static("minecraft", "invalid"));
     let parent = def
         .parent
         .as_deref()
@@ -337,7 +348,7 @@ fn place(
                 .iter()
                 .map(|kid| place(kid, depth + 1.0, cursor, children, out))
                 .collect();
-            (rows[0] + rows[rows.len() - 1]) / 2.0
+            f32::midpoint(rows[0], rows[rows.len() - 1])
         }
         _ => {
             let row = *cursor;
@@ -437,7 +448,11 @@ fn rebuild(state: &mut State) {
                 .by_trigger
                 .entry(criterion.trigger.clone())
                 .or_default()
-                .push((advancement, criterion.name.clone(), criterion.plugin_tag.clone()));
+                .push((
+                    advancement,
+                    criterion.name.clone(),
+                    criterion.plugin_tag.clone(),
+                ));
         }
         built.entries.insert(
             id.to_owned(),
@@ -509,7 +524,8 @@ pub fn add_plugin_advancement(id: &str, json: &str) -> Result<(), String> {
     let value: Value = serde_json::from_str(json).map_err(|e| format!("invalid JSON: {e}"))?;
     let def = parse_def(id, &value)?;
     for criterion in &def.criteria {
-        if !is_trigger_registered(&criterion.trigger) && !criterion.trigger.starts_with("minecraft:")
+        if !is_trigger_registered(&criterion.trigger)
+            && !criterion.trigger.starts_with("minecraft:")
         {
             debug!(
                 "Advancement {} uses the unregistered trigger {}",
@@ -524,6 +540,7 @@ pub fn add_plugin_advancement(id: &str, json: &str) -> Result<(), String> {
 }
 
 /// Removes an advancement a plugin added.
+#[must_use]
 pub fn remove_plugin_advancement(id: &str) -> bool {
     let Ok(id) = valid_id(id) else {
         return false;
@@ -550,7 +567,10 @@ fn visit_json(dir: &Path, prefix: &str, f: &mut impl FnMut(String, &Path)) {
 
 /// Starts a datapack reload, forgets what the previous pass read.
 pub fn clear() {
-    PENDING.lock().unwrap_or_else(PoisonError::into_inner).clear();
+    PENDING
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .clear();
 }
 
 /// Reads the advancements of one namespace directory of a datapack.
@@ -575,7 +595,10 @@ pub fn load_namespace(namespace: &str, ns_path: &Path) {
 pub fn finish() {
     let pending = std::mem::take(&mut *PENDING.lock().unwrap_or_else(PoisonError::into_inner));
     mutate(|state| {
-        state.datapack = pending.into_iter().map(|def| (def.id.clone(), def)).collect();
+        state.datapack = pending
+            .into_iter()
+            .map(|def| (def.id.clone(), def))
+            .collect();
     });
 }
 
@@ -585,14 +608,21 @@ pub fn finish() {
 pub fn find(name: &str) -> Option<&'static Advancement> {
     Advancement::from_name(name)
         .or_else(|| Advancement::from_minecraft_name(name))
-        .or_else(|| name.strip_prefix("minecraft:").and_then(Advancement::from_name))
+        .or_else(|| {
+            name.strip_prefix("minecraft:")
+                .and_then(Advancement::from_name)
+        })
         .or_else(|| find_runtime(name))
 }
 
 /// Finds a runtime advancement by id.
 #[must_use]
 pub fn find_runtime(name: &str) -> Option<&'static Advancement> {
-    fresh().built.entries.get(&full_id(name)).map(|e| e.advancement)
+    fresh()
+        .built
+        .entries
+        .get(&full_id(name))
+        .map(|e| e.advancement)
 }
 
 /// Whether the advancement is part of the generated tree.
@@ -603,15 +633,23 @@ pub fn is_generated(advancement: &Advancement) -> bool {
 
 #[must_use]
 pub fn is_runtime(advancement: &Advancement) -> bool {
-    fresh().built.entries.contains_key(&advancement.id.to_string())
+    fresh()
+        .built
+        .entries
+        .contains_key(&advancement.id.to_string())
 }
 
 /// All runtime advancements.
 #[must_use]
 pub fn all() -> Vec<&'static Advancement> {
     let guard = fresh();
-    let mut list: Vec<_> = guard.built.entries.values().map(|e| e.advancement).collect();
-    list.sort_by(|a, b| a.id.to_string().cmp(&b.id.to_string()));
+    let mut list: Vec<_> = guard
+        .built
+        .entries
+        .values()
+        .map(|e| e.advancement)
+        .collect();
+    list.sort_by_key(|a| a.id.to_string());
     list
 }
 

@@ -25,9 +25,7 @@ use crate::plugin::block::{
 use crate::server::Server;
 use crate::world::World;
 use crate::world::plugin_shapes::CACHED_CALLBACKS;
-use pumpkin_data::block_registry::{
-    BlockCallbacks, DynamicBlockInfo, PlacementContext, ShapeKind,
-};
+use pumpkin_data::block_registry::{BlockCallbacks, DynamicBlockInfo, PlacementContext, ShapeKind};
 use pumpkin_data::data_component_impl::EquipmentSlot;
 use pumpkin_data::entity::EntityType;
 use pumpkin_data::item_stack::ItemStack;
@@ -434,7 +432,7 @@ impl BlockBehaviour for DynamicBlock {
             Hand::Right,
             false,
             args.player.inventory().held_item(),
-            args.hit.face,
+            *args.hit.face,
             args.hit.cursor_pos,
         )
     }
@@ -462,7 +460,7 @@ impl BlockBehaviour for DynamicBlock {
             hand,
             true,
             args.item_stack.clone(),
-            args.hit.face,
+            *args.hit.face,
             args.hit.cursor_pos,
         )
     }
@@ -483,7 +481,9 @@ impl BlockBehaviour for DynamicBlock {
             state_index: hook.state_index,
             player: args.player.clone(),
         };
-        hook.server.plugin_manager.fire_blocking(&hook.server, &mut event);
+        hook.server
+            .plugin_manager
+            .fire_blocking(&hook.server, &mut event);
     }
 
     fn on_landed_upon(&self, args: OnLandedUponArgs<'_>) {
@@ -504,7 +504,9 @@ impl BlockBehaviour for DynamicBlock {
                 fall_distance: args.fall_distance,
                 damage_multiplier: multiplier,
             };
-            hook.server.plugin_manager.fire_blocking(&hook.server, &mut event);
+            hook.server
+                .plugin_manager
+                .fire_blocking(&hook.server, &mut event);
             if event.damage_multiplier.is_finite() {
                 multiplier = event.damage_multiplier.max(0.0);
             }
@@ -626,7 +628,7 @@ fn fire_use(
     hand: Hand,
     with_item: bool,
     item: ItemStack,
-    face: &BlockDirection,
+    face: BlockDirection,
     cursor: &Vector3<f32>,
 ) -> BlockActionResult {
     let default = if with_item {
@@ -643,7 +645,7 @@ fn fire_use(
         hand,
         with_item,
         item,
-        face: *face,
+        face,
         cursor: *cursor,
         sneaking: player.get_entity().is_sneaking(),
         result: default,
@@ -654,12 +656,11 @@ fn fire_use(
     match event.result {
         CustomBlockUseResult::Success => BlockActionResult::Success,
         CustomBlockUseResult::Consume => BlockActionResult::Consume,
-        CustomBlockUseResult::Pass => BlockActionResult::Pass,
         CustomBlockUseResult::Fail => BlockActionResult::Fail,
         CustomBlockUseResult::TryEmptyHand if with_item => {
             BlockActionResult::PassToDefaultBlockAction
         }
-        CustomBlockUseResult::TryEmptyHand => BlockActionResult::Pass,
+        CustomBlockUseResult::Pass | CustomBlockUseResult::TryEmptyHand => BlockActionResult::Pass,
     }
 }
 
@@ -695,7 +696,8 @@ pub fn dynamic_shapes(
     if let Some(shapes) = world.plugin_block_cache.shape(position, state.id, kind) {
         return Some(shapes);
     }
-    let hook = hook::<CustomBlockShapeEvent>(world, block, state.id, BlockCallbacks::DYNAMIC_SHAPE)?;
+    let hook =
+        hook::<CustomBlockShapeEvent>(world, block, state.id, BlockCallbacks::DYNAMIC_SHAPE)?;
     // The registered shape of the state is where the plugin starts from.
     let shapes: Vec<BoundingBox> = match kind {
         ShapeKind::Selection => state.get_block_outline_shapes().collect(),
@@ -842,9 +844,15 @@ pub fn pathfindable(
         return None;
     }
     let (condition, default) = match computation_type {
-        PathComputationType::Land => (CustomBlockCondition::PathfindableLand, !state.is_full_cube()),
+        PathComputationType::Land => (
+            CustomBlockCondition::PathfindableLand,
+            !state.is_full_cube(),
+        ),
         PathComputationType::Air => (CustomBlockCondition::PathfindableAir, !state.is_full_cube()),
-        PathComputationType::Water => (CustomBlockCondition::PathfindableWater, state.is_waterlogged()),
+        PathComputationType::Water => (
+            CustomBlockCondition::PathfindableWater,
+            state.is_waterlogged(),
+        ),
     };
     ask(
         world,
@@ -872,7 +880,8 @@ pub fn connects_redstone(
     if !block.is_dynamic() {
         return None;
     }
-    let default = opted_in_any(block, BlockCallbacks::REDSTONE_SOURCE).is_some() && direction.is_some();
+    let default =
+        opted_in_any(block, BlockCallbacks::REDSTONE_SOURCE).is_some() && direction.is_some();
     ask(
         world,
         position,
@@ -897,12 +906,9 @@ pub fn sound_type(
 ) -> Option<String> {
     let info = block.dynamic_info()?;
     let registered = info.registration.sound_type.clone();
-    let Some(hook) = hook::<CustomBlockSoundTypeEvent>(
-        world,
-        block,
-        state.id,
-        BlockCallbacks::GET_SOUND_TYPE,
-    ) else {
+    let Some(hook) =
+        hook::<CustomBlockSoundTypeEvent>(world, block, state.id, BlockCallbacks::GET_SOUND_TYPE)
+    else {
         return Some(registered);
     };
     let mut event = CustomBlockSoundTypeEvent {
@@ -989,7 +995,9 @@ pub fn player_will_destroy(
     !event.cancelled
 }
 
-/// The item a player gets when picking the block. The outer `None` means the block did not opt in
+/// The item a player gets when picking the block.
+///
+/// The outer `None` means the block did not opt in
 /// to `get_clone_item` (or no plugin listens), then the default applies; the inner one is a plugin
 /// that wants nothing picked.
 #[must_use]
@@ -1004,12 +1012,8 @@ pub fn clone_item(
     if !block.is_dynamic() {
         return None;
     }
-    let hook = hook::<CustomBlockCloneItemEvent>(
-        world,
-        block,
-        state.id,
-        BlockCallbacks::GET_CLONE_ITEM,
-    )?;
+    let hook =
+        hook::<CustomBlockCloneItemEvent>(world, block, state.id, BlockCallbacks::GET_CLONE_ITEM)?;
     let mut event = CustomBlockCloneItemEvent {
         world: hook.world.clone(),
         position: *position,

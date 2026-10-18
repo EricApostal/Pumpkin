@@ -56,7 +56,9 @@ pub fn to_wasm_advancement_info(
 
 impl crate::pumpkin::plugin::advancement::Host for PluginHostState {
     fn register_criterion_trigger(&mut self, key: String) -> wasmtime::Result<Result<(), String>> {
-        Ok(pumpkin_core::data::runtime_advancement::register_trigger(&key))
+        Ok(pumpkin_core::data::runtime_advancement::register_trigger(
+            &key,
+        ))
     }
 
     fn register_advancement(

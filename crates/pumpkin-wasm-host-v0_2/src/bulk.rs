@@ -12,7 +12,9 @@ use wasmtime::component::{Accessor, HasSelf, Resource};
 use super::{AccessorExt, run_blocking};
 use crate::common::{WitNbtTree, from_wit_nbt_tree};
 use crate::pumpkin::plugin::common::{BlockPos as WitBlockPos, Position as WitPosition};
-use crate::pumpkin::plugin::world::{BlockChange as WitBlockChange, BlockFlags as WitBlockFlags, Entity, World};
+use crate::pumpkin::plugin::world::{
+    BlockChange as WitBlockChange, BlockFlags as WitBlockFlags, Entity, World,
+};
 use crate::world::from_wit_block_flags;
 
 type Acc = Accessor<PluginHostState, HasSelf<PluginHostState>>;
@@ -54,9 +56,8 @@ fn convert_change(change: WitBlockChange) -> Result<Option<BlockChange>, String>
         converted.block_entity = Some(decode_nbt(&bytes)?);
     }
     if let Some(plugin) = change.plugin_block_entity {
-        let entity_type = plugin_block_entity_type_by_key(&plugin.type_key).ok_or_else(|| {
-            format!("block entity type '{}' is not registered", plugin.type_key)
-        })?;
+        let entity_type = plugin_block_entity_type_by_key(&plugin.type_key)
+            .ok_or_else(|| format!("block entity type '{}' is not registered", plugin.type_key))?;
         converted.plugin_block_entity = Some(PluginBlockEntityChange {
             entity_type,
             data: compound_from_tree(&plugin.save_data, "save data")?,
@@ -103,8 +104,10 @@ pub(crate) async fn remove_blocks(
     let world = accessor.get_res(&world)?;
     let flags = from_wit_block_flags(update_flags);
     let positions: Vec<BlockPos> = positions.iter().map(block_pos).collect();
-    let outcome =
-        run_blocking(accessor, move || world.remove_blocks_bulk(&positions, flags)).await?;
+    let outcome = run_blocking(accessor, move || {
+        world.remove_blocks_bulk(&positions, flags)
+    })
+    .await?;
     Ok(outcome.changed)
 }
 
@@ -158,7 +161,10 @@ pub(crate) async fn mark_and_notify(
     let world = accessor.get_res(&world)?;
     let flags = from_wit_block_flags(update_flags);
     let pos = block_pos(&pos);
-    run_blocking(accessor, move || world.mark_and_notify(&pos, old, new, flags)).await
+    run_blocking(accessor, move || {
+        world.mark_and_notify(&pos, old, new, flags)
+    })
+    .await
 }
 
 pub(crate) async fn spawn_entity_from_nbt(
@@ -172,7 +178,9 @@ pub(crate) async fn spawn_entity_from_nbt(
         return Ok(None);
     };
     let pos = Vector3::new(pos.0, pos.1, pos.2);
-    let spawned = run_blocking(accessor, move || world.spawn_entity_from_nbt(&nbt, Some(pos)))
-        .await?;
+    let spawned = run_blocking(accessor, move || {
+        world.spawn_entity_from_nbt(&nbt, Some(pos))
+    })
+    .await?;
     spawned.map(|entity| accessor.add_res(entity)).transpose()
 }

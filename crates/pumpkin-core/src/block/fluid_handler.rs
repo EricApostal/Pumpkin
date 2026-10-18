@@ -185,9 +185,15 @@ fn can_place_fluid(world: &World, pos: &BlockPos, fluid: &Fluid) -> bool {
 /// The fluid tanks of one block.
 pub enum FluidHandler {
     Tanks(Arc<PluginTanks>),
-    Cauldron { world: Arc<World>, pos: BlockPos },
+    Cauldron {
+        world: Arc<World>,
+        pos: BlockPos,
+    },
     /// One tank of a bucket for the spot itself: a source in the world.
-    Block { world: Arc<World>, pos: BlockPos },
+    Block {
+        world: Arc<World>,
+        pos: BlockPos,
+    },
 }
 
 impl FluidHandler {
@@ -199,7 +205,10 @@ impl FluidHandler {
             return None;
         }
         if let Some(tanks) = world
-            .with_plugin_block_entity(pos, |entity| entity.plugin_tanks())
+            .with_plugin_block_entity(
+                pos,
+                super::entities::plugin::PluginBlockEntity::plugin_tanks,
+            )
             .flatten()
         {
             return Some(Self::Tanks(tanks));
@@ -301,9 +310,12 @@ impl FluidHandler {
                 if stack.amount < BUCKET_AMOUNT || stack.data.is_some() {
                     return 0;
                 }
-                let Some(fluid) =
-                    Fluid::from_registry_key(stack.fluid.strip_prefix("minecraft:").unwrap_or(&stack.fluid))
-                else {
+                let Some(fluid) = Fluid::from_registry_key(
+                    stack
+                        .fluid
+                        .strip_prefix("minecraft:")
+                        .unwrap_or(&stack.fluid),
+                ) else {
                     return 0;
                 };
                 let placed = if simulate {
@@ -316,8 +328,14 @@ impl FluidHandler {
         }
     }
 
-    fn fill_cauldron(world: &Arc<World>, pos: &BlockPos, stack: &FluidContent, simulate: bool) -> u32 {
-        let Some(kind) = CauldronKind::from_fluid_key(&stack.fluid).filter(|_| stack.data.is_none())
+    fn fill_cauldron(
+        world: &Arc<World>,
+        pos: &BlockPos,
+        stack: &FluidContent,
+        simulate: bool,
+    ) -> u32 {
+        let Some(kind) =
+            CauldronKind::from_fluid_key(&stack.fluid).filter(|_| stack.data.is_none())
         else {
             return 0;
         };
@@ -437,7 +455,10 @@ mod tests {
 
     #[test]
     fn fluid_keys() {
-        assert_eq!(resolve_fluid_key("water").as_deref(), Some("minecraft:water"));
+        assert_eq!(
+            resolve_fluid_key("water").as_deref(),
+            Some("minecraft:water")
+        );
         assert_eq!(
             resolve_fluid_key("minecraft:flowing_lava").as_deref(),
             Some("minecraft:lava")

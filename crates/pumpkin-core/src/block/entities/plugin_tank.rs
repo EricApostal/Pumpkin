@@ -48,7 +48,9 @@ impl FluidContent {
 
     #[must_use]
     pub fn read_nbt(nbt: &NbtCompound) -> Option<Self> {
-        let amount = u32::try_from(nbt.get_int("Amount")?).ok().filter(|a| *a > 0)?;
+        let amount = u32::try_from(nbt.get_int("Amount")?)
+            .ok()
+            .filter(|a| *a > 0)?;
         Some(Self {
             fluid: nbt.get_string("Fluid")?.to_string(),
             amount,
@@ -74,9 +76,7 @@ pub fn fill_tanks(
                 break;
             }
             match tank {
-                Some(held)
-                    if merge && held.fluid == stack.fluid && held.data == stack.data =>
-                {
+                Some(held) if merge && held.fluid == stack.fluid && held.data == stack.data => {
                     let moved = capacity.saturating_sub(held.amount).min(left);
                     if !simulate {
                         held.amount += moved;
@@ -348,7 +348,10 @@ mod tests {
         tanks.fill(&water(1000), false);
         // Water: tank 0 has 1000 now, tank 2 has 400.
         let drained = tanks.drain(1200, None, false).unwrap();
-        assert_eq!((drained.fluid.as_str(), drained.amount), ("minecraft:water", 1200));
+        assert_eq!(
+            (drained.fluid.as_str(), drained.amount),
+            ("minecraft:water", 1200)
+        );
         assert_eq!(tanks.get(2).unwrap().amount, 200);
         assert_eq!(tanks.get(1).unwrap().fluid, "minecraft:lava");
         let lava_out = tanks.drain(5000, Some("minecraft:lava"), false).unwrap();

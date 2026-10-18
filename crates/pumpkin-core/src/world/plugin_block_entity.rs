@@ -262,7 +262,11 @@ impl World {
                     continue;
                 }
                 let position = plugin_entity.get_position();
-                if interval == 1 || tick_bits.wrapping_add(tick_phase(&position)) % interval == 0 {
+                if interval == 1
+                    || tick_bits
+                        .wrapping_add(tick_phase(&position))
+                        .is_multiple_of(interval)
+                {
                     due.entry(entity_type.id)
                         .or_insert_with(|| (entity_type, Vec::new()))
                         .1

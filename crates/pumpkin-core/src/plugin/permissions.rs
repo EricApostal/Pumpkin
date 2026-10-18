@@ -123,7 +123,7 @@ pub const FAKE_PLAYERS: &str = "fake-players";
 /// to give plugin block entities inventories.
 pub const CONTAINERS: &str = "containers";
 
-/// Allows the plugin to declare mods, channels and registries for the NeoForge client handshake
+/// Allows the plugin to declare mods, channels and registries for the `NeoForge` client handshake
 /// with `neoforge`. Declarations are only possible while the server starts.
 pub const NEOFORGE: &str = "neoforge";
 

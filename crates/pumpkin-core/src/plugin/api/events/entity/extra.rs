@@ -47,6 +47,7 @@ impl LivingDropsEvent {
 }
 
 /// Fired when the stack in an equipment slot of a living entity changed and clients are told.
+///
 /// Informational. `old_stack` is what the previous event reported for the slot, it is empty for
 /// the first event of a slot, and the event is only built while a handler listens.
 #[derive(Event, Clone)]

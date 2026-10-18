@@ -1,9 +1,8 @@
 use super::AccessorExt;
 use crate::pumpkin::plugin::enchantments::{
     AttributeModifierSlot as WitAttributeModifierSlot, CustomEnchantment as WitCustomEnchantment,
-    EnchantmentEffect as WitEnchantmentEffect,
-    EnchantmentManager as WitEnchantmentManager, HostEnchantmentManager,
-    HostEnchantmentManagerWithStore,
+    EnchantmentEffect as WitEnchantmentEffect, EnchantmentManager as WitEnchantmentManager,
+    HostEnchantmentManager, HostEnchantmentManagerWithStore,
 };
 use pumpkin_core::server::enchantment::CustomEnchantmentEntry;
 use pumpkin_data::enchantment::{AttributeModifierSlot, Enchantment};

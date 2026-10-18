@@ -9,7 +9,7 @@ use pumpkin_world::generation::feature::additive::{
 use tracing::info;
 
 use crate::pumpkin::plugin::worldgen::{
-    FeatureKind as WitFeatureKind, GenerationStep, Host, HeightShape as WitHeightShape,
+    FeatureKind as WitFeatureKind, GenerationStep, HeightShape as WitHeightShape, Host,
     OreTarget as WitOreTarget, PlacementRule as WitPlacementRule,
 };
 

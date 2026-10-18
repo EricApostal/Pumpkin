@@ -104,7 +104,9 @@ fn attribute_by_name(name: &str) -> Option<&'static Attributes> {
     } else {
         format!("minecraft:{name}")
     };
-    Attributes::ALL.iter().find(|attribute| attribute.name == name)
+    Attributes::ALL
+        .iter()
+        .find(|attribute| attribute.name == name)
 }
 
 /// Registers a mob effect. The same definition again returns the existing effect.
@@ -143,7 +145,9 @@ pub fn register_plugin_mob_effect(
                 category: reg.category.category(),
                 color: reg.color,
                 translation_key: Box::leak(
-                    format!("effect.{namespace}.{path}").replace('/', ".").into_boxed_str(),
+                    format!("effect.{namespace}.{path}")
+                        .replace('/', ".")
+                        .into_boxed_str(),
                 ),
                 attribute_modifiers: Box::leak(modifiers.into_boxed_slice()),
             }));
@@ -218,8 +222,8 @@ mod tests {
                 operation: Operation::AddMultipliedTotal,
             }],
         };
-        let effect = register_plugin_mob_effect("mob_effect_test:fast", registration.clone())
-            .unwrap();
+        let effect =
+            register_plugin_mob_effect("mob_effect_test:fast", registration.clone()).unwrap();
         assert!(usize::from(effect.effect.id) >= vanilla_mob_effect_count());
         assert_eq!(effect.effect.attribute_modifiers.len(), 1);
         assert_eq!(effect.effect.translation_key, "effect.mob_effect_test.fast");

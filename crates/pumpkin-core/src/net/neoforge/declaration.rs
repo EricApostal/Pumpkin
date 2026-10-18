@@ -1,4 +1,4 @@
-//! What plugins declare for the NeoForge handshake, and the one handshake all declarations are
+//! What plugins declare for the `NeoForge` handshake, and the one handshake all declarations are
 //! merged into.
 
 use std::{
@@ -83,7 +83,7 @@ pub struct Declaration {
     pub datapack_entries: Vec<DatapackEntryDecl>,
     pub data_maps: Vec<DataMapDecl>,
     pub feature_flags: Vec<String>,
-    /// Whether clients without NeoForge may join.
+    /// Whether clients without `NeoForge` may join.
     pub allow_non_neoforge: bool,
     pub reject_message: Option<String>,
 }
@@ -99,7 +99,7 @@ impl Declaration {
             return Err(format!("'{}' is not a valid mod id", self.mod_info.id));
         }
         if self.mod_info.display_name.is_empty() {
-            self.mod_info.display_name = self.mod_info.id.clone();
+            self.mod_info.display_name.clone_from(&self.mod_info.id);
         }
         if [
             self.channels.len(),
@@ -112,7 +112,9 @@ impl Declaration {
         .iter()
         .any(|&len| len > MAX_ITEMS)
         {
-            return Err(format!("a declaration has at most {MAX_ITEMS} of each kind"));
+            return Err(format!(
+                "a declaration has at most {MAX_ITEMS} of each kind"
+            ));
         }
 
         let mut seen = HashSet::new();
@@ -246,13 +248,12 @@ pub fn declare(owner: &str, declaration: Declaration) -> Result<(), String> {
             ));
         }
     }
-    let mods: Vec<&str> = store
+    if store
         .declarations
         .iter()
         .filter(|(other, _)| other != owner)
-        .map(|(_, declaration)| declaration.mod_info.id.as_str())
-        .collect();
-    if mods.contains(&declaration.mod_info.id.as_str()) {
+        .any(|(_, other)| other.mod_info.id == declaration.mod_info.id)
+    {
         return Err(format!(
             "mod id {} is already declared by another plugin",
             declaration.mod_info.id
@@ -281,6 +282,7 @@ pub fn withdraw(owner: &str) {
 }
 
 /// Replaces (or adds) a config file of the mod `owner` declared, also after players connected.
+///
 /// Clients that join later get the new content with the handshake. Fails for a plugin without
 /// declaration, another mod id, a bad file name or a file that is too large.
 pub fn update_config_file(
@@ -296,7 +298,10 @@ pub fn update_config_file(
         return Err(format!("config file {name} is too large"));
     }
     let mut store = STORE.write().unwrap_or_else(PoisonError::into_inner);
-    let Some((_, declaration)) = store.declarations.iter_mut().find(|(other, _)| other == owner)
+    let Some((_, declaration)) = store
+        .declarations
+        .iter_mut()
+        .find(|(other, _)| other == owner)
     else {
         return Err("the plugin has no NeoForge declaration".to_string());
     };
@@ -305,17 +310,22 @@ pub fn update_config_file(
             "'{mod_id}' is not the mod id of the plugin's declaration"
         ));
     }
-    match declaration.config_files.iter_mut().find(|file| file.name == name) {
-        Some(file) => file.content = content,
-        None => {
-            if declaration.config_files.len() >= MAX_ITEMS {
-                return Err(format!("a declaration has at most {MAX_ITEMS} config files"));
-            }
-            declaration.config_files.push(ConfigFileDecl {
-                name: name.to_string(),
-                content,
-            });
+    if let Some(file) = declaration
+        .config_files
+        .iter_mut()
+        .find(|file| file.name == name)
+    {
+        file.content = content;
+    } else {
+        if declaration.config_files.len() >= MAX_ITEMS {
+            return Err(format!(
+                "a declaration has at most {MAX_ITEMS} config files"
+            ));
         }
+        declaration.config_files.push(ConfigFileDecl {
+            name: name.to_string(),
+            content,
+        });
     }
     store.generation += 1;
     Ok(())
@@ -370,7 +380,7 @@ pub fn current() -> Option<Arc<Aggregate>> {
 #[derive(Debug)]
 pub struct Aggregate {
     pub mods: Vec<ModInfo>,
-    /// The payload registrations of the server per protocol: NeoForge's own and the plugins'.
+    /// The payload registrations of the server per protocol: `NeoForge`'s own and the plugins'.
     pub channels: BTreeMap<Phase, Vec<QueryComponent>>,
     /// The configuration channels the server can receive, announced with `minecraft:register`.
     pub configuration_channels_to_server: Vec<String>,
@@ -410,15 +420,12 @@ impl Aggregate {
             mods.push(declaration.mod_info.clone());
             for channel in &declaration.channels {
                 for phase in &channel.phases {
-                    channels
-                        .entry(*phase)
-                        .or_default()
-                        .push(QueryComponent {
-                            id: channel.id.clone(),
-                            version: channel.version.clone(),
-                            flow: channel.flow,
-                            optional: channel.optional,
-                        });
+                    channels.entry(*phase).or_default().push(QueryComponent {
+                        id: channel.id.clone(),
+                        version: channel.version.clone(),
+                        flow: channel.flow,
+                        optional: channel.optional,
+                    });
                     if *phase == Phase::Configuration
                         && channel.flow != Some(Flow::Clientbound)
                         && !to_server.contains(&channel.id)
@@ -523,7 +530,7 @@ impl Aggregate {
             .map(|m| m.display_name.clone())
     }
 
-    /// The config files to send to a NeoForge client: NeoForge's own server config, empty, unless
+    /// The config files to send to a `NeoForge` client: `NeoForge`'s own server config, empty, unless
     /// a plugin declared a file of that name.
     #[must_use]
     pub fn config_files_to_send(&self) -> Vec<(String, Vec<u8>)> {
@@ -545,9 +552,13 @@ impl Aggregate {
         registry: &'a str,
     ) -> impl Iterator<Item = &'a DatapackEntryDecl> {
         let wanted = registry.strip_prefix("minecraft:").unwrap_or(registry);
-        self.datapack_entries
-            .iter()
-            .filter(move |entry| entry.registry.strip_prefix("minecraft:").unwrap_or(&entry.registry) == wanted)
+        self.datapack_entries.iter().filter(move |entry| {
+            entry
+                .registry
+                .strip_prefix("minecraft:")
+                .unwrap_or(&entry.registry)
+                == wanted
+        })
     }
 }
 
@@ -586,7 +597,8 @@ mod tests {
     #[test]
     fn validation_normalizes_and_rejects() {
         let mut d = declaration("mymod");
-        d.channels.push(channel("mymod:net", &[Phase::Play, Phase::Play], None));
+        d.channels
+            .push(channel("mymod:net", &[Phase::Play, Phase::Play], None));
         let d = d.validated().unwrap();
         assert_eq!(d.mod_info.display_name, "mymod");
         assert_eq!(d.channels[0].phases, [Phase::Play]);
@@ -616,8 +628,16 @@ mod tests {
     #[test]
     fn aggregation_merges_all_plugins() {
         let mut a = declaration("moda");
-        a.channels.push(channel("moda:net", &[Phase::Configuration, Phase::Play], None));
-        a.channels.push(channel("moda:down", &[Phase::Configuration], Some(Flow::Clientbound)));
+        a.channels.push(channel(
+            "moda:net",
+            &[Phase::Configuration, Phase::Play],
+            None,
+        ));
+        a.channels.push(channel(
+            "moda:down",
+            &[Phase::Configuration],
+            Some(Flow::Clientbound),
+        ));
         a.registries.push(RegistryDecl {
             key: "minecraft:item".into(),
             entries: vec!["moda:gem".into(), "moda:ore".into()],
@@ -632,7 +652,8 @@ mod tests {
 
         let mut b = declaration("modb");
         b.mod_info.display_name = "Mod B".into();
-        b.channels.push(channel("modb:net", &[Phase::Play], Some(Flow::Serverbound)));
+        b.channels
+            .push(channel("modb:net", &[Phase::Play], Some(Flow::Serverbound)));
         b.registries.push(RegistryDecl {
             key: "minecraft:item".into(),
             entries: vec!["modb:tool".into(), "moda:gem".into()],
@@ -662,7 +683,13 @@ mod tests {
         assert_eq!(aggregate.registries.len(), 2);
         assert_eq!(
             aggregate.registries[0].entries,
-            ["minecraft:air", "minecraft:stone", "moda:gem", "moda:ore", "modb:tool"]
+            [
+                "minecraft:air",
+                "minecraft:stone",
+                "moda:gem",
+                "moda:ore",
+                "modb:tool"
+            ]
         );
         assert_eq!(aggregate.registries[1].key, "modb:thing");
         assert_eq!(aggregate.registry_payloads.len(), 2);
@@ -699,7 +726,9 @@ mod tests {
         declare("store-plugin-a", a).unwrap();
 
         let mut other = declaration("storeb");
-        other.channels.push(channel("storea:net", &[Phase::Play], None));
+        other
+            .channels
+            .push(channel("storea:net", &[Phase::Play], None));
         assert!(declare("store-plugin-b", other).is_err());
         assert!(declare("store-plugin-c", declaration("storea")).is_err());
 

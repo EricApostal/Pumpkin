@@ -295,30 +295,33 @@ fn check_block(
             } else {
                 ShapeKind::Collision
             };
-            match accessor.dynamic_shapes(block_pos, state, kind) {
-                Some(shapes) => {
-                    clip_block_shapes(shapes.iter().copied(), state, block_pos, from, to)
-                }
-                None => clip_block_shapes(
-                    state.get_block_collision_shapes_at(block_pos),
-                    state,
-                    block_pos,
-                    from,
-                    to,
-                ),
-            }
+            accessor.dynamic_shapes(block_pos, state, kind).map_or_else(
+                || {
+                    clip_block_shapes(
+                        state.get_block_collision_shapes_at(block_pos),
+                        state,
+                        block_pos,
+                        from,
+                        to,
+                    )
+                },
+                |shapes| clip_block_shapes(shapes.iter().copied(), state, block_pos, from, to),
+            )
         }
-        ClipBlock::Outline => match accessor.dynamic_shapes(block_pos, state, ShapeKind::Selection)
-        {
-            Some(shapes) => clip_block_shapes(shapes.iter().copied(), state, block_pos, from, to),
-            None => clip_block_shapes(
-                state.get_block_outline_shapes_at(block_pos),
-                state,
-                block_pos,
-                from,
-                to,
+        ClipBlock::Outline => accessor
+            .dynamic_shapes(block_pos, state, ShapeKind::Selection)
+            .map_or_else(
+                || {
+                    clip_block_shapes(
+                        state.get_block_outline_shapes_at(block_pos),
+                        state,
+                        block_pos,
+                        from,
+                        to,
+                    )
+                },
+                |shapes| clip_block_shapes(shapes.iter().copied(), state, block_pos, from, to),
             ),
-        },
         ClipBlock::FallDamageResetting => {
             if Block::from_state_id(state.id)
                 .has_tag(&pumpkin_data::tag::Block::MINECRAFT_FALL_DAMAGE_RESETTING)

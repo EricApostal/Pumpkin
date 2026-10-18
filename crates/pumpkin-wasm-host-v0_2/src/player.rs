@@ -2932,9 +2932,9 @@ impl pumpkin::plugin::player::HostPlayerWithStore<PluginHostState> for HasSelf<P
         amount: f32,
         damage_type_key: String,
     ) -> wasmtime::Result<Result<(), String>> {
-        let Some(damage_type) = pumpkin_data::damage_type_registry::damage_type_from_key(
-            &damage_type_key,
-        ) else {
+        let Some(damage_type) =
+            pumpkin_data::damage_type_registry::damage_type_from_key(&damage_type_key)
+        else {
             return Ok(Err(format!("unknown damage type '{damage_type_key}'")));
         };
         let player = accessor.get_res(&player)?;

@@ -9,7 +9,7 @@ pub const DEFAULT_HOLD_TIMEOUT_SECONDS: u32 = 30;
 ///
 /// Handlers may set [`hold`](Self::hold) to speak first: the brand and everything after it
 /// (including [`ConfigurationStartEvent`]) wait until the connection is released. Mod loaders
-/// that classify the connection when they see the brand (NeoForge) need their negotiation to
+/// that classify the connection when they see the brand (`NeoForge`) need their negotiation to
 /// arrive before it. Only handlers that block can set it, the changes of others are ignored.
 /// Fired after multiversion packet translation, so older clients behave like current ones.
 #[derive(Event, Clone)]

@@ -95,7 +95,7 @@ pub struct PendingConnection {
     pub(super) session: Option<ConnectionSession>,
     /// For the connection packet events.
     pub(super) server: Weak<Server>,
-    /// The NeoForge handshake, present while plugins declared one.
+    /// The `NeoForge` handshake, present while plugins declared one.
     pub neoforge: Option<NeoForgeState>,
 }
 

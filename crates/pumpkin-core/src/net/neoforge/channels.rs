@@ -1,4 +1,4 @@
-//! The payload channels and registries of NeoForge's own protocol (26.3.x).
+//! The payload channels and registries of `NeoForge`'s own protocol (26.3.x).
 
 use super::payloads::{Flow, Phase, QueryComponent};
 
@@ -38,7 +38,7 @@ pub const BUILTIN: [&str; 7] = [
     COMMON_REGISTER,
 ];
 
-/// What a NeoForge server announces it can receive in the configuration phase: the builtin
+/// What a `NeoForge` server announces it can receive in the configuration phase: the builtin
 /// channels and every optional configuration payload that flows to the server.
 pub const SERVER_CONFIGURATION_LISTENING: [&str; 12] = [
     MINECRAFT_REGISTER,
@@ -65,8 +65,10 @@ pub const REGISTRY_SYNC_REQUIRED: [&str; 3] = [
 /// The `c:` common network version (the only one that exists).
 pub const COMMON_NETWORK_VERSION: i32 = 1;
 
-/// The server config file NeoForge itself syncs, sent empty so a client that was classified
-/// before the brand gets its defaults. A later NeoForge commit renamed the config type
+/// The server config file `NeoForge` itself syncs.
+///
+/// It is sent empty so a client that was classified
+/// before the brand gets its defaults. A later `NeoForge` commit renamed the config type
 /// (`neoforge-synced.toml`), which name a 26.3.0.x client expects is not verified.
 pub const NEOFORGE_SERVER_CONFIG_FILE: &str = "neoforge-server.toml";
 
@@ -83,7 +85,7 @@ fn own(id: &str, flow: Option<Flow>) -> QueryComponent {
     }
 }
 
-/// NeoForge's own payload registrations of `phase`, as a NeoForge peer reports them in
+/// `NeoForge`'s own payload registrations of `phase`, as a `NeoForge` peer reports them in
 /// `neoforge:register` (all optional, version "1").
 #[must_use]
 pub fn own_registrations(phase: Phase) -> Vec<QueryComponent> {

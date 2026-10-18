@@ -121,6 +121,7 @@ impl DatapackManager {
         }
     }
 
+    #[expect(clippy::too_many_lines)]
     pub fn load_all(
         &self,
         world_path: &Path,

@@ -46,7 +46,7 @@ pub const MAX_PLUGIN_MENU_SLOTS: usize = 256;
 /// The number of slots of the player inventory a menu can show behind its own slots.
 pub const PLAYER_INVENTORY_SLOTS: usize = 36;
 
-/// The channel of the payload NeoForge opens menus with when they carry extra data.
+/// The channel of the payload `NeoForge` opens menus with when they carry extra data.
 pub const ADVANCED_OPEN_SCREEN_CHANNEL: &str = "neoforge:advanced_open_screen";
 
 /// How a slot of a plugin menu takes part in vanilla clicks.
@@ -397,7 +397,7 @@ impl PluginMenuScreenHandler {
     }
 
     /// A click on a ghost slot, `false` if the slot is not one.
-    fn click_ghost_slot(&mut self, slot_index: i32, button: i32, mode: &SlotActionType) -> bool {
+    fn click_ghost_slot(&self, slot_index: i32, button: i32, mode: &SlotActionType) -> bool {
         let Some(slot) = usize::try_from(slot_index)
             .ok()
             .and_then(|index| self.menu_slots.get(index))
@@ -534,12 +534,12 @@ fn advanced_open_screen_body(
     menu_type: &PluginMenuType,
     title: &TextComponent,
     extra_data: &[u8],
-    version: &JavaMinecraftVersion,
+    version: JavaMinecraftVersion,
 ) -> Result<Vec<u8>, WritingError> {
     let mut body = Vec::with_capacity(extra_data.len() + 64);
     body.write_var_int(&VarInt(i32::from(sync_id)))?;
     body.write_var_int(&VarInt(menu_type.id as i32))?;
-    body.write_component(title, version)?;
+    body.write_component(title, &version)?;
     body.write_var_int(&VarInt(extra_data.len() as i32))?;
     body.write_slice(extra_data)?;
     Ok(body)
@@ -549,7 +549,7 @@ impl Player {
     /// Opens a menu of a plugin registered type for a Java player and returns its container id.
     ///
     /// The window the player has open closes first, like opening a chest does. With `extra_data`
-    /// the menu opens with the NeoForge payload `neoforge:advanced_open_screen`, otherwise with the
+    /// the menu opens with the `NeoForge` payload `neoforge:advanced_open_screen`, otherwise with the
     /// vanilla open screen packet. The `slot_count` slots start empty and are sent to the client.
     pub fn open_plugin_menu(
         &self,
@@ -621,8 +621,10 @@ impl Player {
             Arc::new(std::sync::Mutex::new(menu));
 
         if let Some((extra_data, version)) = payload {
-            let body = advanced_open_screen_body(sync_id, menu_type, title, &extra_data, &version)
-                .map_err(|error| format!("could not encode the open screen payload: {error}"))?;
+            let body = advanced_open_screen_body(sync_id, menu_type, title, &extra_data, version)
+                .map_err(|error| {
+                format!("could not encode the open screen payload: {error}")
+            })?;
             self.try_send_client_packet(&CCustomPayload::new(ADVANCED_OPEN_SCREEN_CHANNEL, &body));
         } else {
             self.try_send_client_packet(&COpenScreen::new(

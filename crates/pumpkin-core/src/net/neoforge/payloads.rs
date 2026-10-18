@@ -1,6 +1,6 @@
-//! Encoders and decoders of the NeoForge 26.3 negotiation payloads.
+//! Encoders and decoders of the `NeoForge` 26.3 negotiation payloads.
 //!
-//! The layouts are documented in `docs/neoforge-protocol.md` of the plugin API (with the NeoForge
+//! The layouts are documented in `docs/neoforge-protocol.md` of the plugin API (with the `NeoForge`
 //! source each comes from). Trailing bytes in a payload the client knows are a decode error on
 //! the client, so every encoder here is exact.
 
@@ -129,7 +129,7 @@ pub fn encode_register_channels<S: AsRef<str>>(channels: &[S]) -> Vec<u8> {
     out
 }
 
-/// Decodes like NeoForge: names are split at zero bytes and a name that is not a valid
+/// Decodes like `NeoForge`: names are split at zero bytes and a name that is not a valid
 /// identifier is ignored.
 #[must_use]
 pub fn decode_register_channels(data: &[u8]) -> Vec<String> {
@@ -207,14 +207,15 @@ impl ModdedNetworkQuery {
             for _ in 0..r.var_len(MAX_ELEMENTS)? {
                 let id = normalize(&r.string()?)?;
                 let version = r.string()?;
-                let flow = if r.bool()? {
-                    let ordinal = r.var_int()?;
-                    Some(Flow::from_ordinal(ordinal).ok_or_else(|| {
-                        CodecError::new(format!("unknown packet flow {ordinal}"))
-                    })?)
-                } else {
-                    None
-                };
+                let flow =
+                    if r.bool()? {
+                        let ordinal = r.var_int()?;
+                        Some(Flow::from_ordinal(ordinal).ok_or_else(|| {
+                            CodecError::new(format!("unknown packet flow {ordinal}"))
+                        })?)
+                    } else {
+                        None
+                    };
                 let optional = r.bool()?;
                 list.push(QueryComponent {
                     id,
@@ -270,7 +271,6 @@ impl ModdedNetworkSetup {
 }
 
 /// `neoforge:modded_network_setup_failed`: why the negotiation failed, per channel.
-#[must_use]
 pub fn encode_setup_failed(reasons: &BTreeMap<String, NbtText>) -> Result<Vec<u8>, CodecError> {
     let mut w = Writer::new();
     w.var_len(reasons.len());
@@ -348,7 +348,9 @@ pub fn encode_sync_start<S: AsRef<str>>(registries: &[S]) -> Vec<u8> {
     w.into_bytes()
 }
 
-/// `neoforge:frozen_registry`: the registry name, then the snapshot. The id of an entry is its
+/// `neoforge:frozen_registry`: the registry name, then the snapshot.
+///
+/// The id of an entry is its
 /// index in `entries`, the ids are written in increasing order (the client applies them in that
 /// order), and no aliases are sent.
 #[must_use]

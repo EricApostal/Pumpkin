@@ -10,7 +10,9 @@ pub enum LootSource {
     Entity,
 }
 
-/// Fired for the loot a block or an entity death generated, before it drops. A handler can change
+/// Fired for the loot a block or an entity death generated, before it drops.
+///
+/// A handler can change
 /// the stacks (like a global loot modifier of other loaders) or cancel the event to drop nothing
 /// from the loot table. Equipment of a dying entity is not part of it, `LivingDropsEvent` has it.
 #[cancellable]

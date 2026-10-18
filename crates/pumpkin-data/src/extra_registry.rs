@@ -302,7 +302,10 @@ pub fn add_datapack_entry(
     data: Option<Vec<u8>>,
 ) -> Result<(), RegistryError> {
     check_location(id)?;
-    if data.as_ref().is_some_and(|d| d.len() > MAX_DATAPACK_ENTRY_BYTES) {
+    if data
+        .as_ref()
+        .is_some_and(|d| d.len() > MAX_DATAPACK_ENTRY_BYTES)
+    {
         return Err(RegistryError::InvalidDefinition(
             "the entry data is too large".to_string(),
         ));
@@ -412,10 +415,22 @@ mod tests {
     fn owned_registry_ids() {
         assert!(register_owned_registry("minecraft:x").is_err());
         register_owned_registry("extra_test:fan").unwrap();
-        assert_eq!(add_owned_registry_entry("extra_test:fan", "extra_test:a"), Ok(0));
-        assert_eq!(add_owned_registry_entry("extra_test:fan", "extra_test:b"), Ok(1));
-        assert_eq!(add_owned_registry_entry("extra_test:fan", "extra_test:a"), Ok(0));
-        assert_eq!(owned_registry_entry_id("extra_test:fan", "extra_test:b"), Some(1));
+        assert_eq!(
+            add_owned_registry_entry("extra_test:fan", "extra_test:a"),
+            Ok(0)
+        );
+        assert_eq!(
+            add_owned_registry_entry("extra_test:fan", "extra_test:b"),
+            Ok(1)
+        );
+        assert_eq!(
+            add_owned_registry_entry("extra_test:fan", "extra_test:a"),
+            Ok(0)
+        );
+        assert_eq!(
+            owned_registry_entry_id("extra_test:fan", "extra_test:b"),
+            Some(1)
+        );
     }
 
     #[test]

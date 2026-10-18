@@ -79,19 +79,25 @@ pub fn clear() {
 pub fn load_namespace(namespace: &str, ns_path: &Path) {
     let mut pending = PENDING.lock().unwrap_or_else(PoisonError::into_inner);
     let worldgen = ns_path.join("worldgen");
-    visit_json(&worldgen.join("configured_feature"), namespace, "", &mut |key, json| {
-        match parse_configured(&json) {
+    visit_json(
+        &worldgen.join("configured_feature"),
+        namespace,
+        "",
+        &mut |key, json| match parse_configured(&json) {
             Ok(Some(ore)) => pending.configured.push((key, ore)),
             Ok(None) => debug!("Skipping configured feature {key}: not an ore"),
             Err(error) => warn!("Invalid configured feature {key}: {error}"),
-        }
-    });
-    visit_json(&worldgen.join("placed_feature"), namespace, "", &mut |key, json| {
-        match parse_placed(&key, &json, &mut pending.configured) {
+        },
+    );
+    visit_json(
+        &worldgen.join("placed_feature"),
+        namespace,
+        "",
+        &mut |key, json| match parse_placed(&key, &json, &mut pending.configured) {
             Ok(placed) => pending.placed.push((key, placed)),
             Err(error) => debug!("Skipping placed feature {key}: {error}"),
-        }
-    });
+        },
+    );
     visit_json(
         &ns_path.join("neoforge").join("biome_modifier"),
         namespace,
@@ -108,7 +114,8 @@ pub fn load_namespace(namespace: &str, ns_path: &Path) {
 pub fn finish() {
     let pending = std::mem::take(&mut *PENDING.lock().unwrap_or_else(PoisonError::into_inner));
     for (key, ore) in pending.configured {
-        if let Err(error) = additive::register_feature(&key, FeatureKind::Ore(ore), Source::Datapack)
+        if let Err(error) =
+            additive::register_feature(&key, FeatureKind::Ore(ore), Source::Datapack)
         {
             warn!("Datapack feature {key}: {error}");
         }
@@ -411,10 +418,7 @@ fn parse_modifier(json: &Value) -> Result<Option<Modifier>, String> {
     let kind = json.get("type").and_then(Value::as_str).unwrap_or_default();
     match kind {
         "neoforge:add_features" => {
-            let step_name = json
-                .get("step")
-                .and_then(Value::as_str)
-                .ok_or("no step")?;
+            let step_name = json.get("step").and_then(Value::as_str).ok_or("no step")?;
             let step = STEPS
                 .iter()
                 .position(|name| *name == step_name)

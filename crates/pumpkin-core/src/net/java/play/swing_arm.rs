@@ -35,7 +35,9 @@ impl JavaClient {
                 hand,
                 player.inventory().get_stack_in_hand(hand),
             );
-            server.plugin_manager.fire_blocking(server, &mut swing_event);
+            server
+                .plugin_manager
+                .fire_blocking(server, &mut swing_event);
             if swing_event.cancelled {
                 return;
             }

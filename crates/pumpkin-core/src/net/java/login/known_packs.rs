@@ -51,7 +51,7 @@ impl PendingConnection {
         self.complete_configuration(server).await;
     }
 
-    /// `entries` plus the entries of this registry that plugins declared for NeoForge clients.
+    /// `entries` plus the entries of this registry that plugins declared for `NeoForge` clients.
     fn with_neoforge_datapack_entries(
         &self,
         registry_id: &str,

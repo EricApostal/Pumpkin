@@ -21,8 +21,8 @@ use crate::{
     },
     pumpkin::plugin::{
         event::{
-            DatapackReloadEventData, DatapackSyncEventData, Event, EventType,
-            LootModifyEventData, TagsUpdatedEventData,
+            DatapackReloadEventData, DatapackSyncEventData, Event, EventType, LootModifyEventData,
+            TagsUpdatedEventData,
         },
         item_stack::ItemStack as WitItemStack,
         uuid::Uuid as WitUuid,
@@ -137,10 +137,7 @@ impl ToFromWasmEvent for DatapackSyncEvent {
 
 impl ToFromWasmEvent for LootModifyEvent {
     fn to_wasm_event(&self, state: &mut PluginHostState) -> Event {
-        let tool = self
-            .tool
-            .as_ref()
-            .map(|stack| add_item_stack(state, stack));
+        let tool = self.tool.as_ref().map(|stack| add_item_stack(state, stack));
         let loot = self
             .loot
             .iter()

@@ -36,7 +36,7 @@ pub struct CParticle<'a> {
     pub particle_id: VarInt,
     /// Extra data required by specific particles (e.g., block states for
     /// `block` particles or RGB values for `dust`), always in the vanilla encoding.
-    /// For a [`ConnectionFlavour::NeoForge`] connection the writer appends what NeoForge adds
+    /// For a [`ConnectionFlavour::NeoForge`] connection the writer appends what `NeoForge` adds
     /// (see [`takes_block_particle_option`]).
     pub data: &'a [u8],
 }
@@ -70,9 +70,9 @@ impl<'a> CParticle<'a> {
 /// Whether the particle type of the 26.3 id `particle_id` carries a `BlockParticleOption`,
 /// which is a block state id in the vanilla encoding.
 ///
-/// NeoForge's `BlockParticleOption` stream codec (`patches/net/minecraft/core/particles/
+/// `NeoForge`'s `BlockParticleOption` stream codec (`patches/net/minecraft/core/particles/
 /// BlockParticleOption.java.patch`) reads an `Optional<BlockPos>` after the state id when the
-/// connection is a NeoForge one, so [`CParticle`] appends an empty one (a single `false`) to the
+/// connection is a `NeoForge` one, so [`CParticle`] appends an empty one (a single `false`) to the
 /// data of these particles for [`ConnectionFlavour::NeoForge`] connections.
 #[must_use]
 pub fn takes_block_particle_option(particle_id: i32) -> bool {

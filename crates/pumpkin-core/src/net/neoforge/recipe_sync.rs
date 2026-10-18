@@ -86,7 +86,7 @@ fn is_vanilla(key: &str) -> bool {
         .is_some_and(|path| VANILLA_RECIPE_TYPES.contains(&path))
 }
 
-/// Sets the recipe types `owner` syncs to NeoForge clients, replacing its previous list.
+/// Sets the recipe types `owner` syncs to `NeoForge` clients, replacing its previous list.
 pub fn declare_synced_types(owner: &str, types: &[String]) -> Result<(), String> {
     if types.len() > MAX_SYNCED_TYPES {
         return Err(format!("at most {MAX_SYNCED_TYPES} synced recipe types"));
@@ -427,7 +427,9 @@ pub fn encode_recipe_content(
     let mut recipes: Vec<Encoded> = Vec::new();
     for (index, recipe) in dynamic.iter().enumerate() {
         if let Some(encoded) = encode_dynamic(recipe, index)
-            && wanted.iter().any(|(key, _)| key.as_str() == encoded.type_key)
+            && wanted
+                .iter()
+                .any(|(key, _)| key.as_str() == encoded.type_key)
         {
             recipes.push(encoded);
         }
@@ -505,7 +507,10 @@ mod tests {
             canonical_type("minecraft:smithing_trim").unwrap(),
             "minecraft:smithing"
         );
-        assert_eq!(canonical_type("create:pressing").unwrap(), "create:pressing");
+        assert_eq!(
+            canonical_type("create:pressing").unwrap(),
+            "create:pressing"
+        );
         assert!(canonical_type("Bad Type").is_err());
         assert_eq!(VANILLA_RECIPE_SERIALIZERS.len(), 21);
     }
@@ -514,7 +519,10 @@ mod tests {
     fn vanilla_smelting_payload() {
         let plugin = PluginRecipeRegistry::new();
         let bytes = encode_recipe_content(
-            &["minecraft:smelting".to_string(), "minecraft:blasting".to_string()],
+            &[
+                "minecraft:smelting".to_string(),
+                "minecraft:blasting".to_string(),
+            ],
             &[smelting()],
             &plugin,
         );
@@ -530,10 +538,7 @@ mod tests {
         // A tag reference.
         assert_eq!(r.var_int().unwrap(), 0);
         assert_eq!(r.string().unwrap(), "minecraft:logs");
-        assert_eq!(
-            r.var_int().unwrap(),
-            i32::from(Item::IRON_INGOT.id)
-        );
+        assert_eq!(r.var_int().unwrap(), i32::from(Item::IRON_INGOT.id));
         assert_eq!(r.var_int().unwrap(), 1);
         assert_eq!(r.var_int().unwrap(), 0);
         assert_eq!(r.var_int().unwrap(), 0);
@@ -545,7 +550,11 @@ mod tests {
     #[test]
     fn unsynced_types_are_left_out() {
         let plugin = PluginRecipeRegistry::new();
-        let bytes = encode_recipe_content(&["minecraft:stonecutting".to_string()], &[smelting()], &plugin);
+        let bytes = encode_recipe_content(
+            &["minecraft:stonecutting".to_string()],
+            &[smelting()],
+            &plugin,
+        );
         assert_eq!(bytes, vec![1, 5, 0]);
         assert_eq!(encode_recipe_content(&[], &[], &plugin), vec![0, 0]);
     }

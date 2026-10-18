@@ -238,7 +238,11 @@ pub fn register_plugin_enchantment_effect_type(key: &str) -> Result<usize, Regis
     let entry = EFFECT_TYPES
         .write()
         .unwrap_or_else(PoisonError::into_inner)
-        .register(key, |_| true, |index, key| PluginEnchantmentEffectType { key, index })?;
+        .register(
+            key,
+            |_| true,
+            |index, key| PluginEnchantmentEffectType { key, index },
+        )?;
     Ok(vanilla_enchantment_effect_type_count() + entry.index)
 }
 
@@ -260,7 +264,10 @@ pub fn enchantment_effect_type_id(key: &str) -> Option<usize> {
     } else {
         format!("minecraft:{key}")
     };
-    if let Some(id) = VANILLA_ENCHANTMENT_EFFECT_TYPES.iter().position(|k| *k == full) {
+    if let Some(id) = VANILLA_ENCHANTMENT_EFFECT_TYPES
+        .iter()
+        .position(|k| *k == full)
+    {
         return Some(id);
     }
     EFFECT_TYPES

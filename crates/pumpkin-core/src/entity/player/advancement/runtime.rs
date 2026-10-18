@@ -64,7 +64,7 @@ mod tests {
         saved.save().await.unwrap();
 
         // Loaded before the plugin registered it again: kept, saved again, restored later.
-        runtime_advancement::remove_plugin_advancement("rt_persist:root");
+        let _ = runtime_advancement::remove_plugin_advancement("rt_persist:root");
         let mut loaded = PlayerAdvancement::new(manager.clone(), id);
         loaded.load().unwrap();
         assert!(loaded.progress.is_empty());
@@ -75,7 +75,12 @@ mod tests {
         let mut again = PlayerAdvancement::new(manager, id);
         again.load().unwrap();
         let advancement = runtime_advancement::find("rt_persist:root").unwrap();
-        assert!(again.progress.get_mut_or_start_progress(advancement).is_done());
-        runtime_advancement::remove_plugin_advancement("rt_persist:root");
+        assert!(
+            again
+                .progress
+                .get_mut_or_start_progress(advancement)
+                .is_done()
+        );
+        let _ = runtime_advancement::remove_plugin_advancement("rt_persist:root");
     }
 }

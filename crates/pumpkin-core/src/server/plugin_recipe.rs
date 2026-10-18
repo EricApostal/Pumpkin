@@ -33,7 +33,7 @@ pub struct PluginRecipeType {
 }
 
 /// An ingredient and how many items it takes.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SizedIngredient {
     pub ingredient: OwnedRecipeIngredient,
     pub count: u32,
@@ -50,7 +50,7 @@ pub struct RecipeOutput {
 }
 
 /// A fluid in a recipe, `amount` in millibuckets.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RecipeFluid {
     /// Resource location of the fluid, or `#namespace:path` for a fluid tag.
     pub fluid: String,
@@ -76,7 +76,7 @@ struct Inner {
     types: PluginRegistry<PluginRecipeType>,
     recipes: Vec<Arc<PluginRecipe>>,
     by_id: HashMap<String, usize>,
-    /// The network encoding of a recipe for NeoForge clients, set by the plugin.
+    /// The network encoding of a recipe for `NeoForge` clients, set by the plugin.
     network_data: HashMap<String, Vec<u8>>,
 }
 
@@ -177,7 +177,7 @@ impl PluginRecipeRegistry {
     }
 
     /// Sets the network encoding (the recipe serializer's stream codec body) that is sent to
-    /// NeoForge clients for the recipe. Fails for an unknown recipe or an oversized blob.
+    /// `NeoForge` clients for the recipe. Fails for an unknown recipe or an oversized blob.
     pub fn set_network_data(&self, id: &str, data: Vec<u8>) -> Result<(), RegistryError> {
         if data.len() > MAX_NETWORK_BYTES {
             return Err(RegistryError::InvalidDefinition(format!(

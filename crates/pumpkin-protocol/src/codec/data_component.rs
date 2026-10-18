@@ -287,9 +287,9 @@ impl DataComponentCodec<Self> for EnchantmentsImpl {
             let id = seq.get_var_int()?.0 as u8;
             let level = seq.get_var_int()?.0;
             enc.push((
-                pumpkin_data::enchantment_registry::enchantment_from_id(id).ok_or(ReadingError::Message(
-                    "EnchantmentsImpl Enchantment VarInt Incorrect!".into(),
-                ))?,
+                pumpkin_data::enchantment_registry::enchantment_from_id(id).ok_or(
+                    ReadingError::Message("EnchantmentsImpl Enchantment VarInt Incorrect!".into()),
+                )?,
                 level,
             ));
         }
@@ -879,9 +879,11 @@ impl DataComponentCodec<Self> for StoredEnchantmentsImpl {
             let id = seq.get_var_int()?.0 as u8;
             let level = seq.get_var_int()?.0;
             stored_enchantments.push((
-                pumpkin_data::enchantment_registry::enchantment_from_id(id).ok_or(ReadingError::Message(
-                    "StoredEnchantmentsImpl Enchantment VarInt Incorrect!".into(),
-                ))?,
+                pumpkin_data::enchantment_registry::enchantment_from_id(id).ok_or(
+                    ReadingError::Message(
+                        "StoredEnchantmentsImpl Enchantment VarInt Incorrect!".into(),
+                    ),
+                )?,
                 level,
             ));
         }

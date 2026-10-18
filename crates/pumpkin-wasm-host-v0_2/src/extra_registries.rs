@@ -6,8 +6,7 @@ use crate::pumpkin::plugin::extra_registries::{
 use pumpkin_core::plugin::permissions;
 use pumpkin_data::extra_registry::{
     self, MapDecorationRegistration, plugin_map_decoration_by_key, plugin_particle_by_key,
-    plugin_sound_by_key, vanilla_map_decoration_count, vanilla_particle_count,
-    vanilla_sound_count,
+    plugin_sound_by_key, vanilla_map_decoration_count, vanilla_particle_count, vanilla_sound_count,
 };
 use pumpkin_data::map_decoration::MapDecorationType;
 use pumpkin_data::mob_effect_registry::{
@@ -45,7 +44,7 @@ fn plugin_name(state: &PluginHostState) -> &str {
     state.name.as_deref().unwrap_or("<unknown>")
 }
 
-/// Sends a plugin particle to the NeoForge players of `world`, the others do not know the id.
+/// Sends a plugin particle to the `NeoForge` players of `world`, the others do not know the id.
 pub fn spawn_plugin_particle(
     world: &pumpkin_core::world::World,
     key: &str,
@@ -93,7 +92,10 @@ pub fn spawn_plugin_particle(
 }
 
 impl Host for PluginHostState {
-    fn register_sound(&mut self, definition: SoundDefinition) -> wasmtime::Result<Result<u32, String>> {
+    fn register_sound(
+        &mut self,
+        definition: SoundDefinition,
+    ) -> wasmtime::Result<Result<u32, String>> {
         if let Err(error) = check_permission(self, "sounds") {
             return Ok(Err(error));
         }

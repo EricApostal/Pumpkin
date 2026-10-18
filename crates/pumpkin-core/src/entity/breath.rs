@@ -60,7 +60,7 @@ impl BreathManager {
 
         if in_water {
             let mut new_air =
-                (prev + self.breathe(player, prev, -AIR_DEPLETION_RATE, true)).clamp(0, MAX_AIR);
+                (prev + Self::breathe(player, prev, -AIR_DEPLETION_RATE, true)).clamp(0, MAX_AIR);
             if new_air != prev {
                 let server = player.world().server.upgrade();
                 if let Some(server) = server {
@@ -90,7 +90,7 @@ impl BreathManager {
             }
         } else {
             let mut new_air =
-                (prev + self.breathe(player, prev, AIR_RECOVERY_RATE, false)).clamp(0, MAX_AIR);
+                (prev + Self::breathe(player, prev, AIR_RECOVERY_RATE, false)).clamp(0, MAX_AIR);
             if new_air != prev {
                 let server = player.world().server.upgrade();
                 if let Some(server) = server {
@@ -112,7 +112,7 @@ impl BreathManager {
     }
 
     /// The change of the air supply this tick, plugins can change it with `LivingBreatheEvent`.
-    fn breathe(&self, player: &Player, air: i32, change: i32, submerged: bool) -> i32 {
+    fn breathe(player: &Player, air: i32, change: i32, submerged: bool) -> i32 {
         if air == MAX_AIR && !submerged {
             return change;
         }

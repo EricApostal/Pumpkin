@@ -1,15 +1,15 @@
 use crate::block::registry::BlockActionResult;
 use crate::block::{BlockBehaviour, GetScreenHandlerFactoryArgs, NormalUseArgs};
 
+use crate::entity::player::Player;
+use crate::plugin::api::events::inventory::prepare_smithing::PrepareSmithingEvent;
+use pumpkin_data::item::Item;
+use pumpkin_data::item_stack::ItemStack;
 use pumpkin_data::translation;
 use pumpkin_inventory::player::player_inventory::PlayerInventory;
 use pumpkin_inventory::screen_handler::{
     InventoryPlayer, ScreenHandlerFactory, SharedScreenHandler,
 };
-use crate::entity::player::Player;
-use crate::plugin::api::events::inventory::prepare_smithing::PrepareSmithingEvent;
-use pumpkin_data::item::Item;
-use pumpkin_data::item_stack::ItemStack;
 use pumpkin_inventory::smithing_table_screen_handler::{
     SmithingContext, SmithingTableScreenHandler, set_smithing_result_hook,
 };

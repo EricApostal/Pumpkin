@@ -7,9 +7,9 @@ use crate::AccessorExt;
 use crate::mob::from_wit_block_direction;
 use crate::pumpkin::plugin::common::BlockPos as WitBlockPos;
 use crate::pumpkin::plugin::fluid_handler::{
-    BlockDirection as WitBlockDirection, FluidHandler as WitFluidHandler, FluidStack as WitFluidStack,
-    Host, HostFluidHandler, HostItemFluidHandler, HostItemFluidHandlerWithStore,
-    ItemFluidHandler as WitItemFluidHandler,
+    BlockDirection as WitBlockDirection, FluidHandler as WitFluidHandler,
+    FluidStack as WitFluidStack, Host, HostFluidHandler, HostItemFluidHandler,
+    HostItemFluidHandlerWithStore, ItemFluidHandler as WitItemFluidHandler,
 };
 use crate::pumpkin::plugin::item_stack::ItemStack as WitHostItemStack;
 use crate::pumpkin::plugin::world::World as WitWorld;
@@ -131,9 +131,7 @@ impl Host for PluginHostState {
         }
         let world = Arc::clone(self.get(&target_world)?);
         Ok(world
-            .with_plugin_block_entity(&from_wit_position(&pos), |entity| {
-                entity.unregister_tanks()
-            })
+            .with_plugin_block_entity(&from_wit_position(&pos), |entity| entity.unregister_tanks())
             .map(|fluids| fluids.into_iter().map(to_wit).collect())
             .ok_or_else(|| "there is no plugin block entity at the position".to_string()))
     }
@@ -259,7 +257,11 @@ impl HostItemFluidHandlerWithStore<PluginHostState> for HasSelf<PluginHostState>
     ) -> wasmtime::Result<u32> {
         let target = accessor.get_res(&res)?;
         let stack = target.0.lock().await;
-        Ok(if tank == 0 { item_fluid::capacity(&stack) } else { 0 })
+        Ok(if tank == 0 {
+            item_fluid::capacity(&stack)
+        } else {
+            0
+        })
     }
 
     async fn is_fluid_valid(

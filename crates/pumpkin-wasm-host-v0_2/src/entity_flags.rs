@@ -1,6 +1,5 @@
 use crate::pumpkin::plugin::{
-    common::EntityPose,
-    entity_flags::Host, player::Player as WitPlayer, world::Entity as WitEntity,
+    common::EntityPose, entity_flags::Host, player::Player as WitPlayer, world::Entity as WitEntity,
 };
 use pumpkin_core::entity::{Entity, plugin_flags::flag_from_key};
 use pumpkin_core::plugin::api::events::entity::set_item_entity_tick_interval;
@@ -63,7 +62,11 @@ impl Host for PluginHostState {
         key: String,
         value: bool,
     ) -> wasmtime::Result<Result<(), String>> {
-        if !self.permissions.iter().any(|p| p == permissions::ENTITY_FLAGS) {
+        if !self
+            .permissions
+            .iter()
+            .any(|p| p == permissions::ENTITY_FLAGS)
+        {
             return Ok(Err(permission_error()));
         }
         let entity = self.get(&entity)?;
@@ -75,7 +78,11 @@ impl Host for PluginHostState {
         entity: Resource<WitEntity>,
         key: String,
     ) -> wasmtime::Result<Result<bool, String>> {
-        if !self.permissions.iter().any(|p| p == permissions::ENTITY_FLAGS) {
+        if !self
+            .permissions
+            .iter()
+            .any(|p| p == permissions::ENTITY_FLAGS)
+        {
             return Ok(Err(permission_error()));
         }
         let entity = self.get(&entity)?;
@@ -88,7 +95,11 @@ impl Host for PluginHostState {
         key: String,
         value: bool,
     ) -> wasmtime::Result<Result<(), String>> {
-        if !self.permissions.iter().any(|p| p == permissions::ENTITY_FLAGS) {
+        if !self
+            .permissions
+            .iter()
+            .any(|p| p == permissions::ENTITY_FLAGS)
+        {
             return Ok(Err(permission_error()));
         }
         let player = self.get(&player)?;
@@ -100,7 +111,11 @@ impl Host for PluginHostState {
         player: Resource<WitPlayer>,
         key: String,
     ) -> wasmtime::Result<Result<bool, String>> {
-        if !self.permissions.iter().any(|p| p == permissions::ENTITY_FLAGS) {
+        if !self
+            .permissions
+            .iter()
+            .any(|p| p == permissions::ENTITY_FLAGS)
+        {
             return Ok(Err(permission_error()));
         }
         let player = self.get(&player)?;
@@ -112,7 +127,11 @@ impl Host for PluginHostState {
         entity: Resource<WitEntity>,
         size: Option<(f32, f32)>,
     ) -> wasmtime::Result<Result<(), String>> {
-        if !self.permissions.iter().any(|p| p == permissions::ENTITY_FLAGS) {
+        if !self
+            .permissions
+            .iter()
+            .any(|p| p == permissions::ENTITY_FLAGS)
+        {
             return Ok(Err(permission_error()));
         }
         if size.is_some_and(|(width, height)| !(width > 0.0 && height > 0.0)) {
@@ -130,7 +149,11 @@ impl Host for PluginHostState {
         player: Resource<WitPlayer>,
         reach: Option<(f64, f64, f64)>,
     ) -> wasmtime::Result<Result<(), String>> {
-        if !self.permissions.iter().any(|p| p == permissions::ENTITY_FLAGS) {
+        if !self
+            .permissions
+            .iter()
+            .any(|p| p == permissions::ENTITY_FLAGS)
+        {
             return Ok(Err(permission_error()));
         }
         if reach.is_some_and(|(x, y, z)| !(x >= 0.0 && y >= 0.0 && z >= 0.0)) {
@@ -150,7 +173,11 @@ impl Host for PluginHostState {
         entity: Resource<WitEntity>,
         pose: Option<EntityPose>,
     ) -> wasmtime::Result<Result<(), String>> {
-        if !self.permissions.iter().any(|p| p == permissions::ENTITY_FLAGS) {
+        if !self
+            .permissions
+            .iter()
+            .any(|p| p == permissions::ENTITY_FLAGS)
+        {
             return Ok(Err(permission_error()));
         }
         let entity = self.get(&entity)?;
@@ -166,7 +193,11 @@ impl Host for PluginHostState {
         item_key: String,
         interval: u32,
     ) -> wasmtime::Result<bool> {
-        if !self.permissions.iter().any(|p| p == permissions::ENTITY_FLAGS) {
+        if !self
+            .permissions
+            .iter()
+            .any(|p| p == permissions::ENTITY_FLAGS)
+        {
             return Ok(false);
         }
         let key = item_key.strip_prefix("minecraft:").unwrap_or(&item_key);

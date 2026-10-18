@@ -1,4 +1,6 @@
-//! Read only recipe queries for plugins, over every recipe the server knows: the vanilla tables,
+//! Read only recipe queries for plugins, over every recipe the server knows.
+//!
+//! These are the vanilla tables,
 //! the dynamic recipes (datapacks and the recipes plugins registered as vanilla types) and the
 //! recipes of plugin defined types.
 //!
@@ -38,7 +40,7 @@ pub const TYPE_SMITHING_TRANSFORM: &str = "minecraft:smithing_transform";
 pub const TYPE_SMITHING_TRIM: &str = "minecraft:smithing_trim";
 
 /// The layout of a shaped crafting recipe.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RecipeShape {
     pub pattern: Vec<String>,
     pub key: Vec<(char, OwnedRecipeIngredient)>,
@@ -285,7 +287,7 @@ const fn cooking_type_key(kind: &CookingRecipeKind) -> &'static str {
     }
 }
 
-fn owned_cooking_parts(
+const fn owned_cooking_parts(
     recipe: &OwnedCookingRecipeType,
 ) -> (CookingRecipeKind, &OwnedCookingRecipe) {
     match recipe {
@@ -538,7 +540,8 @@ impl RecipeManager {
         item: &Item,
         kind: CookingRecipeKind,
     ) -> Option<CookingQueryResult> {
-        if let Some(recipe) = get_cooking_recipe_with_ingredient(item, kind.clone()) {
+        let kind_tag = std::mem::discriminant(&kind);
+        if let Some(recipe) = get_cooking_recipe_with_ingredient(item, kind) {
             return Some(CookingQueryResult {
                 id: Some(recipe.recipe_id.to_string()),
                 output: output(recipe.result.id, recipe.result.count),
@@ -552,7 +555,7 @@ impl RecipeManager {
                     return None;
                 };
                 let (recipe_kind, recipe) = owned_cooking_parts(cooking);
-                (std::mem::discriminant(&recipe_kind) == std::mem::discriminant(&kind)
+                (std::mem::discriminant(&recipe_kind) == kind_tag
                     && recipe.ingredient.match_item(item))
                 .then(|| CookingQueryResult {
                     id: Some(recipe.recipe_id.clone()),

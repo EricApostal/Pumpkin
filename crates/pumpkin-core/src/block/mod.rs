@@ -515,8 +515,9 @@ fn loot_table_items(
     crate::world::loot::generate_loot_from_handle(&loot_table, seed, params)
 }
 
-/// The items breaking the block at `pos` with `tool` would drop, without breaking it, firing events
-/// or spawning anything. Empty when the chunk is not loaded. Rolls the loot table, so random drops
+/// The items breaking the block at `pos` with `tool` would drop.
+///
+/// Nothing is broken, no event fires and nothing spawns. Empty when the chunk is not loaded. Rolls the loot table, so random drops
 /// can differ between calls.
 pub fn block_drops_at(
     world: &Arc<World>,

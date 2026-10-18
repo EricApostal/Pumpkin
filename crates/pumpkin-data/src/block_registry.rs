@@ -749,9 +749,14 @@ fn normalize(mut reg: BlockRegistration) -> Result<BlockRegistration, BlockRegis
     }
     for rule in &mut reg.shape_rules {
         for (name, value) in &rule.when {
-            let Some(property) = reg.properties.iter().find(|property| property.name == *name)
+            let Some(property) = reg
+                .properties
+                .iter()
+                .find(|property| property.name == *name)
             else {
-                return Err(invalid(format!("shape rule names unknown property '{name}'")));
+                return Err(invalid(format!(
+                    "shape rule names unknown property '{name}'"
+                )));
             };
             if property.kind.value_index(value).is_none() {
                 return Err(invalid(format!(

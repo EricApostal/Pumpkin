@@ -41,7 +41,7 @@ const fn mirror(mirror: WitMirror) -> Mirror {
     }
 }
 
-fn to_wit_pos(pos: pumpkin_util::math::vector3::Vector3<i32>) -> WitBlockPos {
+const fn to_wit_pos(pos: pumpkin_util::math::vector3::Vector3<i32>) -> WitBlockPos {
     WitBlockPos {
         x: pos.x,
         y: pos.y,
@@ -70,7 +70,10 @@ impl HostStructureTemplate for PluginHostState {
         Ok(self.get(&res)?.get_author().to_string())
     }
 
-    fn get_palette(&mut self, res: Resource<WitTemplate>) -> wasmtime::Result<Vec<WitPaletteEntry>> {
+    fn get_palette(
+        &mut self,
+        res: Resource<WitTemplate>,
+    ) -> wasmtime::Result<Vec<WitPaletteEntry>> {
         Ok(palette_of(self.get(&res)?)
             .into_iter()
             .map(|entry| WitPaletteEntry {
@@ -100,7 +103,10 @@ impl HostStructureTemplate for PluginHostState {
             .collect())
     }
 
-    fn get_entities(&mut self, res: Resource<WitTemplate>) -> wasmtime::Result<Vec<StructureEntity>> {
+    fn get_entities(
+        &mut self,
+        res: Resource<WitTemplate>,
+    ) -> wasmtime::Result<Vec<StructureEntity>> {
         Ok(self
             .get(&res)?
             .entity_info_list
@@ -176,13 +182,7 @@ impl HostWithStore<PluginHostState> for HasSelf<PluginHostState> {
         let mirror = mirror(mirror_arg);
         run_blocking(accessor, move || {
             world.place_template_bulk(
-                &template,
-                origin,
-                rotation,
-                mirror,
-                flags,
-                ignore_air,
-                integrity,
+                &template, origin, rotation, mirror, flags, ignore_air, integrity,
             )
         })
         .await

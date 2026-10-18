@@ -371,7 +371,8 @@ impl PlayerAdvancement {
         for (advancement, progress) in old {
             if runtime_advancement::is_generated(advancement) {
                 self.progress.map.insert(advancement, progress);
-            } else if let Some(current) = runtime_advancement::find_runtime(&advancement.id.to_string())
+            } else if let Some(current) =
+                runtime_advancement::find_runtime(&advancement.id.to_string())
             {
                 let mut progress = progress;
                 progress.update(AdvancementRequirement::from_const(current.requirements));
@@ -397,7 +398,8 @@ impl PlayerAdvancement {
         self.last_selected_tab = self
             .last_selected_tab
             .and_then(|tab| runtime_advancement::find(&tab.id.to_string()));
-        for advancement in self.progress.map.keys().copied().collect::<Vec<_>>() {
+        let advancements: Vec<_> = self.progress.map.keys().copied().collect();
+        for advancement in advancements {
             self.progress_changed.insert(advancement);
             self.mark_for_visibility_update(advancement);
         }
@@ -616,8 +618,7 @@ impl Serialize for PlayerAdvancement {
             .filter(|(_key, value)| value.has_progress())
             .map(|(&key, val)| (key, val))
             .collect();
-        let mut map =
-            serializer.serialize_map(Some(filtered_map.len() + self.unresolved.len()))?;
+        let mut map = serializer.serialize_map(Some(filtered_map.len() + self.unresolved.len()))?;
 
         for (advancement, progress) in &filtered_map {
             map.serialize_entry(&advancement.id, &progress.criteria)?;

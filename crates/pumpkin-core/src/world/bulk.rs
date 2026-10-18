@@ -70,7 +70,8 @@ impl World {
         let write_flags = flags | BlockFlags::DEFER_NEIGHBOR_UPDATES;
 
         let mut outcome = BulkOutcome::default();
-        let mut done: Vec<(BlockPos, BlockStateId, BlockStateId)> = Vec::with_capacity(changes.len());
+        let mut done: Vec<(BlockPos, BlockStateId, BlockStateId)> =
+            Vec::with_capacity(changes.len());
 
         for change in changes {
             let pos = change.pos;

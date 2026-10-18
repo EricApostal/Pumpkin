@@ -113,7 +113,12 @@ impl Inventory for DoubleInventory {
     fn slots_for_face(&self, face: BlockDirection) -> Vec<usize> {
         let offset = self.first.size();
         let mut slots = self.first.slots_for_face(face);
-        slots.extend(self.second.slots_for_face(face).into_iter().map(|slot| slot + offset));
+        slots.extend(
+            self.second
+                .slots_for_face(face)
+                .into_iter()
+                .map(|slot| slot + offset),
+        );
         slots
     }
 

@@ -1,4 +1,4 @@
-//! The connection driven part of the NeoForge handshake, see [`crate::net::neoforge`].
+//! The connection driven part of the `NeoForge` handshake, see [`crate::net::neoforge`].
 //!
 //! It is a state machine driven by the packets of the connection and by one deadline, because
 //! the packet reader of a connection is not cancellation safe and must keep running while the
@@ -25,20 +25,17 @@ use pumpkin_protocol::{
 use pumpkin_util::text::TextComponent;
 use tracing::{debug, info};
 
-use crate::{
-    net::neoforge::{
-        channels::{self, COMMON_NETWORK_VERSION},
-        declaration::{self, Aggregate},
-        handshake::{
-            self, BAD_REPLY, Decision, PRE_BRAND_GRACE_MS, PRE_BRAND_TIMEOUT_MS,
-            REGISTRY_SYNC_TIMEOUT, REGISTRY_SYNC_TIMEOUT_MS, TASK_TIMEOUT, TASK_TIMEOUT_MS,
-            UNSUPPORTED_COMMON_VERSION,
-        },
-        payloads::{
-            ModdedNetworkQuery, Phase, decode_common_register, decode_common_version,
-            decode_known_data_maps_reply, decode_register_channels, encode_common_register,
-            encode_common_version, encode_config_file, encode_register_channels,
-        },
+use crate::net::neoforge::{
+    channels::{self, COMMON_NETWORK_VERSION},
+    declaration::{self, Aggregate},
+    handshake::{
+        self, BAD_REPLY, Decision, PRE_BRAND_GRACE_MS, PRE_BRAND_TIMEOUT_MS, REGISTRY_SYNC_TIMEOUT,
+        REGISTRY_SYNC_TIMEOUT_MS, TASK_TIMEOUT, TASK_TIMEOUT_MS, UNSUPPORTED_COMMON_VERSION,
+    },
+    payloads::{
+        ModdedNetworkQuery, Phase, decode_common_register, decode_common_version,
+        decode_known_data_maps_reply, decode_register_channels, encode_common_register,
+        encode_common_version, encode_config_file, encode_register_channels,
     },
 };
 
@@ -68,13 +65,13 @@ impl FinishStep {
 enum Stage {
     /// The query and ping are out, the client has not decided yet.
     PreBrand,
-    /// The client is a NeoForge client and nothing is pending.
+    /// The client is a `NeoForge` client and nothing is pending.
     Negotiated,
     /// The registries are out, waiting for the acknowledgement.
     AwaitingRegistries,
     /// Waiting for the reply of a step after the registry data.
     Finishing(FinishStep),
-    /// Nothing more to do: the client is not NeoForge (and let through), or it completed.
+    /// Nothing more to do: the client is not `NeoForge` (and let through), or it completed.
     Done,
 }
 
@@ -115,7 +112,7 @@ impl PendingConnection {
         self.neoforge.as_ref().and_then(|state| state.deadline)
     }
 
-    /// Whether the client completed the handshake as a NeoForge client.
+    /// Whether the client completed the handshake as a `NeoForge` client.
     #[must_use]
     pub fn is_neoforge(&self) -> bool {
         self.neoforge.as_ref().is_some_and(|state| state.neoforge)
@@ -219,7 +216,9 @@ impl PendingConnection {
         if aggregate.allow_non_neoforge {
             state.stage = Stage::Done;
             let brand = self.brand.clone().unwrap_or_else(|| "unknown".to_string());
-            self.neoforge_log(&format!("not a NeoForge client (brand {brand}), letting it join"));
+            self.neoforge_log(&format!(
+                "not a NeoForge client (brand {brand}), letting it join"
+            ));
             self.neoforge_pre_brand_done().await;
         } else {
             let brand = self.brand.clone().unwrap_or_else(|| "unknown".to_string());
@@ -301,7 +300,10 @@ impl PendingConnection {
         }
         self.neoforge_send(channels::FROZEN_REGISTRY_SYNC_COMPLETED, &[])
             .await;
-        self.neoforge_log(&format!("sent {} registry snapshot(s)", aggregate.registries.len()));
+        self.neoforge_log(&format!(
+            "sent {} registry snapshot(s)",
+            aggregate.registries.len()
+        ));
         true
     }
 

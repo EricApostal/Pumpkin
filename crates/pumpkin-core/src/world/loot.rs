@@ -699,7 +699,7 @@ pub fn block_loot_event(
     use crate::plugin::api::events::world::{LootModifyEvent, LootSource};
     let mut event = LootModifyEvent::new(LootSource::Block, pos.to_f64(), loot);
     event.loot_table = block_loot_table.map(str::to_string);
-    event.tool = params.tool.clone();
+    event.tool.clone_from(&params.tool);
     event.block_pos = Some(*pos);
     event.block_state = params.block_state.map(|state| state.id.as_u16());
     event

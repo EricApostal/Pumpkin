@@ -30,7 +30,9 @@ impl JavaClient {
                 .has_handlers::<crate::plugin::api::events::entity::PluginVehicleInputEvent>()
         {
             let axis = |positive: i8, negative: i8| {
-                f32::from(i8::from(input.input & positive != 0) - i8::from(input.input & negative != 0))
+                f32::from(
+                    i8::from(input.input & positive != 0) - i8::from(input.input & negative != 0),
+                )
             };
             let mut vehicle_input =
                 crate::plugin::api::events::entity::PluginVehicleInputEvent::new(

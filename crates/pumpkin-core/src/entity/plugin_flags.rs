@@ -80,7 +80,10 @@ impl PluginFlags {
 
     pub fn set(&self, flag: u32, value: bool) {
         if value {
-            if flag & (FLAG_IGNORE_RIDERS_HIT | FLAG_IGNORE_VEHICLE_BOX | FLAG_PROJECTILES_HIT_RIDERS) != 0 {
+            if flag
+                & (FLAG_IGNORE_RIDERS_HIT | FLAG_IGNORE_VEHICLE_BOX | FLAG_PROJECTILES_HIT_RIDERS)
+                != 0
+            {
                 ANY_VEHICLE_FLAG.store(true, Ordering::Relaxed);
             }
             self.bits.fetch_or(flag, Ordering::Relaxed);
@@ -139,10 +142,7 @@ impl Entity {
         let position = self.pos.load();
         self.bounding_box
             .store(pumpkin_util::math::boundingbox::BoundingBox::new_from_pos(
-                position.x,
-                position.y,
-                position.z,
-                &dimension,
+                position.x, position.y, position.z, &dimension,
             ));
         self.entity_dimension.store(dimension);
     }

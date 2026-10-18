@@ -749,7 +749,9 @@ impl HostEntity for PluginHostState {
         this: Resource<Entity>,
     ) -> wasmtime::Result<Option<Vec<u8>>> {
         let entity = self.get(&this)?;
-        Ok(entity.get_plugin_entity().map(|plugin| plugin.synced_data()))
+        Ok(entity
+            .get_plugin_entity()
+            .map(pumpkin_core::entity::plugin_entity::PluginEntity::synced_data))
     }
 
     fn set_plugin_synced_data(
@@ -758,7 +760,10 @@ impl HostEntity for PluginHostState {
         data: Vec<u8>,
     ) -> wasmtime::Result<Result<(), String>> {
         let entity = self.get(&this)?;
-        Ok(super::entity_registry::set_synced_data(entity.as_ref(), data))
+        Ok(super::entity_registry::set_synced_data(
+            entity.as_ref(),
+            data,
+        ))
     }
 
     fn get_plugin_spawn_data(
@@ -766,7 +771,9 @@ impl HostEntity for PluginHostState {
         this: Resource<Entity>,
     ) -> wasmtime::Result<Option<Vec<u8>>> {
         let entity = self.get(&this)?;
-        Ok(entity.get_plugin_entity().map(|plugin| plugin.spawn_data()))
+        Ok(entity
+            .get_plugin_entity()
+            .map(pumpkin_core::entity::plugin_entity::PluginEntity::spawn_data))
     }
 
     fn set_plugin_spawn_data(
@@ -775,7 +782,10 @@ impl HostEntity for PluginHostState {
         data: Vec<u8>,
     ) -> wasmtime::Result<Result<(), String>> {
         let entity = self.get(&this)?;
-        Ok(super::entity_registry::set_spawn_data(entity.as_ref(), data))
+        Ok(super::entity_registry::set_spawn_data(
+            entity.as_ref(),
+            data,
+        ))
     }
 
     fn set_plugin_size(
@@ -785,7 +795,11 @@ impl HostEntity for PluginHostState {
         height: f32,
     ) -> wasmtime::Result<Result<(), String>> {
         let entity = self.get(&this)?;
-        Ok(super::entity_registry::set_size(entity.as_ref(), width, height))
+        Ok(super::entity_registry::set_size(
+            entity.as_ref(),
+            width,
+            height,
+        ))
     }
 
     fn set_plugin_synced_entry(
@@ -798,7 +812,7 @@ impl HostEntity for PluginHostState {
         Ok(super::entity_registry::set_synced_entry(
             entity.as_ref(),
             index,
-            data,
+            &data,
         ))
     }
 
@@ -812,9 +826,11 @@ impl HostEntity for PluginHostState {
     ) -> wasmtime::Result<Result<(), String>> {
         let entity = self.get(&this)?.clone();
         let passenger_id = self.get(&passenger)?.get_entity().entity_id;
-        Ok(super::entity_registry::plugin_entity_of(entity.as_ref()).map(|plugin| {
-            plugin.set_passenger_offset(passenger_id, Vector3::new(x, y, z));
-        }))
+        Ok(
+            super::entity_registry::plugin_entity_of(entity.as_ref()).map(|plugin| {
+                plugin.set_passenger_offset(passenger_id, Vector3::new(x, y, z));
+            }),
+        )
     }
 
     fn set_plugin_tracking(
@@ -852,18 +868,21 @@ impl HostEntity for PluginHostState {
     ) -> wasmtime::Result<Position> {
         let entity = self.get(&this)?.clone();
         let delta = Vector3::new(delta.0, delta.1, delta.2);
-        let moved = if let Some(plugin) = entity.get_plugin_entity() {
-            plugin.move_by(delta, collide)
-        } else if entity.get_player().is_some() {
-            Vector3::default()
-        } else if collide {
-            let before = entity.get_entity().pos.load();
-            entity.get_entity().move_entity(entity.as_ref(), delta);
-            entity.get_entity().pos.load().sub(&before)
-        } else {
-            entity.get_entity().move_pos(delta);
-            delta
-        };
+        let moved = entity.get_plugin_entity().map_or_else(
+            || {
+                if entity.get_player().is_some() {
+                    Vector3::default()
+                } else if collide {
+                    let before = entity.get_entity().pos.load();
+                    entity.get_entity().move_entity(entity.as_ref(), delta);
+                    entity.get_entity().pos.load().sub(&before)
+                } else {
+                    entity.get_entity().move_pos(delta);
+                    delta
+                }
+            },
+            |plugin| plugin.move_by(delta, collide),
+        );
         Ok((moved.x, moved.y, moved.z))
     }
 

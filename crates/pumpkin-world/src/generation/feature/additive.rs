@@ -99,7 +99,7 @@ impl HeightSpec {
         }
     }
 
-    fn provider(&self) -> HeightProvider {
+    const fn provider(&self) -> HeightProvider {
         match self.shape {
             HeightShape::Uniform => HeightProvider::Uniform(UniformHeightProvider {
                 min_inclusive: self.min,
@@ -136,9 +136,11 @@ struct Entry<T> {
 
 struct ResolvedOre(Option<OreFeature>);
 
+type FeatureEntry = Entry<(FeatureKind, Arc<OnceLock<ResolvedOre>>)>;
+
 #[derive(Default)]
 struct Registry {
-    features: HashMap<String, Entry<(FeatureKind, Arc<OnceLock<ResolvedOre>>)>>,
+    features: HashMap<String, FeatureEntry>,
     rules: Vec<Entry<AdditiveRule>>,
     removals: Vec<(Vec<u8>, Vec<PlacedFeature>)>,
 }
@@ -216,11 +218,16 @@ pub fn add_rule(rule: AdditiveRule, source: Source) -> Result<(), String> {
     if rule.rarity == Some(0) {
         return Err("rarity must be at least 1".to_string());
     }
-    with_registry(|registry| registry.rules.push(Entry { value: rule, source }));
+    with_registry(|registry| {
+        registry.rules.push(Entry {
+            value: rule,
+            source,
+        })
+    });
     Ok(())
 }
 
-/// Stops the placed features from generating in the biomes, like NeoForge `remove_features`.
+/// Stops the placed features from generating in the biomes, like `NeoForge` `remove_features`.
 pub fn add_removal(biomes: Vec<u8>, features: Vec<PlacedFeature>) {
     with_registry(|registry| registry.removals.push((biomes, features)));
 }
@@ -231,7 +238,9 @@ pub fn clear_datapack_entries() {
         registry
             .features
             .retain(|_, entry| entry.source == Source::Plugin);
-        registry.rules.retain(|entry| entry.source == Source::Plugin);
+        registry
+            .rules
+            .retain(|entry| entry.source == Source::Plugin);
         // Removals only come from datapacks.
         registry.removals.clear();
     });
@@ -373,7 +382,10 @@ fn resolve_ore(spec: &OreSpec) -> ResolvedOre {
                 block: block.id,
             })
         } else {
-            warn!("Ore feature target block '{}' does not exist", target.target);
+            warn!(
+                "Ore feature target block '{}' does not exist",
+                target.target
+            );
             return ResolvedOre(None);
         };
         let state: &'static BlockState = state;
@@ -391,7 +403,6 @@ fn resolve_ore(spec: &OreSpec) -> ResolvedOre {
 
 /// Runs the rules of `step` on the center chunk of the cache. Called after the vanilla features
 /// of the step.
-#[expect(clippy::too_many_arguments)]
 pub fn apply_step<T: GenerationCache>(
     cache: &mut T,
     block_registry: &dyn WorldPortalExt,
@@ -592,7 +603,10 @@ mod tests {
         let negative = rule(-3, None, true);
         assert!(run(&negative, 3, Biome::PLAINS.id).is_empty());
         let rule = rule(2, None, true);
-        assert_eq!(run(&rule, 99, Biome::PLAINS.id), run(&rule, 99, Biome::PLAINS.id));
+        assert_eq!(
+            run(&rule, 99, Biome::PLAINS.id),
+            run(&rule, 99, Biome::PLAINS.id)
+        );
     }
 
     #[test]
@@ -608,6 +622,9 @@ mod tests {
     #[test]
     fn decorator_seeds_do_not_depend_on_registration_order() {
         assert_eq!(fnv1a("create:zinc_ore"), fnv1a("create:zinc_ore"));
-        assert_ne!(fnv1a("create:zinc_ore"), fnv1a("create:striated_ores_overworld"));
+        assert_ne!(
+            fnv1a("create:zinc_ore"),
+            fnv1a("create:striated_ores_overworld")
+        );
     }
 }

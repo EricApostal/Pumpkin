@@ -53,7 +53,10 @@ pub(crate) fn find_in_world(world: &World, id: Uuid) -> Option<Arc<Player>> {
         return None;
     }
     let player = registry().get(&id)?.upgrade()?;
-    let in_world = std::ptr::eq(Arc::as_ptr(&player.living_entity.entity.world.load()), world);
+    let in_world = std::ptr::eq(
+        Arc::as_ptr(&player.living_entity.entity.world.load()),
+        world,
+    );
     in_world.then_some(player)
 }
 
@@ -145,7 +148,7 @@ impl Player {
                 registry.remove(&self.gameprofile.id);
             }
             COUNT.store(registry.len(), Ordering::Relaxed);
-        }
+        };
         if let Some(java) = self.client.java() {
             java.close();
         }
@@ -239,7 +242,7 @@ impl Player {
     }
 
     /// Attacks `target` with the held item at full strength, with the damage, knockback and
-    /// enchantments of a player attack. Players are only attacked when PvP is on.
+    /// enchantments of a player attack. Players are only attacked when `PvP` is on.
     ///
     /// # Errors
     /// This is not a fake player, or the target is itself or in another world.
@@ -266,7 +269,10 @@ impl Player {
     ///
     /// # Errors
     /// This is not a fake player, or the target is itself or in another world.
-    pub fn fake_interact_entity(self: &Arc<Self>, target: &Arc<dyn EntityBase>) -> Result<(), String> {
+    pub fn fake_interact_entity(
+        self: &Arc<Self>,
+        target: &Arc<dyn EntityBase>,
+    ) -> Result<(), String> {
         let (client, server, world) = self.fake_parts()?;
         self.check_fake_target(target, &world)?;
         let packet = SInteract {

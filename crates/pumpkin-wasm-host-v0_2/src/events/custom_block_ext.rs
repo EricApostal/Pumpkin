@@ -80,7 +80,7 @@ const fn to_wit_condition(condition: CustomBlockCondition) -> WitBlockCondition 
     }
 }
 
-fn to_wit_box(shape: &BoundingBox) -> WitBlockBox {
+const fn to_wit_box(shape: &BoundingBox) -> WitBlockBox {
     WitBlockBox {
         min_x: shape.min.x,
         min_y: shape.min.y,

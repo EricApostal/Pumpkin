@@ -5,6 +5,7 @@ use pumpkin_data::block_registry::BlockCallbacks;
 use pumpkin_wasm_host_common::state::PluginHostState;
 use tracing::info;
 
+#[expect(clippy::too_many_lines)]
 fn from_wit_flags(flags: BlockCallbackFlags) -> BlockCallbacks {
     [
         (
@@ -61,10 +62,7 @@ fn from_wit_flags(flags: BlockCallbackFlags) -> BlockCallbacks {
             BlockCallbackFlags::USE_WITH_ITEM,
             BlockCallbacks::USE_WITH_ITEM,
         ),
-        (
-            BlockCallbackFlags::ATTACK,
-            BlockCallbacks::ATTACK,
-        ),
+        (BlockCallbackFlags::ATTACK, BlockCallbacks::ATTACK),
         (
             BlockCallbackFlags::GET_CLONE_ITEM,
             BlockCallbacks::GET_CLONE_ITEM,

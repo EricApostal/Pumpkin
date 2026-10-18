@@ -170,10 +170,9 @@ use scoreboard::Scoreboard;
 use time::LevelTime;
 
 pub mod block_placer;
-pub mod bulk;
-pub mod structure_place;
 pub mod border;
 pub mod bossbar;
+pub mod bulk;
 pub mod custom_bossbar;
 pub mod dragon_fight;
 pub mod end_podium;
@@ -181,6 +180,7 @@ pub mod entity_tracker;
 pub mod environment;
 pub mod natural_spawner;
 pub mod scoreboard;
+pub mod structure_place;
 pub mod weather;
 
 pub use environment::EnvironmentAttributes;
@@ -1588,10 +1588,7 @@ impl World {
                     .plugin_flags
                     .pickup_box_override()
                     .unwrap_or_else(|| Vector3::new(1.0, 0.5, 1.0));
-                let bb = entity
-                    .bounding_box
-                    .load()
-                    .expand(reach.x, reach.y, reach.z);
+                let bb = entity.bounding_box.load().expand(reach.x, reach.y, reach.z);
                 let chunk_pos = Vector2::new(
                     get_section_cord(pos.x.floor() as i32),
                     get_section_cord(pos.z.floor() as i32),
@@ -1709,7 +1706,9 @@ impl World {
                     crate::plugin::api::events::entity::entity_tick_interval(entity.entity_type.id);
                 if interval == 0
                     || (interval > 1
-                        && (tick as u32).wrapping_add(entity.entity_id as u32) % interval != 0)
+                        && !(tick as u32)
+                            .wrapping_add(entity.entity_id as u32)
+                            .is_multiple_of(interval))
                 {
                     continue;
                 }
@@ -2462,12 +2461,16 @@ impl World {
 
         for pos in BlockPos::iterate(min, max) {
             let state = self.get_block_state(&pos);
-            let collided = match self.dynamic_block_shapes(&pos, state, ShapeKind::Collision) {
-                Some(shapes) => shapes
-                    .iter()
-                    .any(|shape| shape.at_pos(pos).intersects(&bounding_box)),
-                None => Self::check_collision(&bounding_box, pos, state, false, |_| ()),
-            };
+            let collided = self
+                .dynamic_block_shapes(&pos, state, ShapeKind::Collision)
+                .map_or_else(
+                    || Self::check_collision(&bounding_box, pos, state, false, |_| ()),
+                    |shapes| {
+                        shapes
+                            .iter()
+                            .any(|shape| shape.at_pos(pos).intersects(&bounding_box))
+                    },
+                );
 
             if collided {
                 return false;
@@ -2481,13 +2484,22 @@ impl World {
     /// or `f64::NEG_INFINITY` if no valid surface exists.
     pub fn get_dismount_height(&self, pos: &BlockPos) -> f64 {
         let state = self.get_block_state(pos);
-        let max_y = match self.dynamic_block_shapes(pos, state, ShapeKind::Collision) {
-            Some(shapes) => shapes.iter().map(|s| s.max.y).fold(f64::NEG_INFINITY, f64::max),
-            None => state
-                .get_block_collision_shapes_at(pos)
-                .map(|s| s.max.y)
-                .fold(f64::NEG_INFINITY, f64::max),
-        };
+        let max_y = self
+            .dynamic_block_shapes(pos, state, ShapeKind::Collision)
+            .map_or_else(
+                || {
+                    state
+                        .get_block_collision_shapes_at(pos)
+                        .map(|s| s.max.y)
+                        .fold(f64::NEG_INFINITY, f64::max)
+                },
+                |shapes| {
+                    shapes
+                        .iter()
+                        .map(|s| s.max.y)
+                        .fold(f64::NEG_INFINITY, f64::max)
+                },
+            );
         if max_y != f64::NEG_INFINITY {
             return max_y;
         }
@@ -3788,12 +3800,10 @@ impl World {
         }
         // Datapack dependent data went to the player.
         {
-            let mut synced = crate::plugin::api::events::world::DatapackSyncEvent::new(
-                player.clone(),
-                false,
-            );
+            let mut synced =
+                crate::plugin::api::events::world::DatapackSyncEvent::new(player.clone(), false);
             server.plugin_manager.fire(server, &mut synced).await;
-        }
+        };
         let msg_comp = TextComponent::translate_cross(
             translation::java::MULTIPLAYER_PLAYER_JOINED,
             translation::bedrock::MULTIPLAYER_PLAYER_JOINED,
@@ -5360,6 +5370,7 @@ impl World {
     }
 
     /// `break_block`, with the break particles and sound optional.
+    #[expect(clippy::too_many_lines)]
     pub fn break_block_with_effects(
         self: &Arc<Self>,
         position: &BlockPos,
@@ -6611,7 +6622,12 @@ impl World {
         from: Vector3<f64>,
         to: Vector3<f64>,
     ) -> Option<(BlockDirection, Vector3<f64>)> {
-        Self::clip_shapes(state.get_block_outline_shapes_at(block_pos), block_pos, from, to)
+        Self::clip_shapes(
+            state.get_block_outline_shapes_at(block_pos),
+            block_pos,
+            from,
+            to,
+        )
     }
 
     /// Clips the segment against block local `shapes` of the block at `block_pos`.

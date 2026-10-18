@@ -71,7 +71,7 @@ impl Matcher {
 }
 
 /// The box between two corners given in any order.
-fn box_between(min: (f64, f64, f64), max: (f64, f64, f64)) -> BoundingBox {
+const fn box_between(min: (f64, f64, f64), max: (f64, f64, f64)) -> BoundingBox {
     let (a, b) = (from_wasm_position(min), from_wasm_position(max));
     BoundingBox::new(
         Vector3::new(a.x.min(b.x), a.y.min(b.y), a.z.min(b.z)),
@@ -184,20 +184,19 @@ pub(crate) fn spawn_item(
         return None;
     }
     let entity = InternalEntity::new(world.clone(), from_wasm_position(pos), &EntityType::ITEM);
-    let item = match velocity {
-        Some(velocity) => ItemEntity::new_with_velocity(
+    let item = if let Some(velocity) = velocity {
+        ItemEntity::new_with_velocity(
             entity,
             stack,
             from_wasm_position(velocity),
             pickup_delay.unwrap_or(ItemEntity::DEFAULT_PICKUP_DELAY),
-        ),
-        None => {
-            let item = ItemEntity::new(entity, stack);
-            if let Some(delay) = pickup_delay {
-                item.set_pickup_delay(delay);
-            }
-            item
+        )
+    } else {
+        let item = ItemEntity::new(entity, stack);
+        if let Some(delay) = pickup_delay {
+            item.set_pickup_delay(delay);
         }
+        item
     };
     let item: Arc<dyn EntityBase> = Arc::new(item);
     world.spawn_entity(item.clone()).then_some(item)

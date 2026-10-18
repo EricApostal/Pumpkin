@@ -3,8 +3,7 @@ use crate::pumpkin::plugin::block_registry::{
     BlockEntry as WitBlockEntry, BlockShape as WitBlockShape,
     ConnectDirection as WitConnectDirection, ConnectRule as WitConnectRule,
     ConnectTarget as WitConnectTarget, Host, PistonBehavior as WitPistonBehavior,
-    PropertyKind as WitPropertyKind, PropertyValue as WitPropertyValue,
-    ShapeRule as WitShapeRule,
+    PropertyKind as WitPropertyKind, PropertyValue as WitPropertyValue, ShapeRule as WitShapeRule,
 };
 use pumpkin_core::plugin::permissions;
 use pumpkin_data::block_registry::{

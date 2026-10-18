@@ -217,7 +217,10 @@ impl ItemEntity {
             return;
         }
         let age = self.entity.age.load(Ordering::Relaxed);
-        if interval > 1 && (age as u32).wrapping_add(self.entity.entity_id as u32) % interval != 0
+        if interval > 1
+            && !(age as u32)
+                .wrapping_add(self.entity.entity_id as u32)
+                .is_multiple_of(interval)
         {
             return;
         }

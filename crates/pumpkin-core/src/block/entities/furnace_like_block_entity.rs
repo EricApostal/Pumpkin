@@ -344,14 +344,12 @@ macro_rules! impl_inventory_for_cooking {
             fn is_valid_slot_for(&self, slot: usize, stack: &ItemStack) -> bool {
                 match slot {
                     2 => false,
-                    1 => {
-                        stack
-                            .get_data_component::<pumpkin_data::data_component_impl::CookingFuelImpl>()
-                            .is_some()
-                            || (stack.item.id == pumpkin_data::item::Item::BUCKET.id
-                                && pumpkin_inventory::Inventory::get_stack(self, 1).item.id
-                                    != pumpkin_data::item::Item::BUCKET.id)
-                    }
+                    1 => stack
+                        .get_data_component::<pumpkin_data::data_component_impl::CookingFuelImpl>()
+                        .is_some()
+                        || (stack.item.id == pumpkin_data::item::Item::BUCKET.id
+                            && pumpkin_inventory::Inventory::get_stack(self, 1).item.id
+                                != pumpkin_data::item::Item::BUCKET.id),
                     _ => true,
                 }
             }

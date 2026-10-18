@@ -3,7 +3,7 @@
 //!
 //! The vanilla entries come first in the ids the client has, then the plugin ones in
 //! registration order. Unlike the entries a plugin puts in its declaration these are the host's
-//! own, so a plugin that registers a sound does not have to repeat it for NeoForge clients.
+//! own, so a plugin that registers a sound does not have to repeat it for `NeoForge` clients.
 
 use pumpkin_data::extra_registry::{
     plugin_datapack_registries, plugin_map_decorations, plugin_owned_registries, plugin_particles,
@@ -83,13 +83,19 @@ pub fn registries() -> Vec<SyncedRegistry> {
                 .map(|particle| format!("minecraft:{}", particle.to_name()))
                 .collect()
         },
-        plugin_particles().iter().map(|p| p.key.to_string()).collect(),
+        plugin_particles()
+            .iter()
+            .map(|p| p.key.to_string())
+            .collect(),
     );
     push(
         &mut out,
         MOB_EFFECT,
         vanilla_mob_effect_keys,
-        plugin_mob_effects().iter().map(|e| e.key.to_string()).collect(),
+        plugin_mob_effects()
+            .iter()
+            .map(|e| e.key.to_string())
+            .collect(),
     );
     push(
         &mut out,
@@ -138,11 +144,14 @@ pub fn datapack_entries() -> Vec<DatapackEntryDecl> {
         .into_iter()
         .flat_map(|registry| {
             let key = registry.key;
-            registry.entries.into_iter().map(move |(id, data)| DatapackEntryDecl {
-                registry: key.clone(),
-                id,
-                data,
-            })
+            registry
+                .entries
+                .into_iter()
+                .map(move |(id, data)| DatapackEntryDecl {
+                    registry: key.clone(),
+                    id,
+                    data,
+                })
         })
         .collect()
 }
@@ -151,9 +160,9 @@ pub fn datapack_entries() -> Vec<DatapackEntryDecl> {
 mod tests {
     use super::*;
     use pumpkin_data::extra_registry::{
-        add_datapack_entry, add_owned_registry_entry, register_datapack_registry,
-        register_owned_registry, register_plugin_map_decoration, register_plugin_particle,
-        register_plugin_sound, MapDecorationRegistration,
+        MapDecorationRegistration, add_datapack_entry, add_owned_registry_entry,
+        register_datapack_registry, register_owned_registry, register_plugin_map_decoration,
+        register_plugin_particle, register_plugin_sound,
     };
 
     #[test]
@@ -174,19 +183,42 @@ mod tests {
         register_owned_registry("core_extra_test:fan").unwrap();
         add_owned_registry_entry("core_extra_test:fan", "core_extra_test:smoke").unwrap();
         register_datapack_registry("core_extra_test:things", "nbt").unwrap();
-        add_datapack_entry("core_extra_test:things", "core_extra_test:a", Some(vec![10, 0])).unwrap();
+        add_datapack_entry(
+            "core_extra_test:things",
+            "core_extra_test:a",
+            Some(vec![10, 0]),
+        )
+        .unwrap();
 
         let all = registries();
         let find = |key: &str| all.iter().find(|r| r.key == key).expect(key);
         let sounds = find(SOUND_EVENT);
-        assert_eq!(sounds.entries.len(), Sound::NAMES.len() + plugin_sounds().len());
-        assert_eq!(sounds.entries[0], "minecraft:entity.allay.ambient_with_item");
+        assert_eq!(
+            sounds.entries.len(),
+            Sound::NAMES.len() + plugin_sounds().len()
+        );
+        assert_eq!(
+            sounds.entries[0],
+            "minecraft:entity.allay.ambient_with_item"
+        );
         assert!(sounds.entries.iter().any(|e| e == "core_extra_test:ding"));
         let particles = find(PARTICLE_TYPE);
         assert_eq!(particles.entries[0], "minecraft:angry_villager");
-        assert_eq!(find("core_extra_test:fan").entries, ["core_extra_test:smoke"]);
-        assert!(find(MAP_DECORATION_TYPE).entries.iter().any(|e| e == "minecraft:player"));
-        assert!(datapack_entries().iter().any(|e| e.id == "core_extra_test:a"));
+        assert_eq!(
+            find("core_extra_test:fan").entries,
+            ["core_extra_test:smoke"]
+        );
+        assert!(
+            find(MAP_DECORATION_TYPE)
+                .entries
+                .iter()
+                .any(|e| e == "minecraft:player")
+        );
+        assert!(
+            datapack_entries()
+                .iter()
+                .any(|e| e.id == "core_extra_test:a")
+        );
         assert!(entry_count() >= 5);
     }
 }

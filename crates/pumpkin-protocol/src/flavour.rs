@@ -1,6 +1,6 @@
 //! The encoding flavour of a Java connection.
 //!
-//! A client of a mod loader that changed the network encoding of some play packets (NeoForge
+//! A client of a mod loader that changed the network encoding of some play packets (`NeoForge`
 //! does, see `docs/neoforge-play-codecs.md` of the plugin API) has to get those packets written
 //! its way, while a vanilla client must not. The flavour of a connection is chosen by a plugin
 //! during the configuration phase and is read by the packet writers through
@@ -22,8 +22,8 @@ pub enum ConnectionFlavour {
     /// The vanilla encoding.
     #[default]
     Vanilla,
-    /// The client was told it talks to a NeoForge server (it received `neoforge:register` before
-    /// the brand), so it reads NeoForge's variants of some packets.
+    /// The client was told it talks to a `NeoForge` server (it received `neoforge:register` before
+    /// the brand), so it reads `NeoForge`'s variants of some packets.
     NeoForge,
 }
 

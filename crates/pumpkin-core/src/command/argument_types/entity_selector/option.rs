@@ -300,11 +300,9 @@ impl EntitySelectorOption {
                 }
                 let string = parser.reader.string()[type_start..parser.reader.cursor()].to_string();
 
-                let entity_type = Identifier::parse(&string)
-                    .ok()
-                    .and_then(|identifier| {
-                        pumpkin_data::entity_registry::entity_type_by_key(&identifier.to_string())
-                    });
+                let entity_type = Identifier::parse(&string).ok().and_then(|identifier| {
+                    pumpkin_data::entity_registry::entity_type_by_key(&identifier.to_string())
+                });
 
                 if let Some(entity_type) = entity_type {
                     if entity_type.id == EntityType::PLAYER.id && !invert {

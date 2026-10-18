@@ -1,4 +1,4 @@
-//! A port of NeoForge's `NetworkComponentNegotiator`: given the payload channels each side
+//! A port of `NeoForge`'s `NetworkComponentNegotiator`: given the payload channels each side
 //! registered, decide which are used, and why a mismatch is one.
 
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -38,7 +38,11 @@ const fn flow_name(flow: Flow) -> &'static str {
 }
 
 /// `validateComponent(left, right, requestingSide)`, none means compatible.
-fn validate(left: &QueryComponent, right: &QueryComponent, requesting_side: &str) -> Option<NbtText> {
+fn validate(
+    left: &QueryComponent,
+    right: &QueryComponent,
+    requesting_side: &str,
+) -> Option<NbtText> {
     if let Some(left_flow) = left.flow {
         match right.flow {
             None => {
@@ -90,11 +94,11 @@ pub fn negotiate(
     let client_ids: HashSet<&str> = client.iter().map(|c| c.id.as_str()).collect();
     let server_list: Vec<&QueryComponent> = server
         .iter()
-        .filter(|c| !(c.optional && !client_ids.contains(c.id.as_str())))
+        .filter(|c| !c.optional || client_ids.contains(c.id.as_str()))
         .collect();
     let client_list: Vec<&QueryComponent> = client
         .iter()
-        .filter(|c| !(c.optional && !server_ids.contains(c.id.as_str())))
+        .filter(|c| !c.optional || server_ids.contains(c.id.as_str()))
         .collect();
 
     let server_by_id: HashMap<&str, &QueryComponent> =
@@ -149,7 +153,8 @@ pub fn negotiate(
         let Some(other) = client_by_id.get(id) else {
             continue;
         };
-        let reason = validate(component, other, "client").or_else(|| validate(other, component, "server"));
+        let reason =
+            validate(component, other, "client").or_else(|| validate(other, component, "server"));
         match reason {
             Some(reason) => {
                 failures.insert(id.to_string(), for_mod(id, reason, mod_name));
@@ -166,7 +171,7 @@ pub fn negotiate(
     }
 }
 
-/// Negotiates the configuration and play protocols (the ones NeoForge has registrations for) and
+/// Negotiates the configuration and play protocols (the ones `NeoForge` has registrations for) and
 /// builds the `neoforge:network` setup, or the failure reasons of all channels.
 pub fn negotiate_all(
     server: &BTreeMap<Phase, Vec<QueryComponent>>,
@@ -216,7 +221,10 @@ mod tests {
 
     #[test]
     fn optional_channels_the_other_side_lacks_are_dropped() {
-        let server = [component("a:x", "1", None, true), component("a:y", "1", None, false)];
+        let server = [
+            component("a:x", "1", None, true),
+            component("a:y", "1", None, false),
+        ];
         let client = [component("a:y", "1", None, false)];
         assert_eq!(
             negotiate(&server, &client, &no_names),
@@ -280,7 +288,10 @@ mod tests {
             reasons["a:x"],
             NbtText::translatable(
                 "neoforge.network.negotiation.failure.flow.client.mismatch",
-                vec![NbtText::literal("CLIENTBOUND"), NbtText::literal("SERVERBOUND")]
+                vec![
+                    NbtText::literal("CLIENTBOUND"),
+                    NbtText::literal("SERVERBOUND")
+                ]
             )
         );
     }
@@ -288,7 +299,10 @@ mod tests {
     #[test]
     fn a_plain_neoforge_client_negotiates_with_a_server_that_has_only_its_own_channels() {
         let server = BTreeMap::from([
-            (Phase::Configuration, own_registrations(Phase::Configuration)),
+            (
+                Phase::Configuration,
+                own_registrations(Phase::Configuration),
+            ),
             (Phase::Play, own_registrations(Phase::Play)),
         ]);
         let client = ModdedNetworkQuery {
@@ -303,10 +317,7 @@ mod tests {
     fn a_modded_client_channel_the_server_lacks_fails_negotiate_all() {
         let server = BTreeMap::from([(Phase::Configuration, Vec::new())]);
         let client = ModdedNetworkQuery {
-            components: BTreeMap::from([(
-                Phase::Play,
-                vec![component("m:c", "1", None, false)],
-            )]),
+            components: BTreeMap::from([(Phase::Play, vec![component("m:c", "1", None, false)])]),
         };
         let failures = negotiate_all(&server, &client, &no_names).unwrap_err();
         assert!(failures.contains_key("m:c"));

@@ -177,7 +177,9 @@ pub fn definition_from_damage_type(damage_type: &DamageType) -> DamageTypeDefini
         death_message_type: Some(match damage_type.death_message_type {
             DeathMessageType::Default => DeathMessageTypeWrapper::Default,
             DeathMessageType::FallVariants => DeathMessageTypeWrapper::FallVariants,
-            DeathMessageType::IntentionalGameDesign => DeathMessageTypeWrapper::IntentionalGameDesign,
+            DeathMessageType::IntentionalGameDesign => {
+                DeathMessageTypeWrapper::IntentionalGameDesign
+            }
         }),
     }
 }

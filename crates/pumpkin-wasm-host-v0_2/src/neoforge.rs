@@ -16,7 +16,10 @@ use tracing::info;
 
 /// The key of the plugin's declaration.
 fn owner(state: &PluginHostState) -> String {
-    state.name.clone().unwrap_or_else(|| "<unknown>".to_string())
+    state
+        .name
+        .clone()
+        .unwrap_or_else(|| "<unknown>".to_string())
 }
 
 const fn phase(phase: WitChannelPhase) -> Phase {

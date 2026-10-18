@@ -512,7 +512,7 @@ impl PendingConnection {
         self.continue_after_neoforge_registries(server).await;
     }
 
-    /// The pre-brand wait of the NeoForge handshake is over: plugins may still hold the
+    /// The pre-brand wait of the `NeoForge` handshake is over: plugins may still hold the
     /// connection before the brand, then the brand goes out.
     pub(super) async fn proceed_after_neoforge_pre_brand(&mut self, server: &Arc<Server>) {
         if self.begin_pre_brand_hook(server).await {
@@ -533,7 +533,7 @@ impl PendingConnection {
         }
     }
 
-    /// The part of the configuration after the NeoForge registry sync (or without one):
+    /// The part of the configuration after the `NeoForge` registry sync (or without one):
     /// `ConfigurationStartEvent` and the rest of the configuration unless a plugin holds there.
     pub(super) async fn continue_after_neoforge_registries(&mut self, server: &Arc<Server>) {
         if self.begin_configuration_hook(server).await {

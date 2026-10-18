@@ -19,6 +19,9 @@ impl Host for PluginHostState {
         else {
             return Ok(false);
         };
-        Ok(set_entity_tick_interval(entity_type.entity_type.id, interval))
+        Ok(set_entity_tick_interval(
+            entity_type.entity_type.id,
+            interval,
+        ))
     }
 }

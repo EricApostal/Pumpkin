@@ -11,8 +11,8 @@ use pumpkin_core::plugin::{
     Context, EventPriority,
     api::events::entity::{
         EntityEnteringSectionEvent, EntitySizeEvent, EntityStartTrackingEvent,
-        EntityStopTrackingEvent, EntityTickEvent, LivingBreatheEvent,
-        LivingDropsEvent, LivingEquipmentChangeEvent, LivingVisibilityEvent, PlayerTickEvent,
+        EntityStopTrackingEvent, EntityTickEvent, LivingBreatheEvent, LivingDropsEvent,
+        LivingEquipmentChangeEvent, LivingVisibilityEvent, PlayerTickEvent,
     },
 };
 
@@ -24,9 +24,9 @@ use crate::{
     pumpkin::plugin::{
         event::{
             EntityEnteringSectionEventData, EntitySizeEventData, EntityTickEventData,
-            EntityTrackingEventData, Event,
-            EventType, LivingBreatheEventData, LivingDropsEventData,
-            LivingEquipmentChangeEventData, LivingVisibilityEventData, PlayerTickEventData,
+            EntityTrackingEventData, Event, EventType, LivingBreatheEventData,
+            LivingDropsEventData, LivingEquipmentChangeEventData, LivingVisibilityEventData,
+            PlayerTickEventData,
         },
         item_stack::ItemStack as WitItemStack,
         uuid::Uuid as WitUuid,

@@ -15,10 +15,10 @@ use std::sync::{Arc, Mutex as StdMutex};
 use wasmtime::component::{Accessor, HasSelf, Resource};
 
 use crate::pumpkin::plugin::common::Position as WitPosition;
+use crate::pumpkin::plugin::fluid_registry::FluidStack as WitFluidStack;
 use crate::pumpkin::plugin::game_rules::{
     GameRule as WitGameRule, GameRuleValue as WitGameRuleValue,
 };
-use crate::pumpkin::plugin::fluid_registry::FluidStack as WitFluidStack;
 use crate::pumpkin::plugin::world::{
     Block as WitBlock, BlockDirection as WitBlockDirection, BlockEntityType,
     BlockFlags as WitBlockFlags, BlockPos as WitBlockPos, BlockState as WitBlockState,
@@ -720,11 +720,13 @@ impl pumpkin::plugin::world::HostWorld for PluginHostState {
         let mut wit_state = to_wit_block_state(state, Some(&internal_pos));
         // Blocks with a dynamic shape: what is cached for the position, the plugin is not asked
         // from inside one of its own calls.
-        if let Some(shapes) = world_ref.cached_block_shapes(&internal_pos, state, ShapeKind::Collision)
+        if let Some(shapes) =
+            world_ref.cached_block_shapes(&internal_pos, state, ShapeKind::Collision)
         {
             wit_state.collision_shapes = shapes.iter().copied().map(to_wit_bounding_box).collect();
         }
-        if let Some(shapes) = world_ref.cached_block_shapes(&internal_pos, state, ShapeKind::Selection)
+        if let Some(shapes) =
+            world_ref.cached_block_shapes(&internal_pos, state, ShapeKind::Selection)
         {
             wit_state.outline_shapes = shapes.iter().copied().map(to_wit_bounding_box).collect();
         }
@@ -827,7 +829,7 @@ impl pumpkin::plugin::world::HostWorld for PluginHostState {
             return Ok(false);
         }
         Ok(pumpkin_core::block::fluid::plugin_fluid::try_place_fluid(
-            &world, pos, fluid,
+            world, pos, fluid,
         ))
     }
 
@@ -842,7 +844,7 @@ impl pumpkin::plugin::world::HostWorld for PluginHostState {
             return Ok(None);
         }
         Ok(
-            pumpkin_core::block::fluid::plugin_fluid::try_pickup_fluid(&world, pos).map(|fluid| {
+            pumpkin_core::block::fluid::plugin_fluid::try_pickup_fluid(world, pos).map(|fluid| {
                 WitFluidStack {
                     fluid: fluid.resource_location().into_owned(),
                     amount: 1000,
@@ -1516,7 +1518,13 @@ impl pumpkin::plugin::world::HostWorldWithStore<PluginHostState> for HasSelf<Plu
     ) -> wasmtime::Result<Result<Resource<pumpkin::plugin::world::Entity>, String>> {
         let world = accessor.with(|mut host| world_from_state(host.get(), &world))?;
         let spawned = run_blocking(accessor, move || {
-            super::entity_registry::spawn_plugin_entity(&world, &type_key, pos, synced_data, spawn_data)
+            super::entity_registry::spawn_plugin_entity(
+                &world,
+                &type_key,
+                pos,
+                synced_data,
+                spawn_data,
+            )
         })
         .await?;
         match spawned {
@@ -1683,8 +1691,7 @@ impl pumpkin::plugin::world::HostWorldWithStore<PluginHostState> for HasSelf<Plu
         new_state: u16,
         update_flags: WitBlockFlags,
     ) -> wasmtime::Result<()> {
-        crate::bulk::mark_and_notify(accessor, world, pos, old_state, new_state, update_flags)
-            .await
+        crate::bulk::mark_and_notify(accessor, world, pos, old_state, new_state, update_flags).await
     }
 
     async fn spawn_entity_from_nbt(

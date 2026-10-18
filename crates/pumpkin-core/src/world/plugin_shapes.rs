@@ -1,4 +1,6 @@
-//! Answers of plugins for custom blocks that depend on the position, not only on the state: the
+//! Answers of plugins for custom blocks that depend on the position, not only on the state.
+//!
+//! These are the
 //! shapes of blocks with the `dynamic_shape` callback and the physics values of blocks with the
 //! friction, speed and jump factor callbacks. They are asked once per position and kept until
 //! [`World::invalidate_block_shape`] or until the block at the position changes.

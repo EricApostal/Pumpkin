@@ -160,7 +160,7 @@ pub(crate) fn set_synced_data(entity: &dyn EntityBase, data: Vec<u8>) -> Result<
 pub(crate) fn set_synced_entry(
     entity: &dyn EntityBase,
     index: u8,
-    data: Vec<u8>,
+    data: &[u8],
 ) -> Result<(), String> {
     let plugin_entity = plugin_entity_of(entity)?;
     if index == 255 {

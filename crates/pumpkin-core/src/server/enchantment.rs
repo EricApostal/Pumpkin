@@ -8,8 +8,8 @@ use pumpkin_nbt::deserializer::NbtReadHelperJava;
 use pumpkin_nbt::tag::NbtTag;
 use pumpkin_nbt::{Nbt, compound::NbtCompound};
 use pumpkin_util::text::TextComponent;
-use std::io::Cursor;
 use rustc_hash::FxHashMap;
+use std::io::Cursor;
 use tokio::sync::RwLock;
 
 #[derive(Clone, Debug)]
@@ -82,7 +82,12 @@ impl EnchantmentManager {
                 slots: enchantment.slots.clone(),
             },
         )
-        .map_err(|err| format!("Enchantment '{}' cannot be registered: {err}", enchantment.id))?;
+        .map_err(|err| {
+            format!(
+                "Enchantment '{}' cannot be registered: {err}",
+                enchantment.id
+            )
+        })?;
         map.insert(enchantment.id.clone(), enchantment);
         Ok(())
     }
@@ -98,7 +103,9 @@ impl EnchantmentManager {
         let mut parsed = Vec::with_capacity(effects.len());
         for (key, bytes) in effects {
             if enchantment_effect_type_id(&key).is_none() {
-                return Err(format!("'{key}' is not an enchantment effect component type"));
+                return Err(format!(
+                    "'{key}' is not an enchantment effect component type"
+                ));
             }
             let key = if key.contains(':') {
                 key
@@ -161,11 +168,19 @@ impl EnchantmentManager {
             };
             let extra = extras.get(plugin.key).cloned().unwrap_or_default();
             let mut data = NbtCompound::new();
-            data.put("description", entry.description.to_nbt_tag_for_version(&CURRENT_MC_VERSION));
+            data.put(
+                "description",
+                entry
+                    .description
+                    .to_nbt_tag_for_version(&CURRENT_MC_VERSION),
+            );
             if !entry.exclusive_set.is_empty() {
                 data.put("exclusive_set", holder_set(&entry.exclusive_set));
             }
-            data.put("supported_items", holder_set(&split_ids(&entry.supported_items)));
+            data.put(
+                "supported_items",
+                holder_set(&split_ids(&entry.supported_items)),
+            );
             data.put_int("weight", entry.weight.max(1) as i32);
             data.put_int("max_level", entry.max_level.max(1) as i32);
             data.put("min_cost", cost_tag(extra.min_cost));
