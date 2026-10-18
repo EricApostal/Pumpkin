@@ -146,7 +146,9 @@ impl Player {
             }
             COUNT.store(registry.len(), Ordering::Relaxed);
         }
-        self.client.close();
+        if let Some(java) = self.client.java() {
+            java.close();
+        }
         Ok(())
     }
 

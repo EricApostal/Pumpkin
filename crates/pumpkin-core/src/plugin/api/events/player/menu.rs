@@ -81,7 +81,7 @@ impl PlayerEvent for MenuClickEvent {
 }
 
 /// A slot of a menu a click changed.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct MenuSlotChange {
     pub slot: u32,
     /// The stack the slot held before the click.

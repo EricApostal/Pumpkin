@@ -163,7 +163,6 @@ fn check_key(key: &str) -> Result<(), FluidRegistrationError> {
 }
 
 /// What the registry keeps for a registered fluid beyond its `Fluid`.
-#[derive(Debug)]
 pub struct DynamicFluidInfo {
     pub fluid: &'static Fluid,
     /// The registration as given.
