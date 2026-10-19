@@ -21,8 +21,14 @@ interface block-placement {
         /// The face of the clicked block (clicking a top face gives `up`): `down`, `up`, `north`,
         /// `south`, `west`, `east`.
         clicked-face,
+        /// The face of the clicked block, except that `up` gives `down`, for hopper-like facing
+        /// properties that have no `up`: `down`, `north`, `south`, `west`, `east`.
+        clicked-face-down,
         /// The axis of the clicked face: `x`, `y`, `z`. `opposite` is not allowed.
         clicked-axis,
+        /// The horizontal axis of the direction the player looks at: `x` or `z`. `opposite` is not
+        /// allowed. For blocks whose axis is horizontal only, like Create's pulleys.
+        horizontal-axis,
         /// `bottom` or `top` like vanilla's stairs and slabs: clicking the top face or the lower
         /// half of a side gives `bottom`.
         clicked-half,

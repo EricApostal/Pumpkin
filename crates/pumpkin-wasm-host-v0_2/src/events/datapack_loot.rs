@@ -156,7 +156,7 @@ impl ToFromWasmEvent for LootModifyEvent {
             tool,
             looting_level: self.looting_level,
             block_pos: self.block_pos.map(to_wasm_block_position),
-            block_state: self.block_state.map(u32::from),
+            block_state: self.block_state,
             entity_id: self.entity_id,
             entity_type: self.entity_type.clone(),
             position: to_wasm_position(self.position),

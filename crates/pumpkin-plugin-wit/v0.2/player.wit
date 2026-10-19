@@ -950,7 +950,7 @@ interface player {
         // Visuals & Client Overrides
 
         /// Sends a temporary fake block change to the player's client without modifying the server world.
-        send-block-change: func(pos: block-pos, block-id: u16);
+        send-block-change: func(pos: block-pos, state-id: u32);
         /// Resets a temporary fake block change by resending the actual world block at that position.
         reset-block-change: func(pos: block-pos);
 

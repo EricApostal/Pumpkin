@@ -449,12 +449,12 @@ define_mob_wrapper!(
 impl<'a> Enderman<'a> {
     /// Gets the numerical block state ID carried by this enderman, if any.
     #[must_use]
-    pub fn get_carried_block(&self) -> Option<u16> {
+    pub fn get_carried_block(&self) -> Option<u32> {
         self.get_data().and_then(|d| d.carried_block_state)
     }
 
     /// Sets the carried block state ID for this enderman.
-    pub fn set_carried_block(&self, block_state: Option<u16>) {
+    pub fn set_carried_block(&self, block_state: Option<u32>) {
         if let Some(mut data) = self.get_data() {
             data.carried_block_state = block_state;
             self.set_data(data);

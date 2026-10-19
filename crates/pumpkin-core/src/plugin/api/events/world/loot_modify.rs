@@ -30,7 +30,7 @@ pub struct LootModifyEvent {
     pub looting_level: u32,
     pub block_pos: Option<BlockPos>,
     /// The state id of the broken block.
-    pub block_state: Option<u16>,
+    pub block_state: Option<u32>,
     pub entity_id: Option<i32>,
     pub entity_type: Option<String>,
     pub position: Vector3<f64>,

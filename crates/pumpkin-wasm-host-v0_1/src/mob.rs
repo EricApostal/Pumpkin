@@ -666,7 +666,7 @@ impl HostMob for PluginHostState {
             return Ok(WitMobData::Enderman(WitEndermanData {
                 carried_block_state: enderman
                     .get_carried_block()
-                    .map(pumpkin_data::BlockStateId::as_u16),
+                    .map(pumpkin_data::BlockStateId::as_u32),
                 is_screaming: enderman.is_creepy(),
                 is_staring: enderman.is_creepy(),
             }));

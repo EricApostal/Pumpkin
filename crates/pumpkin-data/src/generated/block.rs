@@ -3556,13 +3556,15 @@ pub const BLOCK_ENTITY_TYPES: &[&str] = &[
 #[inline(always)]
 #[must_use]
 pub const fn is_air(id: BlockStateId) -> bool {
-    matches!(id.as_u16(), 0 | 18649 | 18650)
+    id.as_u32() < BlockStateId::STATE_COUNT as u32
+        && matches!(id.as_u32() as u16, 0 | 18649 | 18650)
 }
 #[inline(always)]
 #[must_use]
 pub const fn is_liquid(id: BlockStateId) -> bool {
-    matches!(
-        id.as_u16(),
+    id.as_u32() < BlockStateId::STATE_COUNT as u32
+        && matches!(
+        id.as_u32() as u16,
         46 | 48
             | 50
             | 52
@@ -16956,7 +16958,8 @@ pub const fn is_liquid(id: BlockStateId) -> bool {
 #[inline(always)]
 #[must_use]
 pub fn has_random_ticks(id: BlockStateId) -> bool {
-    __random_ticks_bitset::random_ticks_contains(id.as_u16())
+    id.as_u32() < BlockStateId::STATE_COUNT as u32
+        && __random_ticks_bitset::random_ticks_contains(id.as_u32() as u16)
 }
 #[must_use]
 pub const fn blocks_movement(block_state: &BlockState, id: BlockId) -> bool {
@@ -21897,11 +21900,11 @@ impl BlockState {
     #[inline]
     #[must_use]
     pub fn from_id(id: BlockStateId) -> &'static Self {
-        if id.as_u16() >= BlockStateId::STATE_COUNT {
+        if id.as_u32() >= BlockStateId::STATE_COUNT as u32 {
             return Self::from_dynamic_id(id);
         }
-        unsafe { std::hint::assert_unchecked(id.as_u16() < BlockStateId::STATE_COUNT) }
-        mappings::STATE_FROM_STATE_ID[id.as_u16() as usize]
+        unsafe { std::hint::assert_unchecked(id.as_u32() < BlockStateId::STATE_COUNT as u32) }
+        mappings::STATE_FROM_STATE_ID[id.as_u32() as usize]
     }
     #[doc = r" Get a block state from a state id and the corresponding block."]
     #[inline]
@@ -21913,11 +21916,11 @@ impl BlockState {
     }
     #[must_use]
     pub const fn to_be_network_id(id: BlockStateId) -> u32 {
-        if id.as_u16() >= BlockStateId::STATE_COUNT {
-            return Self::STATE_ID_TO_BEDROCK[Self::BEDROCK_PLACEHOLDER.as_u16() as usize];
+        if id.as_u32() >= BlockStateId::STATE_COUNT as u32 {
+            return Self::STATE_ID_TO_BEDROCK[Self::BEDROCK_PLACEHOLDER.as_u32() as usize];
         }
-        unsafe { std::hint::assert_unchecked(id.as_u16() < BlockStateId::STATE_COUNT) }
-        Self::STATE_ID_TO_BEDROCK[id.as_u16() as usize]
+        unsafe { std::hint::assert_unchecked(id.as_u32() < BlockStateId::STATE_COUNT as u32) }
+        Self::STATE_ID_TO_BEDROCK[id.as_u32() as usize]
     }
 }
 impl BlockStateId {
@@ -596755,7 +596758,7 @@ impl Block {
     #[inline]
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> &'static Self {
-        if id.as_u16() >= BlockStateId::STATE_COUNT {
+        if id.as_u32() >= BlockStateId::STATE_COUNT as u32 {
             return Self::from_dynamic_state_id(id);
         }
         Self::from_id(BlockId::from_state_id(id))
@@ -601180,11 +601183,11 @@ impl BlockId {
     #[inline]
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> BlockId {
-        if id.as_u16() >= BlockStateId::STATE_COUNT {
+        if id.as_u32() >= BlockStateId::STATE_COUNT as u32 {
             return Self::from_dynamic_state_id(id);
         }
-        unsafe { std::hint::assert_unchecked(id.as_u16() < BlockStateId::STATE_COUNT) }
-        mappings::BLOCK_ID_FROM_STATE_ID[id.as_u16() as usize]
+        unsafe { std::hint::assert_unchecked(id.as_u32() < BlockStateId::STATE_COUNT as u32) }
+        mappings::BLOCK_ID_FROM_STATE_ID[id.as_u32() as usize]
     }
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -603174,8 +603177,8 @@ impl TntLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -603225,10 +603228,10 @@ impl BlockProperties for TntLikeProperties {
             block.name,
             "TntLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -603320,8 +603323,8 @@ impl BrownMushroomBlockLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -603384,10 +603387,10 @@ impl BlockProperties for BrownMushroomBlockLikeProperties {
             block.name,
             "BrownMushroomBlockLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -603497,8 +603500,8 @@ impl GlowLichenLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -603559,10 +603562,10 @@ impl BlockProperties for GlowLichenLikeProperties {
             block.name,
             "GlowLichenLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -603663,8 +603666,8 @@ impl VineLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -603720,10 +603723,10 @@ impl BlockProperties for VineLikeProperties {
             block.name,
             "VineLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -603823,8 +603826,8 @@ impl FireLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -603881,10 +603884,10 @@ impl BlockProperties for FireLikeProperties {
             block.name,
             "FireLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -604059,8 +604062,8 @@ impl ResinBrickWallLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -604151,10 +604154,10 @@ impl BlockProperties for ResinBrickWallLikeProperties {
             block.name,
             "ResinBrickWallLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -604235,8 +604238,8 @@ impl EndPortalFrameLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -604289,10 +604292,10 @@ impl BlockProperties for EndPortalFrameLikeProperties {
             block.name,
             "EndPortalFrameLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -604376,8 +604379,8 @@ impl RedstoneOreLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -604450,10 +604453,10 @@ impl BlockProperties for RedstoneOreLikeProperties {
             block.name,
             "RedstoneOreLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -604531,8 +604534,8 @@ impl CampfireLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -604587,10 +604590,10 @@ impl BlockProperties for CampfireLikeProperties {
             block.name,
             "CampfireLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -604692,8 +604695,8 @@ impl CandleLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -604766,10 +604769,10 @@ impl BlockProperties for CandleLikeProperties {
             block.name,
             "CandleLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -604864,8 +604867,8 @@ impl FurnaceLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -604924,10 +604927,10 @@ impl BlockProperties for FurnaceLikeProperties {
             block.name,
             "FurnaceLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -605004,8 +605007,8 @@ impl CopperBulbLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -605065,10 +605068,10 @@ impl BlockProperties for CopperBulbLikeProperties {
             block.name,
             "CopperBulbLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -605132,8 +605135,8 @@ impl PaleHangingMossLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -605183,10 +605186,10 @@ impl BlockProperties for PaleHangingMossLikeProperties {
             block.name,
             "PaleHangingMossLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -605245,8 +605248,8 @@ impl BubbleColumnLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -605296,10 +605299,10 @@ impl BlockProperties for BubbleColumnLikeProperties {
             block.name,
             "BubbleColumnLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -605394,8 +605397,8 @@ impl TripwireLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -605453,10 +605456,10 @@ impl BlockProperties for TripwireLikeProperties {
             block.name,
             "TripwireLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -605593,8 +605596,8 @@ impl OakFenceLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -605692,10 +605695,10 @@ impl BlockProperties for OakFenceLikeProperties {
             block.name,
             "OakFenceLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -605814,8 +605817,8 @@ impl OakTrapdoorLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -605895,10 +605898,10 @@ impl BlockProperties for OakTrapdoorLikeProperties {
             block.name,
             "OakTrapdoorLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -606017,8 +606020,8 @@ impl OakDoorLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -606098,10 +606101,10 @@ impl BlockProperties for OakDoorLikeProperties {
             block.name,
             "OakDoorLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -606202,8 +606205,8 @@ impl OakFenceGateLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -606273,10 +606276,10 @@ impl BlockProperties for OakFenceGateLikeProperties {
             block.name,
             "OakFenceGateLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -606350,8 +606353,8 @@ impl BarrelLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -606404,10 +606407,10 @@ impl BlockProperties for BarrelLikeProperties {
             block.name,
             "BarrelLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -606483,8 +606486,8 @@ impl VaultLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -606538,10 +606541,10 @@ impl BlockProperties for VaultLikeProperties {
             block.name,
             "VaultLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -606636,8 +606639,8 @@ impl WhiteBedLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -606710,10 +606713,10 @@ impl BlockProperties for WhiteBedLikeProperties {
             block.name,
             "WhiteBedLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -606791,8 +606794,8 @@ impl BigDripleafLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -606846,10 +606849,10 @@ impl BlockProperties for BigDripleafLikeProperties {
             block.name,
             "BigDripleafLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -606918,8 +606921,8 @@ impl StructureBlockLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -606969,10 +606972,10 @@ impl BlockProperties for StructureBlockLikeProperties {
             block.name,
             "StructureBlockLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -607031,8 +607034,8 @@ impl SculkCatalystLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -607082,10 +607085,10 @@ impl BlockProperties for SculkCatalystLikeProperties {
             block.name,
             "SculkCatalystLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -607156,8 +607159,8 @@ impl PistonHeadLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -607211,10 +607214,10 @@ impl BlockProperties for PistonHeadLikeProperties {
             block.name,
             "PistonHeadLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -607282,8 +607285,8 @@ impl GrassBlockLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -607336,10 +607339,10 @@ impl BlockProperties for GrassBlockLikeProperties {
             block.name,
             "GrassBlockLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -607410,8 +607413,8 @@ impl LecternLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -607465,10 +607468,10 @@ impl BlockProperties for LecternLikeProperties {
             block.name,
             "LecternLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -607534,8 +607537,8 @@ impl NetherPortalLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -607585,10 +607588,10 @@ impl BlockProperties for NetherPortalLikeProperties {
             block.name,
             "NetherPortalLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -607647,8 +607650,8 @@ impl RespawnAnchorLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -607698,10 +607701,10 @@ impl BlockProperties for RespawnAnchorLikeProperties {
             block.name,
             "RespawnAnchorLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -607789,8 +607792,8 @@ impl SculkShriekerLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -607844,10 +607847,10 @@ impl BlockProperties for SculkShriekerLikeProperties {
             block.name,
             "SculkShriekerLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -607937,8 +607940,8 @@ impl CalibratedSculkSensorLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -607996,10 +607999,10 @@ impl BlockProperties for CalibratedSculkSensorLikeProperties {
             block.name,
             "CalibratedSculkSensorLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -608125,8 +608128,8 @@ impl SculkSensorLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -608183,10 +608186,10 @@ impl BlockProperties for SculkSensorLikeProperties {
             block.name,
             "SculkSensorLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -608324,8 +608327,8 @@ impl OakLeavesLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -608395,10 +608398,10 @@ impl BlockProperties for OakLeavesLikeProperties {
             block.name,
             "OakLeavesLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -608514,8 +608517,8 @@ impl ChestLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -608581,10 +608584,10 @@ impl BlockProperties for ChestLikeProperties {
             block.name,
             "ChestLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -608678,8 +608681,8 @@ impl OakHangingSignLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -608748,10 +608751,10 @@ impl BlockProperties for OakHangingSignLikeProperties {
             block.name,
             "OakHangingSignLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -608873,8 +608876,8 @@ impl TripwireHookLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -608928,10 +608931,10 @@ impl BlockProperties for TripwireHookLikeProperties {
             block.name,
             "TripwireHookLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -609058,8 +609061,8 @@ impl PaleOakWoodLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -609173,10 +609176,10 @@ impl BlockProperties for PaleOakWoodLikeProperties {
             block.name,
             "PaleOakWoodLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -609250,8 +609253,8 @@ impl IronChainLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -609315,10 +609318,10 @@ impl BlockProperties for IronChainLikeProperties {
             block.name,
             "IronChainLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -609397,8 +609400,8 @@ impl CreakingHeartLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -609455,10 +609458,10 @@ impl BlockProperties for CreakingHeartLikeProperties {
             block.name,
             "CreakingHeartLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -609541,8 +609544,8 @@ impl NoteBlockLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -609599,10 +609602,10 @@ impl BlockProperties for NoteBlockLikeProperties {
             block.name,
             "NoteBlockLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -609733,8 +609736,8 @@ impl DaylightDetectorLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -609784,10 +609787,10 @@ impl BlockProperties for DaylightDetectorLikeProperties {
             block.name,
             "DaylightDetectorLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -609892,8 +609895,8 @@ impl SnowLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -609943,10 +609946,10 @@ impl BlockProperties for SnowLikeProperties {
             block.name,
             "SnowLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -610043,8 +610046,8 @@ impl LanternLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -610106,10 +610109,10 @@ impl BlockProperties for LanternLikeProperties {
             block.name,
             "LanternLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -610194,8 +610197,8 @@ impl MangrovePropaguleLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -610250,10 +610253,10 @@ impl BlockProperties for MangrovePropaguleLikeProperties {
             block.name,
             "MangrovePropaguleLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -610356,8 +610359,8 @@ impl FarmlandLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -610407,10 +610410,10 @@ impl BlockProperties for FarmlandLikeProperties {
             block.name,
             "FarmlandLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -610493,8 +610496,8 @@ impl SuspiciousSandLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -610547,10 +610550,10 @@ impl BlockProperties for SuspiciousSandLikeProperties {
             block.name,
             "SuspiciousSandLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -610636,8 +610639,8 @@ impl DecoratedPotLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -610691,10 +610694,10 @@ impl BlockProperties for DecoratedPotLikeProperties {
             block.name,
             "DecoratedPotLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -610795,8 +610798,8 @@ impl MangroveRootsLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -610881,10 +610884,10 @@ impl BlockProperties for MangroveRootsLikeProperties {
             block.name,
             "MangroveRootsLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -610977,8 +610980,8 @@ impl AcaciaShelfLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -611048,10 +611051,10 @@ impl BlockProperties for AcaciaShelfLikeProperties {
             block.name,
             "AcaciaShelfLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -611166,8 +611169,8 @@ impl LadderLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -611261,10 +611264,10 @@ impl BlockProperties for LadderLikeProperties {
             block.name,
             "LadderLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -611446,8 +611449,8 @@ impl WhiteWoolStairsLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -611601,10 +611604,10 @@ impl BlockProperties for WhiteWoolStairsLikeProperties {
             block.name,
             "WhiteWoolStairsLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -611694,8 +611697,8 @@ impl CopperGolemStatueLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -611762,10 +611765,10 @@ impl BlockProperties for CopperGolemStatueLikeProperties {
             block.name,
             "CopperGolemStatueLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -611848,8 +611851,8 @@ impl SmallDripleafLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -611903,10 +611906,10 @@ impl BlockProperties for SmallDripleafLikeProperties {
             block.name,
             "SmallDripleafLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -611987,8 +611990,8 @@ impl DriedGhastLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -612042,10 +612045,10 @@ impl BlockProperties for DriedGhastLikeProperties {
             block.name,
             "DriedGhastLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -612146,8 +612149,8 @@ impl PoweredRailLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -612204,10 +612207,10 @@ impl BlockProperties for PoweredRailLikeProperties {
             block.name,
             "PoweredRailLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -612383,8 +612386,8 @@ impl WhiteWoolSlabLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -612540,10 +612543,10 @@ impl BlockProperties for WhiteWoolSlabLikeProperties {
             block.name,
             "WhiteWoolSlabLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -612616,8 +612619,8 @@ impl SeaPickleLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -612670,10 +612673,10 @@ impl BlockProperties for SeaPickleLikeProperties {
             block.name,
             "SeaPickleLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -612762,8 +612765,8 @@ impl RailLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -612816,10 +612819,10 @@ impl BlockProperties for RailLikeProperties {
             block.name,
             "RailLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -612899,8 +612902,8 @@ impl PointedDripstoneLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -612960,10 +612963,10 @@ impl BlockProperties for PointedDripstoneLikeProperties {
             block.name,
             "PointedDripstoneLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -613046,8 +613049,8 @@ impl ScaffoldingLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -613101,10 +613104,10 @@ impl BlockProperties for ScaffoldingLikeProperties {
             block.name,
             "ScaffoldingLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -613217,8 +613220,8 @@ impl OakSignLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -613286,10 +613289,10 @@ impl BlockProperties for OakSignLikeProperties {
             block.name,
             "OakSignLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -613403,8 +613406,8 @@ impl LightLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -613457,10 +613460,10 @@ impl BlockProperties for LightLikeProperties {
             block.name,
             "LightLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -613577,8 +613580,8 @@ impl AmethystClusterLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -613637,10 +613640,10 @@ impl BlockProperties for AmethystClusterLikeProperties {
             block.name,
             "AmethystClusterLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -613726,8 +613729,8 @@ impl LightningRodLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -613791,10 +613794,10 @@ impl BlockProperties for LightningRodLikeProperties {
             block.name,
             "LightningRodLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -613863,8 +613866,8 @@ impl ComposterLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -613914,10 +613917,10 @@ impl BlockProperties for ComposterLikeProperties {
             block.name,
             "ComposterLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -614009,8 +614012,8 @@ impl CommandBlockLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -614068,10 +614071,10 @@ impl BlockProperties for CommandBlockLikeProperties {
             block.name,
             "CommandBlockLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -614181,8 +614184,8 @@ impl WallTorchLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -614278,10 +614281,10 @@ impl BlockProperties for WallTorchLikeProperties {
             block.name,
             "WallTorchLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -614358,8 +614361,8 @@ impl RepeaterLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -614414,10 +614417,10 @@ impl BlockProperties for RepeaterLikeProperties {
             block.name,
             "RepeaterLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -614509,8 +614512,8 @@ impl BeeNestLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -614563,10 +614566,10 @@ impl BlockProperties for BeeNestLikeProperties {
             block.name,
             "BeeNestLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -614657,8 +614660,8 @@ impl GrindstoneLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -614711,10 +614714,10 @@ impl BlockProperties for GrindstoneLikeProperties {
             block.name,
             "GrindstoneLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -614805,8 +614808,8 @@ impl LeverLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -614878,10 +614881,10 @@ impl BlockProperties for LeverLikeProperties {
             block.name,
             "LeverLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -614983,8 +614986,8 @@ impl ChiseledBookshelfLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -615042,10 +615045,10 @@ impl BlockProperties for ChiseledBookshelfLikeProperties {
             block.name,
             "ChiseledBookshelfLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -615173,8 +615176,8 @@ impl BellLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -615231,10 +615234,10 @@ impl BlockProperties for BellLikeProperties {
             block.name,
             "BellLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -615307,8 +615310,8 @@ impl PinkPetalsLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -615361,10 +615364,10 @@ impl BlockProperties for PinkPetalsLikeProperties {
             block.name,
             "PinkPetalsLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -615451,8 +615454,8 @@ impl LeafLitterLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -615505,10 +615508,10 @@ impl BlockProperties for LeafLitterLikeProperties {
             block.name,
             "LeafLitterLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -615595,8 +615598,8 @@ impl ShelfMushroomLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -615649,10 +615652,10 @@ impl BlockProperties for ShelfMushroomLikeProperties {
             block.name,
             "ShelfMushroomLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -615735,8 +615738,8 @@ impl CocoaLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -615789,10 +615792,10 @@ impl BlockProperties for CocoaLikeProperties {
             block.name,
             "CocoaLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -615883,8 +615886,8 @@ impl ComparatorLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -615938,10 +615941,10 @@ impl BlockProperties for ComparatorLikeProperties {
             block.name,
             "ComparatorLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -616019,8 +616022,8 @@ impl SkeletonWallSkullLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -616082,10 +616085,10 @@ impl BlockProperties for SkeletonWallSkullLikeProperties {
             block.name,
             "SkeletonWallSkullLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -616161,8 +616164,8 @@ impl BambooLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -616216,10 +616219,10 @@ impl BlockProperties for BambooLikeProperties {
             block.name,
             "BambooLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -616323,8 +616326,8 @@ impl CrafterLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -616378,10 +616381,10 @@ impl BlockProperties for CrafterLikeProperties {
             block.name,
             "CrafterLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -616447,8 +616450,8 @@ impl JigsawLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -616498,10 +616501,10 @@ impl BlockProperties for JigsawLikeProperties {
             block.name,
             "JigsawLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -616584,8 +616587,8 @@ impl RedstoneWireLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -616641,10 +616644,10 @@ impl BlockProperties for RedstoneWireLikeProperties {
             block.name,
             "RedstoneWireLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -616761,8 +616764,8 @@ impl TrialSpawnerLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -616818,10 +616821,10 @@ impl BlockProperties for TrialSpawnerLikeProperties {
             block.name,
             "TrialSpawnerLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -616887,8 +616890,8 @@ impl SnifferEggLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -616938,10 +616941,10 @@ impl BlockProperties for SnifferEggLikeProperties {
             block.name,
             "SnifferEggLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -617019,8 +617022,8 @@ impl TurtleEggLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -617073,10 +617076,10 @@ impl BlockProperties for TurtleEggLikeProperties {
             block.name,
             "TurtleEggLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -617174,8 +617177,8 @@ impl WaterCauldronLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -617228,10 +617231,10 @@ impl BlockProperties for WaterCauldronLikeProperties {
             block.name,
             "WaterCauldronLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -617303,8 +617306,8 @@ impl JukeboxLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -617354,10 +617357,10 @@ impl BlockProperties for JukeboxLikeProperties {
             block.name,
             "JukeboxLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -617443,8 +617446,8 @@ impl PaleMossCarpetLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -617500,10 +617503,10 @@ impl BlockProperties for PaleMossCarpetLikeProperties {
             block.name,
             "PaleMossCarpetLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -617582,8 +617585,8 @@ impl OakSaplingLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -617644,10 +617647,10 @@ impl BlockProperties for OakSaplingLikeProperties {
             block.name,
             "OakSaplingLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -617721,8 +617724,8 @@ impl WheatLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -617779,10 +617782,10 @@ impl BlockProperties for WheatLikeProperties {
             block.name,
             "WheatLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -617871,8 +617874,8 @@ impl StickyPistonLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -617925,10 +617928,10 @@ impl BlockProperties for StickyPistonLikeProperties {
             block.name,
             "StickyPistonLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -617998,8 +618001,8 @@ impl MovingPistonLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -618052,10 +618055,10 @@ impl BlockProperties for MovingPistonLikeProperties {
             block.name,
             "MovingPistonLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -618125,8 +618128,8 @@ impl HopperLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -618179,10 +618182,10 @@ impl BlockProperties for HopperLikeProperties {
             block.name,
             "HopperLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -618246,8 +618249,8 @@ impl PotentSulfurLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -618300,10 +618303,10 @@ impl BlockProperties for PotentSulfurLikeProperties {
             block.name,
             "PotentSulfurLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -618369,8 +618372,8 @@ impl TallSeagrassLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -618430,10 +618433,10 @@ impl BlockProperties for TallSeagrassLikeProperties {
             block.name,
             "TallSeagrassLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -618498,8 +618501,8 @@ impl PitcherCropLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -618552,10 +618555,10 @@ impl BlockProperties for PitcherCropLikeProperties {
             block.name,
             "PitcherCropLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -618654,8 +618657,8 @@ impl WhiteBannerLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -618723,10 +618726,10 @@ impl BlockProperties for WhiteBannerLikeProperties {
             block.name,
             "WhiteBannerLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -618836,8 +618839,8 @@ impl SkeletonSkullLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -618896,10 +618899,10 @@ impl BlockProperties for SkeletonSkullLikeProperties {
             block.name,
             "SkeletonSkullLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -619005,8 +619008,8 @@ impl WaterLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -619056,10 +619059,10 @@ impl BlockProperties for WaterLikeProperties {
             block.name,
             "WaterLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -619159,8 +619162,8 @@ impl KelpLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -619213,10 +619216,10 @@ impl BlockProperties for KelpLikeProperties {
             block.name,
             "KelpLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -619340,8 +619343,8 @@ impl CaveVinesLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -619391,10 +619394,10 @@ impl BlockProperties for CaveVinesLikeProperties {
             block.name,
             "CaveVinesLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -619521,8 +619524,8 @@ impl LightWeightedPressurePlateLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -619577,10 +619580,10 @@ impl BlockProperties for LightWeightedPressurePlateLikeProperties {
             block.name,
             "LightWeightedPressurePlateLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -619678,8 +619681,8 @@ impl TorchflowerCropLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -619729,10 +619732,10 @@ impl BlockProperties for TorchflowerCropLikeProperties {
             block.name,
             "TorchflowerCropLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -619805,8 +619808,8 @@ impl NetherWartLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -619862,10 +619865,10 @@ impl BlockProperties for NetherWartLikeProperties {
             block.name,
             "NetherWartLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -619939,8 +619942,8 @@ impl TestBlockLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -619990,10 +619993,10 @@ impl BlockProperties for TestBlockLikeProperties {
             block.name,
             "TestBlockLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -620064,8 +620067,8 @@ impl BrewingStandLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -620119,10 +620122,10 @@ impl BlockProperties for BrewingStandLikeProperties {
             block.name,
             "BrewingStandLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -620197,8 +620200,8 @@ impl CakeLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -620248,10 +620251,10 @@ impl BlockProperties for CakeLikeProperties {
             block.name,
             "CakeLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -620338,8 +620341,8 @@ impl DispenserLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -620392,10 +620395,10 @@ impl BlockProperties for DispenserLikeProperties {
             block.name,
             "DispenserLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -620476,8 +620479,8 @@ impl EndRodLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -620547,10 +620550,10 @@ impl BlockProperties for EndRodLikeProperties {
             block.name,
             "EndRodLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -620615,8 +620618,8 @@ impl ObserverLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -620669,10 +620672,10 @@ impl BlockProperties for ObserverLikeProperties {
             block.name,
             "ObserverLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -620751,8 +620754,8 @@ impl StonePressurePlateLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -620819,10 +620822,10 @@ impl BlockProperties for StonePressurePlateLikeProperties {
             block.name,
             "StonePressurePlateLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -620881,8 +620884,8 @@ impl CaveVinesPlantLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -620932,10 +620935,10 @@ impl BlockProperties for CaveVinesPlantLikeProperties {
             block.name,
             "CaveVinesPlantLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -620994,8 +620997,8 @@ impl ChorusFlowerLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -621045,10 +621048,10 @@ impl BlockProperties for ChorusFlowerLikeProperties {
             block.name,
             "ChorusFlowerLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);
@@ -621127,8 +621130,8 @@ impl CactusLikeProperties {
     #[must_use]
     pub fn from_state_id(id: BlockStateId) -> Self {
         let block = Block::from_state_id(id);
-        let min_id = block.states[0].id.as_u16();
-        Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        Self::from_index((id.as_u32() - min_id) as u16)
     }
     #[inline]
     #[must_use]
@@ -621178,10 +621181,10 @@ impl BlockProperties for CactusLikeProperties {
             block.name,
             "CactusLikeProperties"
         );
-        let min_id = block.states[0].id.as_u16();
-        let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
-        if (min_id..=max_id).contains(&id.as_u16()) {
-            Self::from_index(id.as_u16() - min_id)
+        let min_id = block.states[0].id.as_u32();
+        let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
+        if (min_id..=max_id).contains(&id.as_u32()) {
+            Self::from_index((id.as_u32() - min_id) as u16)
         } else {
             #[cfg(debug_assertions)]
             panic!("State ID {} does not exist for {}", id, block.name);

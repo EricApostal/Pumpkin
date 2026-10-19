@@ -701,6 +701,6 @@ pub fn block_loot_event(
     event.loot_table = block_loot_table.map(str::to_string);
     event.tool.clone_from(&params.tool);
     event.block_pos = Some(*pos);
-    event.block_state = params.block_state.map(|state| state.id.as_u16());
+    event.block_state = params.block_state.map(|state| state.id.as_u32());
     event
 }

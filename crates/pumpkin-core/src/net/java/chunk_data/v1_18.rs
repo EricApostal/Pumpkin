@@ -102,7 +102,7 @@ pub fn write_chunk_data(
 
             match block_network.palette {
                 NetworkPalette::Single(registry_id) => {
-                    blocks_and_biomes_buf.write_var_int(&registry_id.into())?;
+                    blocks_and_biomes_buf.write_var_int(&VarInt(registry_id as i32))?;
                 }
                 NetworkPalette::Indirect(palette) => {
                     blocks_and_biomes_buf.write_var_int(&palette.len().try_into().map_err(
@@ -114,7 +114,7 @@ pub fn write_chunk_data(
                         },
                     )?)?;
                     for registry_id in palette {
-                        blocks_and_biomes_buf.write_var_int(&registry_id.into())?;
+                        blocks_and_biomes_buf.write_var_int(&VarInt(registry_id as i32))?;
                     }
                 }
                 NetworkPalette::Direct => {}
@@ -135,7 +135,7 @@ pub fn write_chunk_data(
 
             match biome_network.palette {
                 NetworkPalette::Single(registry_id) => {
-                    blocks_and_biomes_buf.write_var_int(&registry_id.into())?;
+                    blocks_and_biomes_buf.write_var_int(&VarInt(registry_id as i32))?;
                 }
                 NetworkPalette::Indirect(palette) => {
                     blocks_and_biomes_buf.write_var_int(&palette.len().try_into().map_err(

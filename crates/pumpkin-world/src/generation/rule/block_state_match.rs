@@ -7,6 +7,6 @@ pub struct BlockStateMatchRuleTest {
 impl BlockStateMatchRuleTest {
     #[must_use]
     pub const fn test(&self, state: BlockStateId) -> bool {
-        self.block_state.as_u16() == state.as_u16()
+        self.block_state.as_u32() == state.as_u32()
     }
 }

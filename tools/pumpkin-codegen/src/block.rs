@@ -419,8 +419,8 @@ impl ToTokens for BlockPropertyStruct {
                 #[must_use]
                 pub fn from_state_id(id: BlockStateId) -> Self {
                     let block = Block::from_state_id(id);
-                    let min_id = block.states[0].id.as_u16();
-                    Self::from_index(id.as_u16() - min_id)
+                    let min_id = block.states[0].id.as_u32();
+                    Self::from_index((id.as_u32() - min_id) as u16)
                 }
 
                 #[inline]
@@ -468,11 +468,11 @@ impl ToTokens for BlockPropertyStruct {
                         "{} is not a valid block for {}", block.name, #struct_name
                     );
 
-                    let min_id = block.states[0].id.as_u16();
-                    let max_id = block.states.last().map(|s| s.id.as_u16()).unwrap_or(min_id);
+                    let min_id = block.states[0].id.as_u32();
+                    let max_id = block.states.last().map(|s| s.id.as_u32()).unwrap_or(min_id);
 
-                    if (min_id..=max_id).contains(&id.as_u16()) {
-                        Self::from_index(id.as_u16() - min_id)
+                    if (min_id..=max_id).contains(&id.as_u32()) {
+                        Self::from_index((id.as_u32() - min_id) as u16)
                     } else {
                         #[cfg(debug_assertions)]
                         panic!("State ID {} does not exist for {}", id, block.name);
@@ -1359,19 +1359,20 @@ pub fn build() -> TokenStream {
         #[inline(always)]
         #[must_use]
         pub const fn is_air(id: BlockStateId) -> bool {
-            matches!(id.as_u16(), #air_state_ids)
+            id.as_u32() < BlockStateId::STATE_COUNT as u32 && matches!(id.as_u16(), #air_state_ids)
         }
 
          #[inline(always)]
          #[must_use]
         pub const fn is_liquid(id: BlockStateId) -> bool {
-            matches!(id.as_u16(), #liquid_state_ids)
+            id.as_u32() < BlockStateId::STATE_COUNT as u32 && matches!(id.as_u16(), #liquid_state_ids)
         }
 
         #[inline(always)]
         #[must_use]
         pub fn has_random_ticks(id: BlockStateId) -> bool {
-            #mod_ident::#contains_ident(id.as_u16())
+            id.as_u32() < BlockStateId::STATE_COUNT as u32
+                && #mod_ident::#contains_ident(id.as_u16())
         }
 
         #[must_use]
@@ -1391,17 +1392,17 @@ pub fn build() -> TokenStream {
             #[inline]
             #[must_use]
             pub fn from_id(id: BlockStateId) -> &'static Self {
-                if id.as_u16() >= BlockStateId::STATE_COUNT {
+                if id.as_u32() >= BlockStateId::STATE_COUNT as u32 {
                     return Self::from_dynamic_id(id);
                 }
                 // Safety: ids at or past BlockStateId::STATE_COUNT returned above, so `id` is below it.
-                unsafe { std::hint::assert_unchecked(id.as_u16() < BlockStateId::STATE_COUNT) }
+                unsafe { std::hint::assert_unchecked(id.as_u32() < BlockStateId::STATE_COUNT as u32) }
                 // This hint guarantees that bound checks can be optimized away in release builds.
                 // Due to debug_assertions forcing -Zub_checks=yes (rust-lang/rust#123499)
                 // bound checks-panics are replaced with ub-checks on profile.dev
                 // https://doc.rust-lang.org/nightly/unstable-book/compiler-flags/ub-checks.html
 
-                mappings::STATE_FROM_STATE_ID[id.as_u16() as usize]
+                mappings::STATE_FROM_STATE_ID[id.as_u32() as usize]
             }
 
             #[doc = r" Get a block state from a state id and the corresponding block."]
@@ -1415,17 +1416,17 @@ pub fn build() -> TokenStream {
 
             #[must_use]
             pub const fn to_be_network_id(id: BlockStateId) -> u32 {
-                if id.as_u16() >= BlockStateId::STATE_COUNT {
-                    return Self::STATE_ID_TO_BEDROCK[Self::BEDROCK_PLACEHOLDER.as_u16() as usize];
+                if id.as_u32() >= BlockStateId::STATE_COUNT as u32 {
+                    return Self::STATE_ID_TO_BEDROCK[Self::BEDROCK_PLACEHOLDER.as_u32() as usize];
                 }
                 // Safety: ids at or past BlockStateId::STATE_COUNT returned above, so `id` is below it.
-                unsafe { std::hint::assert_unchecked(id.as_u16() < BlockStateId::STATE_COUNT) }
+                unsafe { std::hint::assert_unchecked(id.as_u32() < BlockStateId::STATE_COUNT as u32) }
                 // This hint guarantees that bound checks can be optimized away in release builds.
                 // Due to debug_assertions forcing -Zub_checks=yes (rust-lang/rust#123499)
                 // bound checks-panics are replaced with ub-checks on profile.dev
                 // https://doc.rust-lang.org/nightly/unstable-book/compiler-flags/ub-checks.html
 
-                Self::STATE_ID_TO_BEDROCK[id.as_u16() as usize]
+                Self::STATE_ID_TO_BEDROCK[id.as_u32() as usize]
             }
         }
 
@@ -1522,7 +1523,7 @@ pub fn build() -> TokenStream {
             #[inline]
             #[must_use]
             pub fn from_state_id(id: BlockStateId) -> &'static Self {
-                if id.as_u16() >= BlockStateId::STATE_COUNT {
+                if id.as_u32() >= BlockStateId::STATE_COUNT as u32 {
                     return Self::from_dynamic_state_id(id);
                 }
                 Self::from_id(BlockId::from_state_id(id))
@@ -1569,17 +1570,17 @@ pub fn build() -> TokenStream {
             #[inline]
             #[must_use]
             pub fn from_state_id(id: BlockStateId) -> BlockId {
-                if id.as_u16() >= BlockStateId::STATE_COUNT {
+                if id.as_u32() >= BlockStateId::STATE_COUNT as u32 {
                     return Self::from_dynamic_state_id(id);
                 }
                 // Safety: ids at or past BlockStateId::STATE_COUNT returned above, so `id` is below it.
-                unsafe { std::hint::assert_unchecked(id.as_u16() < BlockStateId::STATE_COUNT) }
+                unsafe { std::hint::assert_unchecked(id.as_u32() < BlockStateId::STATE_COUNT as u32) }
                 // This hint guarantees that bound checks can be optimized away in release builds.
                 // Due to debug_assertions forcing -Zub_checks=yes (rust-lang/rust#123499)
                 // bound checks-panics are replaced with ub-checks on profile.dev
                 // https://doc.rust-lang.org/nightly/unstable-book/compiler-flags/ub-checks.html
 
-                mappings::BLOCK_ID_FROM_STATE_ID[id.as_u16() as usize]
+                mappings::BLOCK_ID_FROM_STATE_ID[id.as_u32() as usize]
             }
         }
 

@@ -44,23 +44,23 @@ impl ChunkBuffer {
     }
 
     /// Sets the block state ID at local chunk coordinates `(x, y, z)` where `0 <= x < 16` and `0 <= z < 16`.
-    pub fn set_block(&mut self, x: u8, y: i32, z: u8, state_id: u16) {
+    pub fn set_block(&mut self, x: u8, y: i32, z: u8, state_id: u32) {
         self.inner.set_block_state_id(x, y, z, state_id);
     }
 
     /// Gets the block state ID at local chunk coordinates `(x, y, z)`.
     #[must_use]
-    pub fn get_block(&self, x: u8, y: i32, z: u8) -> u16 {
+    pub fn get_block(&self, x: u8, y: i32, z: u8) -> u32 {
         self.inner.get_block_state_id(x, y, z)
     }
 
     /// Fills an entire horizontal 16x16 layer at the given Y level with a block state ID.
-    pub fn fill_layer(&mut self, y: i32, state_id: u16) {
+    pub fn fill_layer(&mut self, y: i32, state_id: u32) {
         self.inner.fill_layer(y, state_id);
     }
 
     /// Fills a vertical column from `min_y` to `max_y` at local `(x, z)` with a block state ID.
-    pub fn fill_range(&mut self, x: u8, min_y: i32, max_y: i32, z: u8, state_id: u16) {
+    pub fn fill_range(&mut self, x: u8, min_y: i32, max_y: i32, z: u8, state_id: u32) {
         self.inner.fill_range(x, min_y, max_y, z, state_id);
     }
 
@@ -73,7 +73,7 @@ impl ChunkBuffer {
         max_x: u8,
         max_y: i32,
         max_z: u8,
-        state_id: u16,
+        state_id: u32,
     ) {
         self.inner
             .fill_cuboid(min_x, min_y, min_z, max_x, max_y, max_z, state_id);

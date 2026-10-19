@@ -724,11 +724,11 @@ impl BlockPalette {
     }
 
     #[must_use]
-    pub fn convert_network(&self) -> NetworkSerialization<u16> {
+    pub fn convert_network(&self) -> NetworkSerialization<u32> {
         match self {
             Self::Homogeneous(registry_id) => NetworkSerialization {
                 bits_per_entry: 0,
-                palette: NetworkPalette::Single(registry_id.as_u16()),
+                palette: NetworkPalette::Single(registry_id.as_u32()),
                 packed_data: Box::new([]),
             },
             Self::Heterogeneous(data) => {
@@ -746,8 +746,8 @@ impl BlockPalette {
                                 let y = (current_idx + i) / (Self::SIZE * Self::SIZE);
                                 let z = ((current_idx + i) / Self::SIZE) % Self::SIZE;
                                 let x = (current_idx + i) % Self::SIZE;
-                                let value = data.get(x, y, z).as_u16();
-                                debug_assert!((1u32 << bits_per_entry) > u32::from(value));
+                                let value = data.get(x, y, z).as_u32();
+                                debug_assert!((1u64 << bits_per_entry) > u64::from(value));
                                 acc |= (value as u64) << (bits_per_entry as u64 * i as u64);
                             }
                         }
@@ -767,7 +767,7 @@ impl BlockPalette {
                     NetworkSerialization {
                         bits_per_entry,
                         palette: NetworkPalette::Indirect(
-                            palette.iter().map(|v| v.as_u16()).collect(),
+                            palette.iter().map(|v| v.as_u32()).collect(),
                         ),
                         packed_data: packed,
                     }
@@ -1016,7 +1016,7 @@ mod tests {
     use super::{BlockPalette, NetworkPalette};
     use pumpkin_data::{Block, BlockStateId};
 
-    fn network_palette_values(palette: NetworkPalette<u16>) -> Option<Box<[u16]>> {
+    fn network_palette_values(palette: NetworkPalette<u32>) -> Option<Box<[u32]>> {
         match palette {
             NetworkPalette::Single(value) => Some(Box::new([value])),
             NetworkPalette::Indirect(values) => Some(values),

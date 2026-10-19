@@ -136,8 +136,8 @@ fn to_wit_entry(block: &Block) -> Option<WitBlockEntry> {
     Some(WitBlockEntry {
         key: block.name.to_string(),
         id: u32::from(block.id.as_u16()),
-        base_state_id: u32::from(info.base_state_id()),
-        state_count: u32::from(info.state_count()),
+        base_state_id: info.base_state_id(),
+        state_count: info.state_count(),
         item_id: (block.item_id != 0).then_some(u32::from(block.item_id)),
     })
 }
@@ -175,7 +175,7 @@ fn vanilla_state_id(block: &'static Block, properties: &[(&str, &str)]) -> Optio
     }
     block
         .state_from_properties(&merged)
-        .map(|state| u32::from(state.id.as_u16()))
+        .map(|state| state.id.as_u32())
 }
 
 impl Host for PluginHostState {
@@ -197,7 +197,7 @@ impl Host for PluginHostState {
                         block.name,
                         block.id.as_u16(),
                         block.states.len(),
-                        block.states.first().map_or(0, |state| state.id.as_u16()),
+                        block.states.first().map_or(0, |state| state.id.as_u32()),
                     );
                     Ok(u32::from(block.id.as_u16()))
                 }
@@ -287,7 +287,7 @@ impl Host for PluginHostState {
         if let Some(info) = block.dynamic_info() {
             return Ok(info
                 .strict_index_from_props(&properties)
-                .map(|index| u32::from(info.base_state_id()) + u32::from(index)));
+                .map(|index| info.base_state_id() + u32::from(index)));
         }
         Ok(vanilla_state_id(block, &properties))
     }

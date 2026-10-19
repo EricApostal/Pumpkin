@@ -482,14 +482,14 @@ impl HostBlockDisplayEntity for PluginHostState {
     fn get_block_state_id(
         &mut self,
         block_display: Resource<BlockDisplayEntity>,
-    ) -> wasmtime::Result<u16> {
-        Ok(self.get(&block_display)?.get_block_state() as u16)
+    ) -> wasmtime::Result<u32> {
+        Ok(self.get(&block_display)?.get_block_state() as u32)
     }
 
     fn set_block_state_id(
         &mut self,
         block_display: Resource<BlockDisplayEntity>,
-        state_id: u16,
+        state_id: u32,
     ) -> wasmtime::Result<()> {
         self.get(&block_display)?.set_block_state(state_id as i32);
         Ok(())

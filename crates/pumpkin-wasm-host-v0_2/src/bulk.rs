@@ -148,8 +148,8 @@ pub(crate) async fn mark_and_notify(
     accessor: &Acc,
     world: Resource<World>,
     pos: WitBlockPos,
-    old_state: u16,
-    new_state: u16,
+    old_state: u32,
+    new_state: u32,
     update_flags: WitBlockFlags,
 ) -> wasmtime::Result<()> {
     let (Some(old), Some(new)) = (

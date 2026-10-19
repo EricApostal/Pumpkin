@@ -103,8 +103,8 @@ interface display {
         get-display: func() -> display-entity;
         get-entity: func() -> entity;
 
-        get-block-state-id: func() -> u16;
-        set-block-state-id: func(state-id: u16);
+        get-block-state-id: func() -> u32;
+        set-block-state-id: func(state-id: u32);
     }
 
     /// Resource specifically for Item Display entities.

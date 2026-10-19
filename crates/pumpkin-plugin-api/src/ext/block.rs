@@ -45,7 +45,7 @@ impl Block {
 
     /// Gets the block definition for a given block state ID.
     #[must_use]
-    pub fn from_state_id(state_id: u16) -> Option<Self> {
+    pub fn from_state_id(state_id: u32) -> Option<Self> {
         get_block_from_state_id(state_id)
     }
 
@@ -69,7 +69,7 @@ impl Block {
 
     /// Gets all valid block state IDs for a given numerical block ID.
     #[must_use]
-    pub fn get_state_ids_for_id(block_id: u16) -> Vec<u16> {
+    pub fn get_state_ids_for_id(block_id: u16) -> Vec<u32> {
         get_state_ids_for_block_id(block_id)
     }
 
@@ -95,7 +95,7 @@ impl BlockState {
 
     /// Gets a detailed block state by its numerical block state ID.
     #[must_use]
-    pub fn from_id(state_id: u16) -> Option<Self> {
+    pub fn from_id(state_id: u32) -> Option<Self> {
         get_block_state_by_id(state_id)
     }
 

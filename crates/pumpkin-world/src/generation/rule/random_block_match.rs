@@ -8,6 +8,6 @@ pub struct RandomBlockMatchRuleTest {
 
 impl RandomBlockMatchRuleTest {
     pub fn test(&self, state: BlockStateId, random: &mut RandomGenerator) -> bool {
-        self.block.as_u16() == state.as_u16() && random.next_f32() < self.probability
+        u32::from(self.block.as_u16()) == state.as_u32() && random.next_f32() < self.probability
     }
 }

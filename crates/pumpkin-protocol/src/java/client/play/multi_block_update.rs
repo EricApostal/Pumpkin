@@ -74,7 +74,7 @@ impl ClientPacket for CMultiBlockUpdate {
 
             for (pos, state_id) in &self.updates {
                 let local_pos = pack_local_chunk_section(pos) as u64;
-                let raw_state_id = state_id.as_u16();
+                let raw_state_id = state_id.as_u32();
                 let packed = (u64::from(raw_state_id) << 12) | (local_pos & 0xFFF);
                 write.write_var_long(&VarLong(packed as i64))?;
             }
@@ -91,7 +91,7 @@ impl ClientPacket for CMultiBlockUpdate {
                 let packed_pos = (rel_x << 12) | (rel_z << 8) | rel_y;
                 write.write_i16_be(packed_pos as i16)?;
 
-                let raw_state_id = state_id.as_u16();
+                let raw_state_id = state_id.as_u32();
                 write.write_i16_be(raw_state_id as i16)?;
             }
         } else {
@@ -106,8 +106,8 @@ impl ClientPacket for CMultiBlockUpdate {
                 let packed_pos = (rel_x << 12) | (rel_z << 8) | rel_y;
                 write.write_i16_be(packed_pos as i16)?;
 
-                let raw_state_id = state_id.as_u16();
-                write.write_var_int(&VarInt(i32::from(raw_state_id)))?;
+                let raw_state_id = state_id.as_u32();
+                write.write_var_int(&VarInt(raw_state_id as i32))?;
             }
         }
 
@@ -132,7 +132,7 @@ impl<'a> ServerPacket<'a> for CMultiBlockUpdate {
             for _ in 0..count {
                 let val = bytebuf.get_var_long()?.0 as u64;
                 let local_pos = (val & 0xFFF) as i32;
-                let state_id = (val >> 12) as u16;
+                let state_id = (val >> 12) as u32;
 
                 let rel_x = (local_pos >> 8) & 0xF;
                 let rel_z = (local_pos >> 4) & 0xF;
@@ -166,7 +166,7 @@ impl<'a> ServerPacket<'a> for CMultiBlockUpdate {
                 let x = (chunk_x << 4) + rel_x;
                 let z = (chunk_z << 4) + rel_z;
 
-                let block_state_id = bytebuf.get_i16_be()? as u16;
+                let block_state_id = bytebuf.get_i16_be()? as i16 as u32;
                 updates.push((
                     BlockPos::new(x, y, z),
                     BlockStateId::from_raw_or_air(block_state_id),
@@ -197,7 +197,7 @@ impl<'a> ServerPacket<'a> for CMultiBlockUpdate {
                 let x = (chunk_x << 4) + rel_x;
                 let z = (chunk_z << 4) + rel_z;
 
-                let block_state_id = bytebuf.get_var_int()?.0 as u16;
+                let block_state_id = bytebuf.get_var_int()?.0 as u32;
                 updates.push((
                     BlockPos::new(x, y, z),
                     BlockStateId::from_raw_or_air(block_state_id),

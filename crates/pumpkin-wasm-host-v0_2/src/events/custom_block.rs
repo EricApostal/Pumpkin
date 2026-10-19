@@ -82,7 +82,7 @@ impl ToFromWasmEvent for CustomBlockPlacedEvent {
             block: to_wasm_block_name(self.block),
             state_index: self.state_index,
             player: self.player.as_ref().map(WitUuid::to_wit),
-            old_state_id: self.old_state_id.map(BlockStateId::as_u16),
+            old_state_id: self.old_state_id.map(BlockStateId::as_u32),
             moved: self.moved,
         })
     }
@@ -377,7 +377,7 @@ impl ToFromWasmEvent for CustomBlockUpdateShapeEvent {
             direction: to_wit_block_direction(self.direction),
             neighbor_pos: to_wasm_block_position(self.neighbor_position),
             neighbor_block: to_wasm_block_name(self.neighbor_block),
-            neighbor_state_id: self.neighbor_state_id.as_u16(),
+            neighbor_state_id: self.neighbor_state_id.as_u32(),
             new_state_index: self.new_state_index,
         })
     }

@@ -2538,14 +2538,14 @@ impl Player {
         self.try_send_client_packet(&packet);
     }
 
-    pub fn send_block_change(&self, location: BlockPos, state_id: u16) {
+    pub fn send_block_change(&self, location: BlockPos, state_id: u32) {
         let packet = CBlockUpdate::new(location, (state_id as i32).into());
         self.try_send_client_packet(&packet);
     }
 
     pub fn reset_block_change(&self, location: BlockPos) {
         let state_id = self.world().get_block_state_id(&location);
-        let packet = CBlockUpdate::new(location, (state_id.as_u16() as i32).into());
+        let packet = CBlockUpdate::new(location, (state_id.as_u32() as i32).into());
         self.try_send_client_packet(&packet);
     }
 
@@ -2967,7 +2967,7 @@ impl Player {
                         }
                         let item_id = p.inventory().held_item().item.id;
                         p.increment_stat(StatisticCategory::Used, item_id as i32, 1);
-                        p.increment_stat(StatisticCategory::Mined, state.id.as_u16() as i32, 1);
+                        p.increment_stat(StatisticCategory::Mined, state.id.as_u32() as i32, 1);
                     }
                 }
             }

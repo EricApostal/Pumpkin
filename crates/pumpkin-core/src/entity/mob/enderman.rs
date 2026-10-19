@@ -319,7 +319,7 @@ impl EndermanEntity {
 
     pub fn set_carried_block(&self, block_state: Option<BlockStateId>) {
         self.carried_block.store(block_state);
-        let value = block_state.map_or(VarInt(0), |id| VarInt(id.as_u16() as i32));
+        let value = block_state.map_or(VarInt(0), |id| VarInt(id.as_u32() as i32));
         self.mob_entity
             .living_entity
             .entity
@@ -404,13 +404,13 @@ impl Mob for EndermanEntity {
 
     fn mob_write_nbt(&self, nbt: &mut NbtCompound) {
         if let Some(block_state) = self.carried_block.load() {
-            nbt.put_int("carriedBlockState", block_state.as_u16() as i32);
+            nbt.put_int("carriedBlockState", block_state.as_u32() as i32);
         }
     }
 
     fn mob_read_nbt(&self, nbt: &NbtCompound) {
         if let Some(block_state) = nbt.get_int("carriedBlockState") {
-            self.set_carried_block(BlockStateId::from_raw(block_state as u16));
+            self.set_carried_block(BlockStateId::from_raw(block_state as u32));
         }
     }
 

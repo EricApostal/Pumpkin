@@ -224,7 +224,7 @@ pub struct FluidRegistry {
     fluids: Vec<&'static DynamicFluidInfo>,
     by_key: HashMap<&'static str, &'static DynamicFluidInfo>,
     /// State id ranges of fluid blocks: first state, last state, fluid.
-    block_ranges: Vec<(u16, u16, &'static DynamicFluidInfo)>,
+    block_ranges: Vec<(u32, u32, &'static DynamicFluidInfo)>,
     /// Bucket item id to fluid.
     by_bucket: HashMap<u16, &'static DynamicFluidInfo>,
     /// Ids of the fluids that are the flowing variant of a still fluid.
@@ -439,7 +439,7 @@ impl FluidRegistry {
     /// The fluid whose block has this state.
     #[must_use]
     pub fn get_by_state(&self, id: BlockStateId) -> Option<&'static DynamicFluidInfo> {
-        let id = id.as_u16();
+        let id = id.as_u32();
         self.block_ranges
             .iter()
             .find(|(start, end, _)| (*start..=*end).contains(&id))
@@ -607,7 +607,7 @@ impl Fluid {
     /// Fallback of the generated `from_state_id` for the states of the blocks of registered fluids.
     #[must_use]
     pub fn from_dynamic_state_id(id: BlockStateId) -> Option<&'static Self> {
-        if id.as_u16() < BlockStateId::COUNT || !HAS_FLUID_BLOCKS.load(Ordering::Acquire) {
+        if id.as_u32() < u32::from(BlockStateId::COUNT) || !HAS_FLUID_BLOCKS.load(Ordering::Acquire) {
             return None;
         }
         read_registry().get_by_state(id).map(|info| info.fluid)
@@ -617,7 +617,7 @@ impl Fluid {
     /// flowing variant when there is one, like `to_flowing`.
     #[must_use]
     pub fn dynamic_fluid_state(id: BlockStateId) -> Option<(&'static Self, FluidState)> {
-        if id.as_u16() < BlockStateId::COUNT || !HAS_FLUID_BLOCKS.load(Ordering::Acquire) {
+        if id.as_u32() < u32::from(BlockStateId::COUNT) || !HAS_FLUID_BLOCKS.load(Ordering::Acquire) {
             return None;
         }
         let info = read_registry().get_by_state(id)?;

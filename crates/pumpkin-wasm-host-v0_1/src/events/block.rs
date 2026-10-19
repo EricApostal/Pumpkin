@@ -79,7 +79,7 @@ impl ToFromWasmEvent for BlockRedstoneEvent {
 
         Event::BlockRedstoneEvent(BlockRedstoneEventData {
             target_world,
-            state_id: self.block_state_id.as_u16(),
+            state_id: self.block_state_id.as_u32(),
             block_pos: to_wasm_block_position(self.block_pos),
             old_current: self.old_current,
             new_current: self.new_current,
@@ -201,9 +201,9 @@ impl ToFromWasmEvent for BlockGrowEvent {
         Event::BlockGrowEvent(BlockGrowEventData {
             target_world,
             old_block: to_wasm_block_name(self.old_block),
-            old_state_id: self.old_state_id.as_u16(),
+            old_state_id: self.old_state_id.as_u32(),
             new_block: to_wasm_block_name(self.new_block),
-            new_state_id: self.new_state_id.as_u16(),
+            new_state_id: self.new_state_id.as_u32(),
             block_pos: to_wasm_block_position(self.block_pos),
             cancelled: self.cancelled,
         })
@@ -882,7 +882,7 @@ impl ToFromWasmEvent for BlockFertilizeEvent {
         let changed_blocks = self
             .changed_blocks
             .iter()
-            .map(|(pos, id)| (to_wasm_block_position(*pos), id.as_u16()))
+            .map(|(pos, id)| (to_wasm_block_position(*pos), id.as_u32()))
             .collect();
         Event::BlockFertilizeEvent(BlockFertilizeEventData {
             block_pos: to_wasm_block_position(self.block_pos),
@@ -921,7 +921,7 @@ impl ToFromWasmEvent for BlockMultiPlaceEvent {
         let placed_blocks = self
             .placed_blocks
             .iter()
-            .map(|(pos, id)| (to_wasm_block_position(*pos), id.as_u16()))
+            .map(|(pos, id)| (to_wasm_block_position(*pos), id.as_u32()))
             .collect();
         Event::BlockMultiPlaceEvent(BlockMultiPlaceEventData {
             player,
@@ -1025,7 +1025,7 @@ impl ToFromWasmEvent for BlockSpreadEvent {
             source_pos: to_wasm_block_position(self.source_pos),
             target_pos: to_wasm_block_position(self.target_pos),
             target_world,
-            new_state_id: self.new_state_id.as_u16(),
+            new_state_id: self.new_state_id.as_u32(),
             cancelled: self.cancelled,
         })
     }
@@ -1194,7 +1194,7 @@ impl ToFromWasmEvent for EntityBlockFormEvent {
             entity_id: self.entity.get_entity().entity_id,
             block_pos: to_wasm_block_position(self.block_pos),
             target_world,
-            new_state_id: self.new_state_id.as_u16(),
+            new_state_id: self.new_state_id.as_u32(),
             cancelled: self.cancelled,
         })
     }
@@ -1225,7 +1225,7 @@ impl ToFromWasmEvent for FluidLevelChangeEvent {
         Event::FluidLevelChangeEvent(FluidLevelChangeEventData {
             block_pos: to_wasm_block_position(self.block_pos),
             target_world,
-            new_state_id: self.new_state_id.as_u16(),
+            new_state_id: self.new_state_id.as_u32(),
             cancelled: self.cancelled,
         })
     }

@@ -1504,14 +1504,14 @@ impl pumpkin::plugin::player::HostPlayer for PluginHostState {
         &mut self,
         player: Resource<Player>,
         pos: pumpkin::plugin::common::BlockPos,
-        block_id: u16,
+        state_id: u32,
     ) -> wasmtime::Result<()> {
         let player = self.get(&player)?;
         player.send_block_change(
             pumpkin_util::math::position::BlockPos(pumpkin_util::math::vector3::Vector3::new(
                 pos.x, pos.y, pos.z,
             )),
-            block_id,
+            state_id,
         );
         Ok(())
     }

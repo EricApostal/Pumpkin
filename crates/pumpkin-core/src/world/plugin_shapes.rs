@@ -147,7 +147,7 @@ impl World {
         kind: ShapeKind,
     ) -> Option<Arc<[BoundingBox]>> {
         // Vanilla blocks are the bulk of the lookups, they have no hooks.
-        if state.id.as_u16() < Block::vanilla_state_count() {
+        if state.id.as_u32() < u32::from(Block::vanilla_state_count()) {
             return None;
         }
         dynamic::dynamic_shapes(self, position, state, kind)
@@ -162,7 +162,7 @@ impl World {
         state: &BlockState,
         kind: ShapeKind,
     ) -> Option<Arc<[BoundingBox]>> {
-        if state.id.as_u16() < Block::vanilla_state_count() {
+        if state.id.as_u32() < u32::from(Block::vanilla_state_count()) {
             return None;
         }
         self.plugin_block_cache.shape(position, state.id, kind)
@@ -183,7 +183,7 @@ impl World {
             CustomBlockPhysicsKind::SpeedFactor => block.velocity_multiplier,
             CustomBlockPhysicsKind::JumpFactor => block.jump_velocity_multiplier,
         };
-        if state.id.as_u16() < Block::vanilla_state_count() {
+        if state.id.as_u32() < u32::from(Block::vanilla_state_count()) {
             return default;
         }
         dynamic::physics_value(self, position, block, state, kind).unwrap_or(default)

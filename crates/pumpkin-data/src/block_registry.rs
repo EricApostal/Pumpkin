@@ -24,11 +24,12 @@ const VANILLA_NAMESPACE: &str = "minecraft";
 const VANILLA_NAMESPACE_PREFIX: &str = "minecraft:";
 /// Vanilla's default friction.
 const DEFAULT_SLIPPERINESS: f32 = 0.6;
-/// A block with more states than this is rejected. All states of all blocks must also fit the 16
-/// bit state id space.
+/// A block with more states than this is rejected. All states of all blocks must also fit the
+/// state id space.
 const MAX_STATES_PER_BLOCK: u32 = 16384;
-/// Number of state ids, `BlockStateId` is a `u16`.
-const STATE_ID_SPACE: usize = u16::MAX as usize + 1;
+/// Number of state ids. `BlockStateId` is a `u32`; the limit is `i32::MAX + 1` because state ids
+/// travel as VarInts (signed 32 bit) in the Java protocol.
+const STATE_ID_SPACE: u32 = i32::MAX as u32 + 1;
 const MAX_PROPERTIES: usize = 32;
 const MAX_ENUM_VALUES: usize = 256;
 const MAX_BOXES: usize = 64;
@@ -198,8 +199,13 @@ pub enum PlacementSource {
     /// The face of the clicked block, which is the direction from the clicked block to the placed
     /// one: `down`, `up`, `north`, `south`, `west`, `east`.
     ClickedFace,
+    /// Like [`Self::ClickedFace`], but `up` gives `down`: `down`, `north`, `south`, `west`, `east`.
+    /// Hopper-like facing properties have no `up`.
+    ClickedFaceDown,
     /// The axis of the clicked face: `x`, `y` or `z`.
     ClickedAxis,
+    /// The axis of the direction the player looks at, horizontal only: `x` or `z`.
+    HorizontalAxis,
     /// `bottom` or `top`, like vanilla's stairs and slabs: clicking the top face or the lower half
     /// of a side gives `bottom`.
     ClickedHalf,
@@ -216,6 +222,8 @@ pub enum PlacementSource {
 
 const HORIZONTAL_NAMES: [&str; 4] = ["north", "south", "east", "west"];
 const DIRECTION_NAMES: [&str; 6] = ["down", "up", "north", "south", "west", "east"];
+/// The directions of a hopper-like facing property: no `up`.
+const HOPPER_DIRECTION_NAMES: [&str; 5] = ["down", "north", "south", "west", "east"];
 
 const fn direction_name(direction: BlockDirection) -> &'static str {
     match direction {
@@ -246,7 +254,9 @@ impl PlacementSource {
         match self {
             Self::HorizontalFacing => HORIZONTAL_NAMES.to_vec(),
             Self::LookingDirection | Self::ClickedFace => DIRECTION_NAMES.to_vec(),
+            Self::ClickedFaceDown => HOPPER_DIRECTION_NAMES.to_vec(),
             Self::ClickedAxis => vec!["x", "y", "z"],
+            Self::HorizontalAxis => vec!["x", "z"],
             Self::ClickedHalf => vec!["bottom", "top"],
             Self::VerticalLook(_) => vec!["up", "down"],
             Self::InWater | Self::Sneaking => vec!["true", "false"],
@@ -260,10 +270,25 @@ impl PlacementSource {
             Self::HorizontalFacing => picked_direction(context.horizontal_facing, opposite),
             Self::LookingDirection => picked_direction(context.looking_direction, opposite),
             Self::ClickedFace => picked_direction(context.clicked_face, opposite),
+            Self::ClickedFaceDown => {
+                let direction = if opposite {
+                    context.clicked_face.opposite()
+                } else {
+                    context.clicked_face
+                };
+                direction_name(match direction {
+                    BlockDirection::Up => BlockDirection::Down,
+                    direction => direction,
+                })
+            }
             Self::ClickedAxis => match context.clicked_face {
                 BlockDirection::Up | BlockDirection::Down => "y",
                 BlockDirection::North | BlockDirection::South => "z",
                 BlockDirection::West | BlockDirection::East => "x",
+            },
+            Self::HorizontalAxis => match context.horizontal_facing {
+                BlockDirection::North | BlockDirection::South => "z",
+                _ => "x",
             },
             Self::ClickedHalf => {
                 let bottom = context.clicked_face != BlockDirection::Down
@@ -492,7 +517,7 @@ pub enum BlockRegistrationError {
     Frozen,
     /// There are no block or state ids left.
     Full,
-    /// The block needs more state ids than are left of the 16 bit state id space (block key,
+    /// The block needs more state ids than are left of the state id space (block key,
     /// states needed, states left).
     OutOfStateIds(String, u32, u32),
     /// The block has other placement rules already (block key).
@@ -533,7 +558,7 @@ impl fmt::Display for BlockRegistrationError {
             Self::Full => write!(f, "the block registry is full"),
             Self::OutOfStateIds(key, needed, left) => write!(
                 f,
-                "block '{key}' needs {needed} states but only {left} state ids are left, block state ids are 16 bit and shared by all blocks"
+                "block '{key}' needs {needed} states but only {left} state ids are left, block state ids are shared by all blocks"
             ),
             Self::PlacementRulesChanged(key) => {
                 write!(f, "block '{key}' has other placement rules already")
@@ -843,8 +868,8 @@ pub struct DynamicBlockInfo {
     pub id: BlockId,
     /// The registration in canonical form.
     pub registration: BlockRegistration,
-    base_state_id: u16,
-    state_count: u16,
+    base_state_id: u32,
+    state_count: u32,
     default_index: u16,
     properties: Vec<PropertyLayout>,
     connect_rules: Vec<ResolvedConnectRule>,
@@ -864,7 +889,7 @@ fn bool_value(value: bool) -> usize {
 }
 
 impl DynamicBlockInfo {
-    fn build(id: BlockId, registration: BlockRegistration, base_state_id: u16) -> Self {
+    fn build(id: BlockId, registration: BlockRegistration, base_state_id: u32) -> Self {
         let mut properties: Vec<PropertyLayout> = registration
             .properties
             .iter()
@@ -907,7 +932,7 @@ impl DynamicBlockInfo {
             id,
             registration,
             base_state_id,
-            state_count: state_count as u16,
+            state_count,
             default_index: 0,
             properties,
             connect_rules,
@@ -925,12 +950,12 @@ impl DynamicBlockInfo {
 
     /// The first state id of the block. Its states follow in index order.
     #[must_use]
-    pub const fn base_state_id(&self) -> u16 {
+    pub const fn base_state_id(&self) -> u32 {
         self.base_state_id
     }
 
     #[must_use]
-    pub const fn state_count(&self) -> u16 {
+    pub const fn state_count(&self) -> u32 {
         self.state_count
     }
 
@@ -942,8 +967,8 @@ impl DynamicBlockInfo {
     /// The index of a state of this block, `None` for the state of another block.
     #[must_use]
     pub fn state_index(&self, id: BlockStateId) -> Option<u16> {
-        let index = id.as_u16().checked_sub(self.base_state_id)?;
-        (index < self.state_count).then_some(index)
+        let index = id.as_u32().checked_sub(self.base_state_id)?;
+        (index < self.state_count).then(|| u16::try_from(index).ok()).flatten()
     }
 
     #[must_use]
@@ -1108,7 +1133,11 @@ impl DynamicBlockInfo {
                         ));
                     }
                 }
-                PlacementSource::ClickedAxis | PlacementSource::Constant(_) if rule.opposite => {
+                PlacementSource::ClickedAxis
+                | PlacementSource::HorizontalAxis
+                | PlacementSource::Constant(_)
+                    if rule.opposite =>
+                {
                     return Err(invalid(format!(
                         "placement rule for '{}' has no opposite",
                         rule.property
@@ -1412,6 +1441,9 @@ fn derive_state_data(reg: &BlockRegistration, shape: &ShapeDefinition) -> (u16, 
 #[derive(Clone)]
 pub struct DynamicBlockRegistry {
     frozen: bool,
+    /// Whether this is the global registry, the only one whose sizes are published in the
+    /// lock-free counters `Block::from_id` and friends use. Tests build local registries.
+    publish_counts: bool,
     blocks: Vec<&'static Block>,
     infos: Vec<&'static DynamicBlockInfo>,
     by_key: HashMap<&'static str, usize>,
@@ -1428,8 +1460,13 @@ pub struct DynamicBlockRegistry {
 impl DynamicBlockRegistry {
     #[must_use]
     pub fn new() -> Self {
+        Self::with_published_counts(false)
+    }
+
+    fn with_published_counts(publish_counts: bool) -> Self {
         Self {
             frozen: false,
+            publish_counts,
             blocks: Vec::new(),
             infos: Vec::new(),
             by_key: HashMap::new(),
@@ -1487,8 +1524,9 @@ impl DynamicBlockRegistry {
         type Derived = (u16, u8, u8, &'static [u16], &'static [u16]);
         let mut derived: Vec<(ShapeDefinition, ShapeDefinition, Derived)> = Vec::new();
 
-        let mut states = Vec::with_capacity(usize::from(info.state_count));
+        let mut states = Vec::with_capacity(info.state_count as usize);
         for index in 0..info.state_count {
+            let index = u16::try_from(index).expect("a block has at most 16384 states");
             let collision = info.shape_definition(index, ShapeKind::Collision);
             let selection = info.shape_definition(index, ShapeKind::Selection);
             let known = derived
@@ -1511,7 +1549,7 @@ impl DynamicBlockRegistry {
                 }
             };
             states.push(BlockState {
-                id: BlockStateId::from_dynamic_raw(info.base_state_id + index),
+                id: BlockStateId::from_dynamic_raw(info.base_state_id + u32::from(index)),
                 state_flags,
                 side_flags,
                 instrument: NoteblockInstrument::Harp,
@@ -1548,18 +1586,19 @@ impl DynamicBlockRegistry {
 
         let index = self.blocks.len();
         let block_id = usize::from(BlockId::BLOCK_COUNT) + index;
-        let base_state_id = usize::from(BlockStateId::STATE_COUNT) + self.states.len();
+        let base_state_id =
+            u32::from(BlockStateId::STATE_COUNT) + u32::try_from(self.states.len()).map_err(|_| BlockRegistrationError::Full)?;
         let id = u16::try_from(block_id).map_err(|_| BlockRegistrationError::Full)?;
-        let base = u16::try_from(base_state_id).map_err(|_| BlockRegistrationError::Full)?;
+        let base = base_state_id;
 
         let key: &'static str = leak_str(&registration.key);
         let info = DynamicBlockInfo::build(BlockId::from_dynamic_raw(id), registration, base);
-        // The last state id has to fit as well: all states of all blocks share the 16 bit ids.
-        if base_state_id + usize::from(info.state_count) > STATE_ID_SPACE {
+        // The last state id has to fit as well: all states of all blocks share the ids.
+        if info.state_count > STATE_ID_SPACE.saturating_sub(base_state_id) {
             return Err(BlockRegistrationError::OutOfStateIds(
                 key.to_string(),
-                u32::from(info.state_count),
-                (STATE_ID_SPACE - base_state_id) as u32,
+                info.state_count,
+                STATE_ID_SPACE.saturating_sub(base_state_id),
             ));
         }
 
@@ -1590,8 +1629,10 @@ impl DynamicBlockRegistry {
             self.states.push(state);
             self.state_owners.push(index);
         }
-        DYNAMIC_BLOCK_COUNT.store(self.blocks.len() as u32, Ordering::Release);
-        DYNAMIC_STATE_COUNT.store(self.states.len() as u32, Ordering::Release);
+        if self.publish_counts {
+            DYNAMIC_BLOCK_COUNT.store(self.blocks.len() as u32, Ordering::Release);
+            DYNAMIC_STATE_COUNT.store(self.states.len() as u32, Ordering::Release);
+        }
         Ok(block)
     }
 
@@ -1717,14 +1758,14 @@ impl DynamicBlockRegistry {
     }
 
     #[must_use]
-    pub fn get_state(&self, id: u16) -> Option<&'static BlockState> {
-        let index = usize::from(id).checked_sub(usize::from(BlockStateId::STATE_COUNT))?;
+    pub fn get_state(&self, id: u32) -> Option<&'static BlockState> {
+        let index = id.checked_sub(u32::from(BlockStateId::STATE_COUNT))? as usize;
         self.states.get(index).copied()
     }
 
     #[must_use]
-    pub fn get_state_block(&self, id: u16) -> Option<&'static Block> {
-        let index = usize::from(id).checked_sub(usize::from(BlockStateId::STATE_COUNT))?;
+    pub fn get_state_block(&self, id: u32) -> Option<&'static Block> {
+        let index = id.checked_sub(u32::from(BlockStateId::STATE_COUNT))? as usize;
         let owner = *self.state_owners.get(index)?;
         self.blocks.get(owner).copied()
     }
@@ -1750,7 +1791,7 @@ impl Default for DynamicBlockRegistry {
 }
 
 static REGISTRY: LazyLock<RwLock<DynamicBlockRegistry>> =
-    LazyLock::new(|| RwLock::new(DynamicBlockRegistry::new()));
+    LazyLock::new(|| RwLock::new(DynamicBlockRegistry::with_published_counts(true)));
 /// A copy of the registry taken when it was closed, read without taking a lock.
 static FROZEN: OnceLock<DynamicBlockRegistry> = OnceLock::new();
 /// Lets the id checks skip the lock. Updated after the registry changed.
@@ -1950,7 +1991,7 @@ impl Block {
     #[must_use]
     pub fn from_dynamic_state_id(id: BlockStateId) -> &'static Self {
         read_registry()
-            .get_state_block(id.as_u16())
+            .get_state_block(id.as_u32())
             .unwrap_or(&Self::AIR)
     }
 
@@ -1999,7 +2040,7 @@ impl BlockState {
     #[must_use]
     pub fn from_dynamic_id(id: BlockStateId) -> &'static Self {
         read_registry()
-            .get_state(id.as_u16())
+            .get_state(id.as_u32())
             .unwrap_or(Block::AIR.default_state)
     }
 }
@@ -2098,18 +2139,18 @@ mod tests {
         assert_eq!(first.id.as_u16(), Block::vanilla_block_count());
         assert_eq!(second.id.as_u16(), Block::vanilla_block_count() + 1);
         assert_eq!(
-            first.default_state.id.as_u16(),
-            Block::vanilla_state_count()
+            first.default_state.id.as_u32(),
+            u32::from(Block::vanilla_state_count())
         );
         assert_eq!(
-            second.states[0].id.as_u16(),
-            Block::vanilla_state_count() + 1
+            second.states[0].id.as_u32(),
+            u32::from(Block::vanilla_state_count()) + 1
         );
         assert_eq!(second.states.len(), 15);
         assert_eq!(registry.get_by_id(first.id.as_u16()), Some(first));
         assert_eq!(registry.get_by_key("test_order:second"), Some(second));
         assert_eq!(
-            registry.get_state_block(second.states[14].id.as_u16()),
+            registry.get_state_block(second.states[14].id.as_u32()),
             Some(second)
         );
         assert!(first.is_dynamic());
@@ -2186,6 +2227,7 @@ mod tests {
         assert_eq!(info.property_names(), vec!["age", "lit", "mode"]);
         assert_eq!(info.default_state_index(), 2);
         for index in 0..info.state_count() {
+            let index = u16::try_from(index).unwrap();
             let props = info.to_props(index);
             assert_eq!(info.index_from_props(&props), index);
             assert_eq!(info.strict_index_from_props(&props), Some(index));
@@ -2327,7 +2369,7 @@ mod tests {
         assert_eq!(registry.get_by_key("test_item:a"), Some(linked));
         assert_eq!(registry.get_by_item(5000), Some(linked));
         assert_eq!(
-            registry.get_state_block(block.default_state.id.as_u16()),
+            registry.get_state_block(block.default_state.id.as_u32()),
             Some(linked)
         );
         assert_eq!(registry.link_item("test_item:a", 5000).unwrap(), linked);
@@ -2498,12 +2540,12 @@ mod tests {
             assert_eq!(BlockState::from_id(state.id), state);
             assert_eq!(Block::from_state_id(state.id), block);
             assert_eq!(BlockId::from_state_id(state.id), block.id);
-            assert_eq!(BlockStateId::from_raw(state.id.as_u16()), Some(state.id));
+            assert_eq!(BlockStateId::from_raw(state.id.as_u32()), Some(state.id));
         }
         assert_eq!(BlockId::from_raw(block.id.as_u16()), Some(block.id));
         assert!(BlockId::from_raw(u16::MAX).is_none());
-        assert!(BlockStateId::from_raw(u16::MAX).is_none());
-        assert_eq!(BlockStateId::from_raw_or_air(u16::MAX), BlockStateId::AIR);
+        assert!(BlockStateId::from_raw(u32::MAX).is_none());
+        assert_eq!(BlockStateId::from_raw_or_air(u32::MAX), BlockStateId::AIR);
         assert!(u32::from(BlockStateId::COUNT) + 64 <= BlockStateId::total_count());
         assert!(u32::from(BlockId::COUNT) < BlockId::total_count());
         // The vanilla constructors still stop at the vanilla ranges.
@@ -2630,8 +2672,35 @@ mod tests {
         let wide = registry.register(wide).unwrap();
         assert_eq!(wide.states.len(), 6400);
         assert_eq!(
-            wide.states[6399].id.as_u16(),
-            wide.states[0].id.as_u16() + 6399
+            wide.states[6399].id.as_u32(),
+            wide.states[0].id.as_u32() + 6399
+        );
+    }
+
+    #[test]
+    fn state_ids_go_past_the_old_16_bit_space() {
+        let mut registry = DynamicBlockRegistry::new();
+        // 16384 states each: five blocks already need more than the 65536 ids a u16 holds,
+        // which is what a mod with hundreds of palette blocks does.
+        for i in 0..5 {
+            let mut block = registration(&format!("test_wide:block{i}"));
+            block.properties = (0..14).map(|p| bool_property(&format!("p{p}"))).collect();
+            let block = registry.register(block).unwrap();
+            assert_eq!(block.states.len(), 16384);
+            assert_eq!(
+                block.states[0].id.as_u32(),
+                u32::from(BlockStateId::COUNT) + i * 16384
+            );
+        }
+        let last_id = BlockStateId::COUNT as u32 + 5 * 16384 - 1;
+        assert!(last_id >= 65536);
+        let last = registry
+            .get_state(last_id)
+            .expect("the last state is registered");
+        assert_eq!(last.id.as_u32(), last_id);
+        assert_eq!(
+            registry.get_state_block(last_id).map(|block| block.name),
+            Some("test_wide:block4")
         );
     }
 
@@ -2691,6 +2760,56 @@ mod tests {
         let top_face = info.state_for_placement(default, &placement(BlockDirection::Up));
         assert_eq!(info.value(top_face, "half"), Some("bottom"));
         assert_eq!(info.value(top_face, "axis"), Some("y"));
+    }
+
+    #[test]
+    fn hopper_facing_has_no_up() {
+        let mut registry = DynamicBlockRegistry::new();
+        let mut reg = registration("test_place:hopper");
+        // A hopper-like facing: every direction but `up`.
+        reg.properties = vec![enum_property(
+            "facing",
+            &["down", "north", "south", "west", "east"],
+        )];
+        let block = registry.register(reg).unwrap();
+        let info = registry.get_info(block.id.as_u16()).unwrap();
+        registry
+            .set_placement_rules(
+                "test_place:hopper",
+                vec![rule("facing", PlacementSource::ClickedFaceDown, false)],
+            )
+            .unwrap();
+        let default = info.default_state_index();
+        // The plain clicked face cannot be used: it would give `up`.
+        let state = info.state_for_placement(default, &placement(BlockDirection::Up));
+        assert_eq!(info.value(state, "facing"), Some("down"));
+        let state = info.state_for_placement(default, &placement(BlockDirection::North));
+        assert_eq!(info.value(state, "facing"), Some("north"));
+    }
+
+    #[test]
+    fn horizontal_axis_uses_the_look_direction() {
+        let mut registry = DynamicBlockRegistry::new();
+        let mut reg = registration("test_place:horizontal_axis");
+        reg.properties = vec![enum_property("axis", &["x", "z"])];
+        reg.default_state = vec![("axis".to_string(), "x".to_string())];
+        let block = registry.register(reg).unwrap();
+        let info = registry.get_info(block.id.as_u16()).unwrap();
+        registry
+            .set_placement_rules(
+                "test_place:horizontal_axis",
+                vec![rule("axis", PlacementSource::HorizontalAxis, false)],
+            )
+            .unwrap();
+        let default = info.default_state_index();
+        let mut north = placement(BlockDirection::North);
+        north.horizontal_facing = BlockDirection::North;
+        let state = info.state_for_placement(default, &north);
+        assert_eq!(info.value(state, "axis"), Some("z"));
+        let mut east = placement(BlockDirection::East);
+        east.horizontal_facing = BlockDirection::East;
+        let state = info.state_for_placement(default, &east);
+        assert_eq!(info.value(state, "axis"), Some("x"));
     }
 
     #[test]

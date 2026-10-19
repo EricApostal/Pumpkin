@@ -154,7 +154,7 @@ impl BlockBehaviour for DynamicBlock {
             new_state_index: new_index,
         };
         server.plugin_manager.fire_blocking(&server, &mut event);
-        if event.new_state_index != new_index && event.new_state_index < info.state_count() {
+        if event.new_state_index != new_index && u32::from(event.new_state_index) < info.state_count() {
             state_id(args.block, event.new_state_index)
         } else {
             connected

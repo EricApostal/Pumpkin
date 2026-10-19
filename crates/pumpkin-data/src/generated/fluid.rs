@@ -641,7 +641,7 @@ impl Fluid {
     }
     #[allow(unreachable_patterns, clippy::match_overlapping_arm)]
     pub fn from_state_id(id: BlockStateId) -> Option<&'static Self> {
-        match id.as_u16() {
+        match id.as_u32() {
             0..=0 => Some(&Fluid::EMPTY),
             89..=89 => Some(&Fluid::WATER),
             105..=105 => Some(&Fluid::LAVA),
@@ -716,19 +716,19 @@ impl Fluid {
         }
     }
     pub fn is_source(&self, state_id: BlockStateId) -> bool {
-        let idx = (state_id.as_u16() as usize) % self.states.len();
+        let idx = (state_id.as_u32() as usize) % self.states.len();
         self.states[idx].is_source
     }
     pub fn is_falling(&self, state_id: BlockStateId) -> bool {
-        let idx = (state_id.as_u16() as usize) % self.states.len();
+        let idx = (state_id.as_u32() as usize) % self.states.len();
         self.states[idx].falling
     }
     pub fn get_level(&self, state_id: BlockStateId) -> i16 {
-        let idx = (state_id.as_u16() as usize) % self.states.len();
+        let idx = (state_id.as_u32() as usize) % self.states.len();
         self.states[idx].level
     }
     pub fn get_height(&self, state_id: BlockStateId) -> f32 {
-        let idx = (state_id.as_u16() as usize) % self.states.len();
+        let idx = (state_id.as_u32() as usize) % self.states.len();
         self.states[idx].height
     }
 }

@@ -1818,7 +1818,7 @@ impl World {
                 let be_block_id = BlockState::to_be_network_id(block_state_id);
                 self.broadcast_to_chunk_editioned(
                     chunk_pos,
-                    &CBlockUpdate::new(block_pos, i32::from(block_state_id.as_u16()).into()),
+                    &CBlockUpdate::new(block_pos, (block_state_id.as_u32() as i32).into()),
                     &pumpkin_protocol::bedrock::client::CUpdateBlock::new(block_pos, be_block_id),
                 );
                 if let Some(block_entity) = self.get_block_entity(&block_pos)
@@ -5468,7 +5468,7 @@ impl World {
             let je_packet = CWorldEvent::new(
                 WorldEvent::ParticlesDestroyBlock as i32,
                 *position,
-                broken_state_id.as_u16().into(),
+                (broken_state_id.as_u32() as i32).into(),
                 false,
             );
             let be_packet = CLevelEvent {

@@ -115,27 +115,27 @@ fn extract_block_palette(
     match tag {
         pumpkin_nbt::tag::NbtTag::IntArray(arr) => Some(
             arr.iter()
-                .map(|&x| BlockStateId::from_raw_or_air(x as u16))
+                .map(|&x| BlockStateId::from_raw_or_air(x as u32))
                 .collect(),
         ),
         pumpkin_nbt::tag::NbtTag::ByteArray(arr) => Some(
             arr.iter()
-                .map(|&x| BlockStateId::from_raw_or_air(x as u16))
+                .map(|&x| BlockStateId::from_raw_or_air(x as u32))
                 .collect(),
         ),
         pumpkin_nbt::tag::NbtTag::LongArray(arr) => Some(
             arr.iter()
-                .map(|&x| BlockStateId::from_raw_or_air(x as u16))
+                .map(|&x| BlockStateId::from_raw_or_air(x as u32))
                 .collect(),
         ),
         pumpkin_nbt::tag::NbtTag::List(list) => {
             let ids: Box<[BlockStateId]> = list
                 .iter()
                 .map(|t| match t {
-                    pumpkin_nbt::tag::NbtTag::Int(x) => BlockStateId::from_raw_or_air(*x as u16),
-                    pumpkin_nbt::tag::NbtTag::Short(x) => BlockStateId::from_raw_or_air(*x as u16),
-                    pumpkin_nbt::tag::NbtTag::Byte(x) => BlockStateId::from_raw_or_air(*x as u16),
-                    pumpkin_nbt::tag::NbtTag::Long(x) => BlockStateId::from_raw_or_air(*x as u16),
+                    pumpkin_nbt::tag::NbtTag::Int(x) => BlockStateId::from_raw_or_air(*x as u32),
+                    pumpkin_nbt::tag::NbtTag::Short(x) => BlockStateId::from_raw_or_air(*x as u32),
+                    pumpkin_nbt::tag::NbtTag::Byte(x) => BlockStateId::from_raw_or_air(*x as u32),
+                    pumpkin_nbt::tag::NbtTag::Long(x) => BlockStateId::from_raw_or_air(*x as u32),
                     pumpkin_nbt::tag::NbtTag::Compound(compound) => {
                         if let Ok(entry) =
                             crate::generation::structure::template::PaletteEntry::from_nbt_compound(

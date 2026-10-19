@@ -171,7 +171,7 @@ interface %world {
 
     /// Specialized data for enderman entities.
     record enderman-data {
-        carried-block-state: option<u16>,
+        carried-block-state: option<u32>,
         is-screaming: bool,
         is-staring: bool,
     }
@@ -278,7 +278,7 @@ interface %world {
     record block-change {
         pos: block-pos,
         /// The block state id to write.
-        state: u16,
+        state: u32,
         /// Vanilla block entity data as binary NBT (see `get-block-entity-nbt`) with an `id`; the
         /// position is taken from `pos`.
         block-entity-nbt: option<list<u8>>,
@@ -295,7 +295,7 @@ interface %world {
     /// Detailed information about a block's state.
     record block-state {
         /// The internal numerical ID of the block state.
-        id: u16,
+        id: u32,
         /// The numerical ID of the parent block type.
         block-id: u16,
         /// The namespaced identifier of the parent block type.
@@ -412,9 +412,9 @@ interface %world {
         /// The item ID associated with this block in inventory/drops.
         item-id: u16,
         /// The default block state ID when placed without extra properties.
-        default-state-id: u16,
+        default-state-id: u32,
         /// All valid state IDs belonging to this block type.
-        state-ids: list<u16>,
+        state-ids: list<u32>,
         /// Whether this block is solid by default.
         is-solid: bool,
         /// Whether this block is considered air.
@@ -427,7 +427,7 @@ interface %world {
 
     /// A simple wrapper for a block state ID.
     record block-state-id {
-        id: u16,
+        id: u32,
     }
 
     /// The fluid at a block position: a fluid block, or a block holding water (waterlogged blocks,
@@ -776,7 +776,7 @@ interface %world {
 
         /// Gets the block state ID at the specified position relative to the chunk.
         /// X and Z must be in the range [0, 15].
-        get-block-state-id: func(pos: block-pos) -> u16;
+        get-block-state-id: func(pos: block-pos) -> u32;
 
         /// Gets detailed block state information at the specified position relative to the chunk.
         /// X and Z must be in the range [0, 15].
@@ -784,7 +784,7 @@ interface %world {
 
         /// Sets the block state at the specified position relative to the chunk.
         /// X and Z must be in the range [0, 15].
-        set-block-state: func(pos: block-pos, state: u16);
+        set-block-state: func(pos: block-pos, state: u32);
 
         /// Gets the block at the specified position relative to the chunk.
         /// X and Z must be in the range [0, 15].
@@ -974,13 +974,13 @@ interface %world {
         get-chunk: func(x: s32, z: s32) -> option<chunk>;
 
         /// Gets the block state ID at the specified position.
-        get-block-state-id: func(pos: block-pos) -> u16;
+        get-block-state-id: func(pos: block-pos) -> u32;
 
         /// Gets detailed block state information at the specified position.
         get-block-state: func(pos: block-pos) -> block-state;
 
         /// Sets the block state at the specified position.
-        set-block-state: async func(pos: block-pos, state: u16, update-flags: block-flags);
+        set-block-state: async func(pos: block-pos, state: u32, update-flags: block-flags);
 
         /// Writes many blocks in one call. All blocks are written first, then the neighbour,
         /// shape and light updates run once for the whole batch (like vanilla fill and structure
@@ -1008,7 +1008,7 @@ interface %world {
         /// `new-state`, without writing anything (vanilla `markAndNotifyBlock`). `notify-listeners`
         /// resends the block, `notify-neighbors` updates the neighbours, `skip-shape-update` and
         /// `moved` skip the shape updates.
-        mark-and-notify: async func(pos: block-pos, old-state: u16, new-state: u16, update-flags: block-flags);
+        mark-and-notify: async func(pos: block-pos, old-state: u32, new-state: u32, update-flags: block-flags);
 
         /// Creates an entity from its saved binary NBT (an `id` and the rest, like a structure
         /// entity or `entity.write-nbt`) and spawns it at `pos`. The entity gets a new uuid.
@@ -1317,16 +1317,16 @@ interface %world {
         get-height: func() -> u32;
 
         /// Sets the block state ID at local coordinates (0..16, y, 0..16).
-        set-block-state-id: func(x: u8, y: s32, z: u8, state-id: u16);
+        set-block-state-id: func(x: u8, y: s32, z: u8, state-id: u32);
         /// Gets the block state ID at local coordinates (0..16, y, 0..16).
-        get-block-state-id: func(x: u8, y: s32, z: u8) -> u16;
+        get-block-state-id: func(x: u8, y: s32, z: u8) -> u32;
 
         /// Fills an entire horizontal 16x16 layer at the given Y level with a block state ID.
-        fill-layer: func(y: s32, state-id: u16);
+        fill-layer: func(y: s32, state-id: u32);
         /// Fills a vertical column from min-y to max-y at local (x, z) with a block state ID.
-        fill-range: func(x: u8, min-y: s32, max-y: s32, z: u8, state-id: u16);
+        fill-range: func(x: u8, min-y: s32, max-y: s32, z: u8, state-id: u32);
         /// Fills a 3D cuboid with a block state ID.
-        fill-cuboid: func(min-x: u8, min-y: s32, min-z: u8, max-x: u8, max-y: s32, max-z: u8, state-id: u16);
+        fill-cuboid: func(min-x: u8, min-y: s32, min-z: u8, max-x: u8, max-y: s32, max-z: u8, state-id: u32);
 
         /// Sets the biome at local coordinates (0..16, y, 0..16).
         set-biome: func(x: u8, y: s32, z: u8, biome: biome);
@@ -1336,7 +1336,7 @@ interface %world {
 
     /// Resolves a block name and optional properties to a block state ID.
     /// Returns none if the block name is unknown.
-    resolve-block-state: func(name: string, properties: list<tuple<string, string>>) -> option<u16>;
+    resolve-block-state: func(name: string, properties: list<tuple<string, string>>) -> option<u32>;
 
     /// A block's registry name and its property key-value pairs for a state ID.
     record block-state-info {
@@ -1346,7 +1346,7 @@ interface %world {
 
     /// Resolves a block state ID back to its block name and properties.
     /// Returns none if the state ID is unknown.
-    block-state-to-info: func(state-id: u16) -> option<block-state-info>;
+    block-state-to-info: func(state-id: u32) -> option<block-state-info>;
 
     /// Gets a block type by its numerical block ID.
     get-block-by-id: func(id: u16) -> option<block>;
@@ -1373,13 +1373,13 @@ interface %world {
     get-states-for-block-id: func(block-id: u16) -> list<block-state>;
 
     /// Gets all valid state IDs for a numerical block ID.
-    get-state-ids-for-block-id: func(block-id: u16) -> list<u16>;
+    get-state-ids-for-block-id: func(block-id: u16) -> list<u32>;
 
     /// Gets property key-value pairs for a numerical block state ID.
-    get-block-properties: func(state-id: u16) -> list<tuple<string, string>>;
+    get-block-properties: func(state-id: u32) -> list<tuple<string, string>>;
 
     /// Gets the block type associated with a block state ID.
-    get-block-from-state-id: func(state-id: u16) -> option<block>;
+    get-block-from-state-id: func(state-id: u32) -> option<block>;
 
     /// Gets the block type associated with a block state.
     get-block-from-state: func(state: block-state) -> block;
@@ -1391,7 +1391,7 @@ interface %world {
     get-default-state-from-block-id: func(block-id: u16) -> option<block-state>;
 
     /// Gets the detailed block state for a numerical block state ID.
-    get-block-state-by-id: func(state-id: u16) -> option<block-state>;
+    get-block-state-by-id: func(state-id: u32) -> option<block-state>;
 
     // Tag queries. `tag` is a tag name like `minecraft:logs` or `create:wrenches`, `#` prefix
     // optional, `minecraft:` namespace optional. They see the vanilla tags, datapack tags and tags
@@ -1402,7 +1402,7 @@ interface %world {
     block-has-tag: func(block-key: string, tag: string) -> bool;
 
     /// Returns whether the block of a block state ID is in the block tag.
-    block-state-has-tag: func(state-id: u16, tag: string) -> bool;
+    block-state-has-tag: func(state-id: u32, tag: string) -> bool;
 
     /// Returns whether the item (`minecraft:stick`, `create:wrench`) is in the item tag.
     item-has-tag: func(item-key: string, tag: string) -> bool;

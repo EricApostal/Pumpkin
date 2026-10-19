@@ -42,7 +42,7 @@ pub struct BlockState {
 /// Every [`BlockStateId`] is guaranteed to correspond to a valid [`BlockState`].
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct BlockStateId(u16);
+pub struct BlockStateId(u32);
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[repr(u8)]
@@ -273,7 +273,7 @@ impl BlockStateId {
     #[must_use]
     pub const fn new(inner: u16) -> Option<Self> {
         if inner < Self::STATE_COUNT {
-            return Some(Self(inner));
+            return Some(Self::from_dynamic_raw(inner as u32));
         }
         None
     }
@@ -283,7 +283,7 @@ impl BlockStateId {
     #[must_use]
     pub const fn new_or_air(inner: u16) -> Self {
         if inner < Self::STATE_COUNT {
-            return Self(inner);
+            return Self::from_dynamic_raw(inner as u32);
         }
         Self::AIR
     }
@@ -291,7 +291,7 @@ impl BlockStateId {
     /// The id of a registered dynamic state. Only for ids the dynamic registry handed out.
     #[inline]
     #[must_use]
-    pub(crate) const fn from_dynamic_raw(inner: u16) -> Self {
+    pub(crate) const fn from_dynamic_raw(inner: u32) -> Self {
         Self(inner)
     }
 
@@ -305,21 +305,30 @@ impl BlockStateId {
     /// A state id of a generated or registered block.
     #[inline]
     #[must_use]
-    pub fn from_raw(inner: u16) -> Option<Self> {
-        (u32::from(inner) < Self::total_count()).then_some(Self(inner))
+    pub fn from_raw(inner: u32) -> Option<Self> {
+        (inner < Self::total_count()).then_some(Self(inner))
     }
 
     /// Like [`Self::from_raw`], air for an id that does not exist.
     #[inline]
     #[must_use]
-    pub fn from_raw_or_air(inner: u16) -> Self {
+    pub fn from_raw_or_air(inner: u32) -> Self {
         Self::from_raw(inner).unwrap_or(Self::AIR)
     }
 
+    /// The full state id.
+    #[inline(always)]
+    #[must_use]
+    pub const fn as_u32(self) -> u32 {
+        self.0
+    }
+
+    /// The low 16 bits of the state id. Only use it for ids known to be vanilla
+    /// (`< STATE_COUNT`); plugin states can be larger.
     #[inline(always)]
     #[must_use]
     pub const fn as_u16(self) -> u16 {
-        self.0
+        self.0 as u16
     }
 
     #[inline]

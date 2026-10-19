@@ -55,7 +55,7 @@ impl JavaClient {
                     let state_id = world.get_block_state_id(&position);
                     player.try_send_client_packet(&CBlockUpdate::new(
                         position,
-                        VarInt(i32::from(state_id.as_u16())),
+                        VarInt(state_id.as_u32() as i32),
                     ));
                     return Ok(());
                 }
@@ -98,7 +98,7 @@ impl JavaClient {
                 let state_id = world.get_block_state_id(&position);
                 player.try_send_client_packet(&CBlockUpdate::new(
                     position,
-                    VarInt(i32::from(state_id.as_u16())),
+                    VarInt(state_id.as_u32() as i32),
                 ));
                 return Ok(());
             }
@@ -272,7 +272,7 @@ impl JavaClient {
             let state_id = world.get_block_state_id(&block_position);
             player.try_send_client_packet(&CBlockUpdate::new(
                 block_position,
-                VarInt(i32::from(state_id.as_u16())),
+                VarInt(state_id.as_u32() as i32),
             ));
         }
         let slot_index = if matches!(hand, Hand::Right) {
@@ -373,7 +373,7 @@ impl JavaClient {
             Ok(Some((final_block_pos, new_state))) => {
                 player.try_send_client_packet(&CBlockUpdate::new(
                     final_block_pos,
-                    VarInt(i32::from(new_state.as_u16())),
+                    VarInt(new_state.as_u32() as i32),
                 ));
                 Ok(true)
             }
