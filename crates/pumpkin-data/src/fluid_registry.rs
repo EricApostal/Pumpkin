@@ -162,6 +162,28 @@ fn check_key(key: &str) -> Result<(), FluidRegistrationError> {
     Ok(())
 }
 
+/// Checks that `variant` may be the flowing variant of a still fluid.
+fn check_flowing_variant(
+    key: &str,
+    variant: &'static DynamicFluidInfo,
+    linked: &HashSet<u16>,
+) -> Result<&'static Fluid, FluidRegistrationError> {
+    if linked.contains(&variant.fluid.id) {
+        return Err(FluidRegistrationError::VariantInUse(key.to_string()));
+    }
+    let holds_still_block = variant
+        .registration
+        .placement
+        .as_ref()
+        .is_some_and(|placement| !placement.flowing);
+    if holds_still_block || variant.registration.flowing_variant.is_some() {
+        return Err(FluidRegistrationError::Invalid(format!(
+            "'{key}' cannot be a flowing variant"
+        )));
+    }
+    Ok(variant.fluid)
+}
+
 /// What the registry keeps for a registered fluid beyond its `Fluid`.
 pub struct DynamicFluidInfo {
     pub fluid: &'static Fluid,
@@ -171,12 +193,19 @@ pub struct DynamicFluidInfo {
     pub block: Option<&'static Block>,
     /// The bucket item.
     pub bucket_item: Option<&'static Item>,
-    flowing_variant: Option<&'static Fluid>,
+    /// Set when the flowing variant registers; a still fluid may be registered first.
+    flowing_variant: OnceLock<&'static Fluid>,
     /// Set when the still fluid that names this one as its flowing variant registers.
     still_variant: OnceLock<&'static Fluid>,
 }
 
 impl DynamicFluidInfo {
+    /// The flowing variant of this (still) fluid, `None` while it is not registered yet.
+    #[must_use]
+    pub fn flowing_variant(&self) -> Option<&'static Fluid> {
+        self.flowing_variant.get().copied()
+    }
+
     /// Whether the block of this fluid holds flowing fluid.
     #[must_use]
     pub fn holds_flowing(&self) -> bool {
@@ -229,6 +258,8 @@ pub struct FluidRegistry {
     by_bucket: HashMap<u16, &'static DynamicFluidInfo>,
     /// Ids of the fluids that are the flowing variant of a still fluid.
     linked: HashSet<u16>,
+    /// Still fluids whose `flowing-variant` was not registered yet: the key they wait for.
+    pending_variants: Vec<(&'static str, &'static DynamicFluidInfo)>,
 }
 
 impl FluidRegistry {
@@ -241,11 +272,18 @@ impl FluidRegistry {
             block_ranges: Vec::new(),
             by_bucket: HashMap::new(),
             linked: HashSet::new(),
+            pending_variants: Vec::new(),
         }
     }
 
-    pub fn freeze(&mut self) {
+    /// Closes the registry. A still fluid whose `flowing-variant` never registered is
+    /// [`FluidRegistrationError::UnknownFluid`]: the key is a typo, not a fluid.
+    pub fn freeze(&mut self) -> Result<(), FluidRegistrationError> {
         self.frozen = true;
+        match self.pending_variants.first() {
+            Some((key, _)) => Err(FluidRegistrationError::UnknownFluid((*key).to_string())),
+            None => Ok(()),
+        }
     }
 
     #[must_use]
@@ -305,6 +343,35 @@ impl FluidRegistry {
             return Err(FluidRegistrationError::Full);
         }
 
+        let fluid_key = registration.key.clone();
+        let flowing_key = registration.flowing_variant.clone();
+        let awaited = self
+            .pending_variants
+            .iter()
+            .any(|(key, _)| *key == registration.key.as_str());
+        if awaited {
+            let key = registration.key.as_str();
+            let holds_still_block = registration
+                .placement
+                .as_ref()
+                .is_some_and(|placement| !placement.flowing);
+            if holds_still_block || registration.flowing_variant.is_some() {
+                return Err(FluidRegistrationError::Invalid(format!(
+                    "'{key}' cannot be a flowing variant"
+                )));
+            }
+        } else if let Some(key) = registration.flowing_variant.as_deref() {
+            // A fluid is the flowing variant of one still fluid at most, so two still fluids
+            // waiting for the same key is a conflict. Report it before anything is registered.
+            if self
+                .pending_variants
+                .iter()
+                .any(|(pending, _)| *pending == key)
+            {
+                return Err(FluidRegistrationError::VariantInUse(key.to_string()));
+            }
+        }
+
         let block = match &registration.placement {
             Some(placement) => {
                 let block = Block::from_dynamic_registry_key(&placement.block)
@@ -323,27 +390,13 @@ impl FluidRegistry {
             None => None,
         };
 
-        let flowing_variant = match &registration.flowing_variant {
-            Some(key) => {
-                let variant = self
-                    .by_key
-                    .get(key.as_str())
-                    .ok_or_else(|| FluidRegistrationError::UnknownFluid(key.clone()))?;
-                if self.linked.contains(&variant.fluid.id) {
-                    return Err(FluidRegistrationError::VariantInUse(key.clone()));
-                }
-                let holds_still_block = variant
-                    .registration
-                    .placement
-                    .as_ref()
-                    .is_some_and(|placement| !placement.flowing);
-                if holds_still_block || variant.registration.flowing_variant.is_some() {
-                    return Err(FluidRegistrationError::Invalid(format!(
-                        "'{key}' cannot be a flowing variant"
-                    )));
-                }
-                Some(variant.fluid)
-            }
+        // A still fluid may name its flowing variant before that variant registers, so a
+        // name that is unknown yet is kept as pending instead of failing here.
+        let flowing_variant = match registration.flowing_variant.as_deref() {
+            Some(key) => match self.by_key.get(key) {
+                Some(variant) => Some(check_flowing_variant(key, variant, &self.linked)?),
+                None => None,
+            },
             None => None,
         };
 
@@ -395,12 +448,12 @@ impl FluidRegistry {
             registration,
             block,
             bucket_item,
-            flowing_variant,
+            flowing_variant: OnceLock::new(),
             still_variant: OnceLock::new(),
         }));
-
         if let Some(variant) = flowing_variant {
             self.linked.insert(variant.id);
+            let _ = info.flowing_variant.set(variant);
             if let Some(variant_info) = self.get_info(variant.id) {
                 let _ = variant_info.still_variant.set(fluid);
             }
@@ -417,6 +470,28 @@ impl FluidRegistry {
         }
         self.fluids.push(info);
         self.by_key.insert(name, info);
+
+        // Fluids registered before this one that wait for it as their flowing variant.
+        if awaited {
+            let mut waiting = Vec::new();
+            let mut rest = Vec::new();
+            for entry in self.pending_variants.drain(..) {
+                if entry.0 == fluid_key.as_str() {
+                    waiting.push(entry)
+                } else {
+                    rest.push(entry)
+                }
+            }
+            self.pending_variants = rest;
+            for (_, still) in waiting {
+                let _ = still.flowing_variant.set(fluid);
+                let _ = info.still_variant.set(still.fluid);
+                self.linked.insert(id as u16);
+            }
+        } else if let Some(key) = flowing_key {
+            let key: &'static str = Box::leak(key.into_boxed_str());
+            self.pending_variants.push((key, info));
+        }
         Ok(fluid)
     }
 
@@ -541,15 +616,16 @@ impl Fluid {
     }
 
     /// Closes the global registry. Later registrations fail with [`FluidRegistrationError::Frozen`].
-    pub fn freeze_dynamic_registry() {
+    pub fn freeze_dynamic_registry() -> Result<(), FluidRegistrationError> {
         {
             let mut registry = write_registry();
-            registry.freeze();
+            registry.freeze()?;
             // Set while the write lock is held, so no change can slip in between.
             let _ = FROZEN.set(registry.clone());
         }
         // Runtime tags that name entries registered after the tag are resolved now.
         crate::dynamic_tag::refresh();
+        Ok(())
     }
 
     #[must_use]
@@ -623,7 +699,7 @@ impl Fluid {
         let info = read_registry().get_by_state(id)?;
         let block = info.block?;
         let state = fluid_state_of(block, info.holds_flowing(), id);
-        let fluid = info.flowing_variant.unwrap_or(info.fluid);
+        let fluid = info.flowing_variant().unwrap_or(info.fluid);
         Some((fluid, state))
     }
 
@@ -638,16 +714,16 @@ impl Fluid {
         let (Some(a), Some(b)) = (registry.get_info(a), registry.get_info(b)) else {
             return false;
         };
-        a.flowing_variant
+        a.flowing_variant()
             .is_some_and(|fluid| fluid.id == b.fluid.id)
-            || b.flowing_variant
+            || b.flowing_variant()
                 .is_some_and(|fluid| fluid.id == a.fluid.id)
     }
 
     /// The flowing variant of a registered still fluid.
     #[must_use]
     pub fn dynamic_flowing_variant(&self) -> Option<&'static Self> {
-        self.dynamic_info()?.flowing_variant
+        self.dynamic_info()?.flowing_variant()
     }
 
     /// The still fluid of this fluid's family: `water` for `flowing_water`, the still fluid that
@@ -794,14 +870,6 @@ mod tests {
             registry.register(slow),
             Err(FluidRegistrationError::Invalid(_))
         ));
-        let mut missing = registration("test_dup:missing");
-        missing.flowing_variant = Some("test_dup:nothing".to_string());
-        assert_eq!(
-            registry.register(missing).err(),
-            Some(FluidRegistrationError::UnknownFluid(
-                "test_dup:nothing".to_string()
-            )),
-        );
         let mut no_block = registration("test_dup:no_block");
         no_block.placement = Some(FluidPlacement {
             block: "test_dup:no_such_block".to_string(),
@@ -832,6 +900,49 @@ mod tests {
     }
 
     #[test]
+    fn a_still_fluid_may_name_a_variant_that_registers_later() {
+        let mut registry = FluidRegistry::new();
+        let mut still = registration("test_pending:goo");
+        still.flowing_variant = Some("test_pending:flowing_goo".to_string());
+        let still = registry.register(still).unwrap();
+        assert!(registry.get_info(still.id).unwrap().flowing_variant().is_none());
+
+        let flowing = registry
+            .register(registration("test_pending:flowing_goo"))
+            .unwrap();
+        let info = registry.get_info(still.id).unwrap();
+        assert!(info.flowing_variant() == Some(flowing));
+        assert!(registry.get_info(flowing.id).unwrap().still_variant.get() == Some(&still));
+        assert_eq!(registry.freeze(), Ok(()));
+
+        // Two still fluids cannot wait for the same flowing variant.
+        let mut duplicate = FluidRegistry::new();
+        let mut first = registration("test_pending_dup:goo");
+        first.flowing_variant = Some("test_pending_dup:flowing_goo".to_string());
+        assert!(duplicate.register(first).is_ok());
+        let mut second = registration("test_pending_dup:goo2");
+        second.flowing_variant = Some("test_pending_dup:flowing_goo".to_string());
+        assert_eq!(
+            duplicate.register(second).err(),
+            Some(FluidRegistrationError::VariantInUse(
+                "test_pending_dup:flowing_goo".to_string()
+            )),
+        );
+
+        // A name that never registers is a typo, reported when the registry closes.
+        let mut missing = FluidRegistry::new();
+        let mut still = registration("test_missing:goo");
+        still.flowing_variant = Some("test_missing:nothing".to_string());
+        assert!(missing.register(still).is_ok());
+        assert_eq!(
+            missing.freeze().err(),
+            Some(FluidRegistrationError::UnknownFluid(
+                "test_missing:nothing".to_string()
+            )),
+        );
+    }
+
+    #[test]
     fn flowing_variant_links_the_family() {
         let mut registry = FluidRegistry::new();
         let flowing = registry
@@ -841,7 +952,7 @@ mod tests {
         still.flowing_variant = Some("test_family:flowing_goo".to_string());
         let still = registry.register(still).unwrap();
         let info = registry.get_info(still.id).unwrap();
-        assert!(info.flowing_variant == Some(flowing));
+        assert!(info.flowing_variant() == Some(flowing));
         assert!(registry.get_info(flowing.id).unwrap().still_variant.get() == Some(&still));
 
         let mut again = registration("test_family:goo2");
