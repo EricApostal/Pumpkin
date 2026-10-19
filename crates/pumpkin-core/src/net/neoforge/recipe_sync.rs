@@ -25,39 +25,45 @@ pub const RECIPE_TYPE_REGISTRY: &str = "minecraft:recipe_type";
 pub const RECIPE_SERIALIZER_REGISTRY: &str = "minecraft:recipe_serializer";
 
 /// The vanilla `minecraft:recipe_type` entries in registry order.
-pub const VANILLA_RECIPE_TYPES: [&str; 7] = [
+pub const VANILLA_RECIPE_TYPES: [&str; 8] = [
+    "blasting",
+    "brewing",
+    "campfire_cooking",
     "crafting",
     "smelting",
-    "blasting",
-    "smoking",
-    "campfire_cooking",
-    "stonecutting",
     "smithing",
+    "smoking",
+    "stonecutting",
 ];
 
 /// The vanilla `minecraft:recipe_serializer` entries in registry order.
-pub const VANILLA_RECIPE_SERIALIZERS: [&str; 21] = [
+///
+/// The order is the id order of the registry, and the frozen registry sync replaces the client's
+/// registry with exactly this list. `crafting_special_armordye` and `crafting_special_tippedarrow`
+/// are gone since 1.21.2 (`crafting_dye`/`crafting_imbue` replaced them), and `brewing` was added.
+pub const VANILLA_RECIPE_SERIALIZERS: [&str; 22] = [
+    "blasting",
+    "brewing",
+    "campfire_cooking",
+    "crafting_decorated_pot",
+    "crafting_dye",
+    "crafting_imbue",
     "crafting_shaped",
     "crafting_shapeless",
-    "crafting_transmute",
-    "crafting_special_armordye",
+    "crafting_special_bannerduplicate",
     "crafting_special_bookcloning",
-    "crafting_special_mapextending",
     "crafting_special_firework_rocket",
     "crafting_special_firework_star",
     "crafting_special_firework_star_fade",
-    "crafting_special_tippedarrow",
-    "crafting_special_bannerduplicate",
-    "crafting_special_shielddecoration",
+    "crafting_special_mapextending",
     "crafting_special_repairitem",
+    "crafting_special_shielddecoration",
+    "crafting_transmute",
     "smelting",
-    "blasting",
-    "smoking",
-    "campfire_cooking",
-    "stonecutting",
     "smithing_transform",
     "smithing_trim",
-    "crafting_decorated_pot",
+    "smoking",
+    "stonecutting",
 ];
 
 const MAX_SYNCED_TYPES: usize = 1024;

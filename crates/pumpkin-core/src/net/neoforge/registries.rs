@@ -15,9 +15,7 @@ use pumpkin_data::{
     data_component::DataComponent,
     data_component_registry::plugin_component_types,
     entity::EntityType,
-    entity_data_serializer_registry::{
-        VANILLA_ENTITY_DATA_SERIALIZERS, plugin_entity_data_serializers,
-    },
+    entity_data_serializer_registry::plugin_entity_data_serializers,
     entity_registry::{plugin_entity_types, vanilla_entity_type_count},
     fluid::Fluid,
     item::Item,
@@ -225,20 +223,20 @@ pub fn host_registries() -> Vec<SyncedRegistry> {
         );
     }
 
+    // `neoforge:entity_data_serializers` holds only the serializers mods register: the vanilla
+    // ones live in the vanilla `EntityDataSerializers` map (ids 0..44) and are never in this
+    // registry, and modded ids start at `CommonHooks.VANILLA_SERIALIZER_LIMIT` (256), see
+    // `NeoForgeRegistries.ENTITY_DATA_SERIALIZERS` and `CommonHooks.getSerializer`. Sending the
+    // vanilla names here makes the client refuse the sync with "unknown keys".
     let serializers = plugin_entity_data_serializers();
     if !serializers.is_empty() {
-        let vanilla = VANILLA_ENTITY_DATA_SERIALIZERS
-            .iter()
-            .map(|name| format!("minecraft:{name}"));
-        with_plugin_entries(
-            ENTITY_DATA_SERIALIZERS,
-            prefixed(vanilla),
-            serializers
+        out.push(SyncedRegistry {
+            key: ENTITY_DATA_SERIALIZERS.to_string(),
+            entries: serializers
                 .iter()
                 .map(|serializer| serializer.key.to_string())
                 .collect(),
-            &mut out,
-        );
+        });
     }
 
     // Sounds, particles, mob effects, map decorations and plugin owned registries.
@@ -278,6 +276,35 @@ mod tests {
             .filter_map(DataComponent::try_from_id)
             .count();
         assert_eq!(components, usize::from(DataComponent::VANILLA_COUNT));
+    }
+
+    #[test]
+    fn entity_data_serializers_sync_only_modded_entries() {
+        // `neoforge:entity_data_serializers` is a modded registry: the vanilla serializers are
+        // not in it, and a client refuses the sync when it is sent keys it does not have.
+        let key = "test_sync_serializers:thing";
+        let serializer =
+            pumpkin_data::entity_data_serializer_registry::register_plugin_entity_data_serializer(
+                key,
+            )
+            .unwrap();
+        assert!(
+            serializer.id
+                >= pumpkin_data::entity_data_serializer_registry::VANILLA_SERIALIZER_LIMIT
+        );
+        let registry = host_registries()
+            .into_iter()
+            .find(|registry| registry.key == ENTITY_DATA_SERIALIZERS)
+            .expect("the registry is synced once a serializer is registered");
+        assert!(registry.entries.iter().any(|entry| entry == key));
+        assert!(
+            !registry
+                .entries
+                .iter()
+                .any(|entry| entry.starts_with("minecraft:")),
+            "vanilla serializers must not be sent: {:?}",
+            registry.entries
+        );
     }
 
     #[test]

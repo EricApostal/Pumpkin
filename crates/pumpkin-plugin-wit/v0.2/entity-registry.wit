@@ -68,7 +68,8 @@ interface entity-registry {
     register-entity-type: func(definition: entity-type-definition) -> result<u32, string>;
 
     /// Registers an entity data serializer for the entries of the synced data (`neoforge:entity_data_serializers`)
-    /// and returns its id: the vanilla count plus the registration order. An entry of the
+    /// and returns its id: 256 (NeoForge's `VANILLA_SERIALIZER_LIMIT`) plus the registration
+    /// order. An entry of the
     /// synced data that uses the id is encoded by the plugin and a modded client must register
     /// a serializer of the same key. Needs the `registry.entities` permission, registration
     /// closes with the other registries. Registering a key again returns its id.

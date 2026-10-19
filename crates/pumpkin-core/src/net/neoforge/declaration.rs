@@ -9,6 +9,8 @@ use std::{
     },
 };
 
+use tracing::warn;
+
 use super::{
     channels::{self, NEOFORGE_SERVER_CONFIG_FILE},
     ident::{is_valid_namespace, normalize},
@@ -442,6 +444,16 @@ impl Aggregate {
                         }
                     }
                 } else {
+                    // The client rebuilds a registry from the snapshot, so the entries sent must
+                    // be all of its entries, in the client's registration order. That only holds
+                    // for a registry the host numbers; for one it does not (a mod's own, like
+                    // `computercraft:recipe_function`) the declaration has to list every entry
+                    // the client's mod registers, or the client loses the ones it left out.
+                    warn!(
+                        "Registry {} of the NeoForge declaration of {} is not one the host \
+                         numbers: the client replaces its own entries with the declared ones",
+                        extra.key, declaration.mod_info.id
+                    );
                     registries.push(SyncedRegistry {
                         key: extra.key.clone(),
                         entries: extra.entries.clone(),
