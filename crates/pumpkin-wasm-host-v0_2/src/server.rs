@@ -329,7 +329,7 @@ impl pumpkin::plugin::server::HostServer for PluginHostState {
         _rep: Resource<Server>,
         world: Resource<pumpkin::plugin::world::World>,
     ) -> wasmtime::Result<Vec<Resource<pumpkin::plugin::player::Player>>> {
-        let world_res = self.take(world)?;
+        let world_res = self.get(&world)?.clone();
         let players = world_res.players.load();
         let mut player_resources = Vec::with_capacity(players.len());
         for p in players.iter() {
@@ -344,7 +344,7 @@ impl pumpkin::plugin::server::HostServer for PluginHostState {
         _rep: Resource<Server>,
         world: Resource<pumpkin::plugin::world::World>,
     ) -> wasmtime::Result<u32> {
-        let world_res = self.take(world)?;
+        let world_res = self.get(&world)?.clone();
         Ok(world_res.players.load().len() as u32)
     }
 

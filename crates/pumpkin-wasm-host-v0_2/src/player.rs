@@ -1060,7 +1060,7 @@ impl pumpkin::plugin::player::Host for PluginHostState {
         &mut self,
         world: Resource<pumpkin::plugin::world::World>,
     ) -> wasmtime::Result<Vec<Resource<pumpkin::plugin::player::Player>>> {
-        let world = self.take(world)?;
+        let world = self.get(&world)?.clone();
 
         let mut players = Vec::new();
         for player in world.players.load().iter() {
@@ -2964,7 +2964,7 @@ impl pumpkin::plugin::player::HostPlayerWithStore<PluginHostState> for HasSelf<P
     ) -> wasmtime::Result<()> {
         let (player, world) = accessor.with(|mut host| -> wasmtime::Result<_> {
             let state = host.get();
-            Ok((state.get(&player)?.clone(), state.take(world)?))
+            Ok((state.get(&player)?.clone(), state.get(&world)?.clone()))
         })?;
         let position = from_wasm_position(position);
 
@@ -2984,7 +2984,7 @@ impl pumpkin::plugin::player::HostPlayerWithStore<PluginHostState> for HasSelf<P
     ) -> wasmtime::Result<()> {
         let (player, world) = accessor.with(|mut host| -> wasmtime::Result<_> {
             let state = host.get();
-            Ok((state.get(&player)?.clone(), state.take(world)?))
+            Ok((state.get(&player)?.clone(), state.get(&world)?.clone()))
         })?;
         let position = from_wasm_position(position);
         let runtime = tokio::runtime::Handle::current();

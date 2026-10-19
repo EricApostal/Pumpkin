@@ -414,7 +414,7 @@ interface %world {
         get-pitch: func() -> f32;
         get-head-yaw: func() -> f32;
 
-        teleport: func(pos: position, world-ref: %world);
+        teleport: func(pos: position, world-ref: borrow<%world>);
         set-velocity: func(velocity: position);
         get-velocity: func() -> position;
 

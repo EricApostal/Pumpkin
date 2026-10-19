@@ -203,10 +203,10 @@ interface server {
         save-all: func() -> result<_, string>;
 
         /// Returns a list of all online players in a specific world.
-        get-players-in-world: func(world-ref: %world) -> list<player>;
+        get-players-in-world: func(world-ref: borrow<%world>) -> list<player>;
 
         /// Returns the number of online players in a specific world.
-        get-player-count-in-world: func(world-ref: %world) -> u32;
+        get-player-count-in-world: func(world-ref: borrow<%world>) -> u32;
 
         /// Broadcasts a system chat message to all players.
         broadcast: func(message: string);

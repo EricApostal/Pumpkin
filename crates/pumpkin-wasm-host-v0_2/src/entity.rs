@@ -935,7 +935,7 @@ impl HostEntityWithStore<PluginHostState> for HasSelf<PluginHostState> {
     ) -> wasmtime::Result<()> {
         let (entity, world) = accessor.with(|mut host| -> wasmtime::Result<_> {
             let state = host.get();
-            let world = state.take(world)?;
+            let world = state.get(&world)?.clone();
             let entity = state.get(&entity)?.clone();
             Ok((entity, world))
         })?;

@@ -987,9 +987,9 @@ interface player {
         // Teleport & kick
 
         /// Teleports the player to a position in a world.
-        teleport: async func (position: position, yaw: option<f32>, pitch: option<f32>, %world: %world);
+        teleport: async func (position: position, yaw: option<f32>, pitch: option<f32>, %world: borrow<%world>);
         /// Teleports the player to another world at a specific position.
-        teleport-world: async func (world-ref: %world, position: position, yaw: option<f32>, pitch: option<f32>);
+        teleport-world: async func (world-ref: borrow<%world>, position: position, yaw: option<f32>, pitch: option<f32>);
         /// Forces the player to respawn.
         respawn: async func ();
 
@@ -1442,5 +1442,5 @@ interface player {
     }
 
     /// Returns a list of all players in a specific world.
-    get-world-players: func(world-ref: %world) -> list<player>;
+    get-world-players: func(world-ref: borrow<%world>) -> list<player>;
 }
