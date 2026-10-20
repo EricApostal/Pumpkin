@@ -1009,9 +1009,8 @@ impl pumpkin::plugin::world::HostWorld for PluginHostState {
         pitch: f32,
     ) -> wasmtime::Result<()> {
         let world_ref = self.get(&world)?;
-        let sound_name = format!("{sound:?}").to_lowercase().replace('_', ".");
-        let sound_data = pumpkin_data::sound::Sound::from_name(&sound_name)
-            .ok_or_else(|| wasmtime::Error::msg(format!("Unknown sound: {sound_name}")))?;
+        let sound_data = from_wit_sound(sound)
+            .ok_or_else(|| wasmtime::Error::msg(format!("Unknown sound: {sound:?}")))?;
 
         let internal_category = from_wit_sound_category(category);
 
@@ -2646,6 +2645,21 @@ pub const fn from_wit_sound_category(
     }
 }
 
+/// Convert a plugin-API [`pumpkin::plugin::sounds::Sound`] into the internal
+/// sound registry entry.
+///
+/// The WIT `sound` enum is generated in the same order as
+/// [`pumpkin_data::sound::Sound`], so the variant discriminant is the registry
+/// index. The registry name cannot be reconstructed from the variant name:
+/// WIT kebab-case loses the distinction between `.` and `_`, so
+/// `entity-item-frame-add-item` would also match `entity.item.frame.add.item`.
+#[must_use]
+pub fn from_wit_sound(sound: pumpkin::plugin::sounds::Sound) -> Option<pumpkin_data::sound::Sound> {
+    pumpkin_data::sound::Sound::slice()
+        .get(sound as usize)
+        .copied()
+}
+
 pub(crate) fn to_wit_biome(
     biome: &pumpkin_data::biome::Biome,
 ) -> wasmtime::Result<pumpkin::plugin::biomes::Biome> {
@@ -2687,6 +2701,79 @@ mod tests {
                 pumpkin_data::particle::Particle::from_id(wit as u16),
                 Some(internal)
             );
+        }
+    }
+
+    /// The host maps WIT sound variants to registry entries by discriminant, so
+    /// the WIT enum order must stay in sync with `pumpkin_data::sound::Sound`.
+    #[test]
+    fn wit_sound_variants_match_internal_sound_registry() {
+        let wit = include_str!("../../pumpkin-plugin-wit/v0.2/sounds.wit");
+        let mut variants = Vec::new();
+        let mut in_sound_enum = false;
+        for line in wit.lines() {
+            let line = line.trim();
+            if !in_sound_enum {
+                if line == "enum sound {" {
+                    in_sound_enum = true;
+                }
+                continue;
+            }
+            if line == "}" {
+                break;
+            }
+            variants.push(line.trim_end_matches(','));
+        }
+
+        let internal = pumpkin_data::sound::Sound::slice();
+        assert_eq!(variants.len(), internal.len());
+        for (index, variant) in variants.iter().enumerate() {
+            let mut camel = String::new();
+            for part in variant.split('-') {
+                let mut chars = part.chars();
+                if let Some(first) = chars.next() {
+                    camel.push(first.to_ascii_uppercase());
+                    camel.extend(chars);
+                }
+            }
+            assert_eq!(
+                format!("{:?}", internal[index]),
+                camel,
+                "WIT variant {variant} at index {index} does not match the internal sound registry"
+            );
+        }
+    }
+
+    #[test]
+    fn wit_sounds_round_trip_to_registry_names() {
+        let cases = [
+            (
+                pumpkin::plugin::sounds::Sound::EntityItemPickup,
+                "entity.item.pickup",
+            ),
+            (
+                pumpkin::plugin::sounds::Sound::BlockMetalPlace,
+                "block.metal.place",
+            ),
+            (pumpkin::plugin::sounds::Sound::MusicDisc11, "music_disc.11"),
+            (
+                pumpkin::plugin::sounds::Sound::ItemGoatHornSound0,
+                "item.goat_horn.sound.0",
+            ),
+            (
+                pumpkin::plugin::sounds::Sound::EntityTntPrimed,
+                "entity.tnt.primed",
+            ),
+            (
+                pumpkin::plugin::sounds::Sound::IntentionallyEmpty,
+                "intentionally_empty",
+            ),
+        ];
+
+        for (wit, name) in cases {
+            let internal = from_wit_sound(wit).expect("WIT sound variant has no registry entry");
+            assert_eq!(internal.to_name(), name);
+            assert_eq!(pumpkin_data::sound::Sound::from_name(name), Some(internal));
         }
     }
 }

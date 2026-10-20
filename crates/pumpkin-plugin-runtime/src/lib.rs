@@ -30,11 +30,10 @@ mod tests {
         time::{Duration, timeout},
     };
     use wasm_encoder::{
-        CodeSection, ComponentBuilder, ComponentExportKind, ComponentTypeRef, ComponentValType,
-        CanonicalOption, ConstExpr, EntityType, ExportKind, ExportSection, Function,
-        FunctionSection, GlobalSection,
-        GlobalType, ImportSection, Instruction, Module, ModuleArg, PrimitiveValType, TypeBounds,
-        TypeSection, ValType,
+        CanonicalOption, CodeSection, ComponentBuilder, ComponentExportKind, ComponentTypeRef,
+        ComponentValType, ConstExpr, EntityType, ExportKind, ExportSection, Function,
+        FunctionSection, GlobalSection, GlobalType, ImportSection, Instruction, Module, ModuleArg,
+        PrimitiveValType, TypeBounds, TypeSection, ValType,
     };
     use wasmtime::{
         Config, Engine, Store,
@@ -135,6 +134,14 @@ mod tests {
             let spawner = Arc::new(TestSpawner {
                 runtime: tokio::runtime::Handle::current(),
             });
+            Self::with_spawner(store, policy, spawner).await
+        }
+
+        async fn with_spawner(
+            store: Store<TestHostState>,
+            policy: LegacySyncReentry,
+            spawner: Arc<dyn RuntimeSpawner>,
+        ) -> Self {
             let executor = LegacyStore::start(store, policy, spawner)
                 .await
                 .expect("start test Store driver");
@@ -1033,6 +1040,343 @@ mod tests {
             .expect("shut down test store");
     }
 
+    /// The operation of a host call can fire its callback before the spawner
+    /// returns control to the host frame. The reentry scope has to exist before
+    /// the operation starts: a callback that finds no scope is queued on the
+    /// driver, behind the outer guest call that the host frame is waiting for.
+    async fn a_callback_fired_while_the_host_frame_starts_completes() {
+        struct GatedSpawner {
+            runtime: tokio::runtime::Handle,
+            started: Arc<(Mutex<bool>, std::sync::Condvar)>,
+        }
+
+        impl RuntimeSpawner for GatedSpawner {
+            fn spawn(&self, task: SpawnFuture) -> Result<(), SpawnError> {
+                drop(self.runtime.spawn(task));
+                Ok(())
+            }
+
+            fn spawn_blocking(
+                &self,
+                task: Box<dyn FnOnce() + Send + 'static>,
+            ) -> Result<(), SpawnError> {
+                drop(self.runtime.spawn_blocking(task));
+                // Return only once the operation has started, so its callback is
+                // already in flight when the host frame begins to pump.
+                let (lock, condvar) = &*self.started;
+                let mut started = lock.lock().expect("started lock");
+                while !*started {
+                    started = condvar
+                        .wait_timeout(started, Duration::from_secs(2))
+                        .expect("wait for the operation to start")
+                        .0;
+                }
+                Ok(())
+            }
+        }
+
+        let mut config = Config::new();
+        config.wasm_component_model(true);
+        config.wasm_component_model_async(true);
+        config.wasm_component_model_async_stackful(true);
+        config.concurrency_support(true);
+        let engine = Engine::new(&config).expect("test engine");
+        let component =
+            Component::new(&engine, concurrent_reentry_component()).expect("test component");
+
+        let run_slot = Arc::new(OnceLock::<TypedFunc<(), ()>>::new());
+        let driver_slot = Arc::new(OnceLock::<ConcurrentStore>::new());
+        let host_calls = Arc::new(AtomicUsize::new(0));
+        let started = Arc::new((Mutex::new(false), std::sync::Condvar::new()));
+
+        let mut linker = Linker::<TestHostState>::new(&engine);
+        let run_for_host = Arc::clone(&run_slot);
+        let driver_for_host = Arc::clone(&driver_slot);
+        let calls_for_host = Arc::clone(&host_calls);
+        let started_for_host = Arc::clone(&started);
+        linker
+            .root()
+            .func_wrap_concurrent("host", move |accessor, ()| {
+                let run = *run_for_host.get().expect("run initialized");
+                let driver = driver_for_host
+                    .get()
+                    .expect("store driver initialized")
+                    .clone();
+                let host_calls = Arc::clone(&calls_for_host);
+                let started = Arc::clone(&started_for_host);
+                Box::pin(async move {
+                    if host_calls.fetch_add(1, Ordering::SeqCst) == 0 {
+                        let runtime = tokio::runtime::Handle::current();
+                        let nested_driver = driver.clone();
+                        driver
+                            .pump_blocking_accessor(accessor, move || {
+                                let (lock, condvar) = &*started;
+                                *lock.lock().expect("started lock") = true;
+                                condvar.notify_all();
+                                tokio::task::block_in_place(|| {
+                                    runtime.block_on(nested_driver.call_guest(
+                                        move |mut context| {
+                                            Box::pin(async move { context.call(run, ()).await })
+                                        },
+                                    ))
+                                })
+                            })
+                            .await??;
+                    }
+                    Ok(())
+                })
+            })
+            .expect("link concurrent host function");
+
+        let mut store = Store::new(&engine, TestHostState);
+        let instance = linker
+            .instantiate_async(&mut store, &component)
+            .await
+            .expect("instantiate test component");
+        let run = instance
+            .get_typed_func::<(), ()>(&mut store, "run")
+            .expect("run export");
+        assert!(run_slot.set(run).is_ok());
+
+        let driver = ConcurrentStore::with_spawner(
+            store,
+            LegacySyncReentry::new(),
+            Arc::new(GatedSpawner {
+                runtime: tokio::runtime::Handle::current(),
+                started,
+            }),
+        )
+        .await;
+        assert!(driver_slot.set(driver.clone()).is_ok());
+
+        timeout(
+            Duration::from_secs(2),
+            driver.call_guest(move |mut context| {
+                Box::pin(async move { context.call(run, ()).await })
+            }),
+        )
+        .await
+        .expect("callback fired before the host frame pumped deadlocked")
+        .expect("callback fired before the host frame pumped failed");
+
+        assert_eq!(host_calls.load(Ordering::SeqCst), 2);
+        assert_eq!(
+            driver.routed_jobs(),
+            1,
+            "callback fired before the host frame pumped was queued on the driver"
+        );
+
+        driver
+            .shutdown(|_| Box::pin(async move { Ok(()) }))
+            .await
+            .expect("shut down test store");
+    }
+
+    /// A host import is polled by Wasmtime's event loop, outside the guest call's task-local scope, so
+    /// the nested call cannot read the chain from there. It has to recover it from the call being
+    /// polled instead of taking a root admission, or it waits on the semaphore the outer call holds
+    /// while it waits for the callback. The nested call is serviced by the driver, which keeps
+    /// accepting guest calls while the outer one is suspended.
+    async fn a_nested_call_from_a_host_import_completes() {
+        let mut config = Config::new();
+        config.wasm_component_model(true);
+        config.wasm_component_model_async(true);
+        config.wasm_component_model_async_stackful(true);
+        config.concurrency_support(true);
+        let engine = Engine::new(&config).expect("test engine");
+        let component =
+            Component::new(&engine, concurrent_reentry_component()).expect("test component");
+
+        let run_slot = Arc::new(OnceLock::<TypedFunc<(), ()>>::new());
+        let driver_slot = Arc::new(OnceLock::<ConcurrentStore>::new());
+        let host_calls = Arc::new(AtomicUsize::new(0));
+        let nested_result = Arc::new(Mutex::new(None::<bool>));
+        let nested_reentrant = Arc::new(Mutex::new(None::<bool>));
+
+        let mut linker = Linker::<TestHostState>::new(&engine);
+        let run_for_host = Arc::clone(&run_slot);
+        let driver_for_host = Arc::clone(&driver_slot);
+        let calls_for_host = Arc::clone(&host_calls);
+        let result_for_host = Arc::clone(&nested_result);
+        let reentrant_for_host = Arc::clone(&nested_reentrant);
+        linker
+            .root()
+            .func_wrap_concurrent("host", move |_accessor, ()| {
+                let run = *run_for_host.get().expect("run initialized");
+                let driver = driver_for_host
+                    .get()
+                    .expect("store driver initialized")
+                    .clone();
+                let host_calls = Arc::clone(&calls_for_host);
+                let nested_result = Arc::clone(&result_for_host);
+                let nested_reentrant = Arc::clone(&reentrant_for_host);
+                Box::pin(async move {
+                    if host_calls.fetch_add(1, Ordering::SeqCst) == 0 {
+                        // No host frame pumps this Store; the call has to be serviced by the
+                        // driver while this host import is suspended.
+                        let output = driver
+                            .call_guest(move |mut context| {
+                                Box::pin(async move {
+                                    nested_reentrant
+                                        .lock()
+                                        .expect("nested reentrant lock")
+                                        .replace(context.is_reentrant());
+                                    context.call(run, ()).await
+                                })
+                            })
+                            .await;
+                        *nested_result.lock().expect("nested result lock") = Some(output.is_ok());
+                        output?;
+                    }
+                    Ok(())
+                })
+            })
+            .expect("link concurrent host function");
+
+        let mut store = Store::new(&engine, TestHostState);
+        let instance = linker
+            .instantiate_async(&mut store, &component)
+            .await
+            .expect("instantiate test component");
+        let run = instance
+            .get_typed_func::<(), ()>(&mut store, "run")
+            .expect("run export");
+        assert!(run_slot.set(run).is_ok());
+
+        let driver = ConcurrentStore::new(store).await;
+        assert!(driver_slot.set(driver.clone()).is_ok());
+
+        timeout(
+            Duration::from_secs(2),
+            driver.call_guest(move |mut context| {
+                Box::pin(async move { context.call(run, ()).await })
+            }),
+        )
+        .await
+        .expect("a nested call from a host import hung the outer call")
+        .expect("outer guest call failed");
+
+        assert_eq!(host_calls.load(Ordering::SeqCst), 2);
+        assert_eq!(
+            *nested_result.lock().expect("nested result lock"),
+            Some(true),
+            "the nested call from the host import failed"
+        );
+        assert_eq!(
+            *nested_reentrant.lock().expect("nested reentrant lock"),
+            Some(false),
+            "the host import's nested call must not be routed into a host frame"
+        );
+
+        driver
+            .shutdown(|_| Box::pin(async move { Ok(()) }))
+            .await
+            .expect("shut down test store");
+    }
+
+    /// The same recovery across two Stores of one admission authority: the host import of store A
+    /// calls into idle store B. B has no active call, so it cannot read the chain anywhere; taking
+    /// a root admission would wait for the semaphore A holds for the whole callback.
+    async fn a_host_import_into_an_idle_store_completes() {
+        let mut config = Config::new();
+        config.wasm_component_model(true);
+        config.wasm_component_model_async(true);
+        config.wasm_component_model_async_stackful(true);
+        config.concurrency_support(true);
+        let engine = Engine::new(&config).expect("test engine");
+        let component =
+            Component::new(&engine, concurrent_reentry_component()).expect("test component");
+
+        let b_run_slot = Arc::new(OnceLock::<TypedFunc<(), ()>>::new());
+        let b_driver_slot = Arc::new(OnceLock::<ConcurrentStore>::new());
+        let a_calls = Arc::new(AtomicUsize::new(0));
+        let b_calls = Arc::new(AtomicUsize::new(0));
+
+        let mut a_linker = Linker::<TestHostState>::new(&engine);
+        let b_run_for_a = Arc::clone(&b_run_slot);
+        let b_driver_for_a = Arc::clone(&b_driver_slot);
+        let a_calls_for_host = Arc::clone(&a_calls);
+        a_linker
+            .root()
+            .func_wrap_concurrent("host", move |_accessor, ()| {
+                let b_run = *b_run_for_a.get().expect("B run initialized");
+                let b_driver = b_driver_for_a
+                    .get()
+                    .expect("B store driver initialized")
+                    .clone();
+                let a_calls = Arc::clone(&a_calls_for_host);
+                Box::pin(async move {
+                    if a_calls.fetch_add(1, Ordering::SeqCst) == 0 {
+                        b_driver
+                            .call_guest(move |mut context| {
+                                Box::pin(async move { context.call(b_run, ()).await })
+                            })
+                            .await?;
+                    }
+                    Ok(())
+                })
+            })
+            .expect("link A host function");
+
+        let mut b_linker = Linker::<TestHostState>::new(&engine);
+        let b_calls_for_host = Arc::clone(&b_calls);
+        b_linker
+            .root()
+            .func_wrap_concurrent("host", move |_accessor, ()| {
+                let b_calls = Arc::clone(&b_calls_for_host);
+                Box::pin(async move {
+                    b_calls.fetch_add(1, Ordering::SeqCst);
+                    Ok(())
+                })
+            })
+            .expect("link B host function");
+
+        let mut a_store = Store::new(&engine, TestHostState);
+        let a_instance = a_linker
+            .instantiate_async(&mut a_store, &component)
+            .await
+            .expect("instantiate A component");
+        let a_run = a_instance
+            .get_typed_func::<(), ()>(&mut a_store, "run")
+            .expect("A run export");
+        let mut b_store = Store::new(&engine, TestHostState);
+        let b_instance = b_linker
+            .instantiate_async(&mut b_store, &component)
+            .await
+            .expect("instantiate B component");
+        let b_run = b_instance
+            .get_typed_func::<(), ()>(&mut b_store, "run")
+            .expect("B run export");
+        assert!(b_run_slot.set(b_run).is_ok());
+
+        let policy = LegacySyncReentry::new();
+        let b_driver = legacy_store(b_store, &policy).await;
+        assert!(b_driver_slot.set(b_driver.clone()).is_ok());
+        let a_driver = legacy_store(a_store, &policy).await;
+
+        timeout(
+            Duration::from_secs(2),
+            a_driver.call_guest(move |mut context| {
+                Box::pin(async move { context.call(a_run, ()).await })
+            }),
+        )
+        .await
+        .expect("a host import into an idle store hung")
+        .expect("A guest call failed");
+
+        assert_eq!(a_calls.load(Ordering::SeqCst), 1);
+        assert_eq!(b_calls.load(Ordering::SeqCst), 1);
+
+        a_driver
+            .shutdown(|_| Box::pin(async move { Ok(()) }))
+            .await
+            .expect("shut down A store");
+        b_driver
+            .shutdown(|_| Box::pin(async move { Ok(()) }))
+            .await
+            .expect("shut down B store");
+    }
+
     async fn unrelated_guest_call_waits_for_the_active_chain() {
         let mut config = Config::new();
         config.wasm_component_model(true);
@@ -1484,6 +1828,9 @@ mod tests {
             sync_lifted_same_instance_reentry_completes().await;
             blocking_host_operation_propagates_the_reentry_chain().await;
             blocking_host_callback_into_the_same_instance_completes().await;
+            a_callback_fired_while_the_host_frame_starts_completes().await;
+            a_nested_call_from_a_host_import_completes().await;
+            a_host_import_into_an_idle_store_completes().await;
             unrelated_guest_call_waits_for_the_active_chain().await;
             opposing_plugin_roots_scenario().await;
         })

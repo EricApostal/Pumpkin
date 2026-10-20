@@ -181,7 +181,7 @@ interface block-registry {
         /// The id of the first state, the states follow in state order.
         base-state-id: u32,
         state-count: u32,
-        /// The item linked with `set-block-item`.
+        /// The first item linked with `set-block-item`; other items may place the block too.
         item-id: option<u32>,
     }
 
@@ -193,8 +193,10 @@ interface block-registry {
     /// by the server for tool checks and sent to clients.
     register-block-tag: func(tag: string, entries: list<string>) -> result<_, string>;
 
-    /// Makes `item-key` the item of a custom block: it places the block and `self-item` drops give
-    /// it. Both must be registered. Repeating a link is fine.
+    /// Makes `item-key` an item that places a custom block. Both must be registered. Repeating a
+    /// link is fine. Several items may place one block (Java's `VerticalGearboxItem` places the
+    /// gearbox): the first link becomes the block's item and what `self-item` drops, later links
+    /// only place the block. One item places the first block it was linked with.
     set-block-item: func(item-key: string, block-key: string) -> result<_, string>;
 
     /// Returns the id of a block by key, vanilla (`minecraft:` prefix optional) or custom.

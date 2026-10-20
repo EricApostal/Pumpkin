@@ -1893,8 +1893,15 @@ impl DynamicBlockRegistry {
         Ok(block)
     }
 
-    /// Makes `item_id` the item that places `block_key`. Repeating the same pair is fine, also once
+    /// Makes `item_id` an item that places `block_key`. Repeating the same pair is fine, also once
     /// closed.
+    ///
+    /// Several items may place one block, like Java's `VerticalGearboxItem` places the gearbox
+    /// while `VerticalGearboxItem.registerBlocks` stays a no-op so the gearbox keeps its own item:
+    /// the first item linked with a block becomes its [`Block::item_id`] and what the block drops,
+    /// later items only place it. One item may also place several blocks (the sail item places the
+    /// frame and all sixteen dyed sails); [`Self::get_by_item`] keeps the first block that was
+    /// linked, which is the block the item was registered with.
     pub fn link_item(
         &mut self,
         block_key: &str,
@@ -1910,22 +1917,16 @@ impl DynamicBlockRegistry {
             ));
         }
         let current = self.blocks[index];
-        if current.item_id == item_id {
+        if current.item_id == item_id || self.item_blocks.get(&item_id) == Some(&index) {
             return Ok(current);
         }
-        if current.item_id != 0 {
-            return Err(BlockRegistrationError::AlreadyLinked(format!(
-                "block '{block_key}' is linked to item {} already",
-                current.item_id
-            )));
-        }
-        // One item may place several blocks: Java's `Item.registerBlocks` is a
-        // `Map<Block, Item>` filled with many blocks for one item (the sail item places the
-        // frame and all sixteen dyed sails). The reverse lookup `from_item_id` is ambiguous
-        // then, so it keeps the first block that was linked. Only the item's own block, which
-        // the item was registered with, is what placement uses.
         if self.frozen {
             return Err(BlockRegistrationError::Frozen);
+        }
+        if current.item_id != 0 {
+            // The block keeps its own item; this one only places the block.
+            self.item_blocks.entry(item_id).or_insert(index);
+            return Ok(current);
         }
 
         // The states are shared, only the `Block` itself is replaced.
@@ -2626,9 +2627,68 @@ mod tests {
             Some(linked)
         );
         assert_eq!(registry.link_item("test_item:a", 5000).unwrap(), linked);
-        assert!(registry.link_item("test_item:a", 5001).is_err());
-        assert!(registry.link_item("test_item:b", 5000).is_err());
+        // One item may place several blocks, `get_by_item` keeps the first one.
+        let second = registry.link_item("test_item:b", 5000).unwrap();
+        assert_eq!(second.id, registry.get_by_key("test_item:b").unwrap().id);
+        assert_eq!(second.item_id, 5000);
+        assert_eq!(registry.get_by_item(5000), Some(linked));
         assert!(registry.link_item("test_item:b", 0).is_err());
+    }
+
+    /// Java's `VerticalGearboxItem` places the gearbox while
+    /// `VerticalGearboxItem.registerBlocks` stays a no-op, so the gearbox keeps its own item:
+    /// a second item places the block without becoming the block's item.
+    #[test]
+    fn several_items_place_one_block_without_taking_its_item() {
+        let mut registry = DynamicBlockRegistry::new();
+        let block = registry
+            .register(registration("test_place:gearbox"))
+            .unwrap();
+        let own_item = registry.link_item("test_place:gearbox", 5000).unwrap();
+        assert_eq!(own_item.item_id, 5000);
+
+        let placed_by_other = registry.link_item("test_place:gearbox", 5001).unwrap();
+        assert_eq!(placed_by_other.item_id, 5000);
+        assert_eq!(placed_by_other.id, own_item.id);
+        assert_eq!(registry.get_by_item(5001), Some(own_item));
+        assert_eq!(registry.get_by_item(5000), Some(own_item));
+        assert_eq!(registry.get_by_key("test_place:gearbox"), Some(own_item));
+
+        // Repeating either link is fine, also once closed.
+        assert_eq!(
+            registry.link_item("test_place:gearbox", 5001).unwrap(),
+            own_item
+        );
+        registry.freeze();
+        assert_eq!(
+            registry.link_item("test_place:gearbox", 5000).unwrap(),
+            own_item
+        );
+        assert_eq!(
+            registry.link_item("test_place:gearbox", 5001).unwrap(),
+            own_item
+        );
+        // A new link is refused once closed, like for an unlinked block.
+        assert_eq!(
+            registry.link_item("test_place:gearbox", 5002).err(),
+            Some(BlockRegistrationError::Frozen)
+        );
+        assert_eq!(registry.get_by_item(5002), None);
+        assert_eq!(registry.get_by_item(5000), Some(own_item));
+        assert_eq!(block.item_id, 0);
+    }
+
+    /// An unlinked block still refuses a link once the registry is closed.
+    #[test]
+    fn a_closed_registry_takes_no_new_link() {
+        let mut registry = DynamicBlockRegistry::new();
+        registry.register(registration("test_closed:a")).unwrap();
+        registry.freeze();
+        assert_eq!(
+            registry.link_item("test_closed:a", 5000).err(),
+            Some(BlockRegistrationError::Frozen)
+        );
+        assert_eq!(registry.get_by_item(5000), None);
     }
 
     #[test]
@@ -3255,7 +3315,8 @@ mod tests {
             registry.set_callbacks("test_callbacks:missing", callbacks),
             Err(BlockRegistrationError::UnknownBlock(_))
         ));
-        assert_eq!(BlockCallbacks::from_bits(1 << 30), None);
+        // Every bit below 31 is a callback (`ALL` is `(1 << 31) - 1`); the top bit is not.
+        assert_eq!(BlockCallbacks::from_bits(1 << 31), None);
         assert!(BlockCallbacks::REDSTONE_SOURCE.intersects(BlockCallbacks::WEAK_POWER));
         assert!(!BlockCallbacks::REDSTONE_SOURCE.intersects(BlockCallbacks::COMPARATOR_OUTPUT));
         assert_eq!(

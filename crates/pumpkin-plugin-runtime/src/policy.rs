@@ -9,6 +9,9 @@ mod sealed {
 #[doc(hidden)]
 pub trait StorePolicy: sealed::StorePolicy + Clone + Send + Sync + 'static {
     const NAME: &'static str;
+
+    /// The admission authority every context of this policy belongs to.
+    fn admission_id(&self) -> u64;
 }
 
 /// Serializes synchronous guest roots while allowing callbacks from the active
@@ -39,7 +42,10 @@ impl LegacySyncReentry {
         self.root_admission.acquire_root().await
     }
 
-    #[cfg(test)]
+    /// A fresh root context of this admission authority, without waiting for the admission.
+    ///
+    /// Only for calls that are already part of an admitted chain, like a host callback polled
+    /// outside the guest call's task-local scope.
     #[must_use]
     pub(crate) fn root_context(&self) -> ReentryContext {
         self.root_admission.root_context()
@@ -79,4 +85,8 @@ impl sealed::StorePolicy for LegacySyncReentry {}
 
 impl StorePolicy for LegacySyncReentry {
     const NAME: &'static str = Self::NAME;
+
+    fn admission_id(&self) -> u64 {
+        self.root_admission.id()
+    }
 }

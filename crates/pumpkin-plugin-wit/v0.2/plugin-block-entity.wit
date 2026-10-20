@@ -67,11 +67,13 @@ interface plugin-block-entity {
 
     /// Registers a block entity type and returns its id. `key` is a full resource location,
     /// `namespace:path`, lowercase, `a-z 0-9 _ - .` (and `/` in the path); the `minecraft`
-    /// namespace is reserved. `valid-block-keys` names the blocks the type is for (`minecraft:` is
-    /// optional for vanilla blocks), the server uses it to warn when data is set at a block that is
-    /// not listed. Registering the same definition again returns the same id (a reloaded plugin), a
-    /// different definition for a known key fails. Fails for an invalid key, or when registration is
-    /// closed.
+    /// namespace is reserved. `valid-block-keys` names the blocks the type is for; a vanilla block
+    /// may omit `minecraft:`, a custom block has to name its namespace (an unqualified
+    /// `funnel` would never match `create:funnel`). Fails for an unqualified custom block instead
+    /// of accepting a key that can never match. The server uses the list to warn when data is set
+    /// at a block that is not listed. Registering the same definition again returns the same id (a
+    /// reloaded plugin), a different definition for a known key fails. Fails for an invalid key, or
+    /// when registration is closed.
     register-block-entity-type: func(key: string, valid-block-keys: list<string>) -> result<u32, string>;
 
     /// Returns the id of a plugin block entity type by key.
@@ -107,5 +109,8 @@ interface plugin-block-entity {
 
     /// Removes the plugin block entity at a position, with its saved data. Returns whether there
     /// was one. Fires `block-entity-unload-event` with `removed` true.
-    remove-block-entity: func(target-world: borrow<%world>, pos: block-pos) -> bool;
+    ///
+    /// Async, like every other import that runs server work: the unload event goes back into the
+    /// plugin, and a callback can only be serviced while the calling guest call is suspended.
+    remove-block-entity: async func(target-world: borrow<%world>, pos: block-pos) -> bool;
 }

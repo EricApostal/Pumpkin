@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use crate::common::{WitNbtTree, from_wit_nbt_tree, to_wit_nbt_tree};
+use crate::{AccessorExt, run_blocking};
 use crate::pumpkin::plugin::common::BlockPos as WitBlockPos;
 use crate::pumpkin::plugin::plugin_block_entity::{
     BlockEntityTypeEntry, Host, HostWithStore, PluginBlockEntityData,
@@ -16,7 +17,7 @@ use pumpkin_nbt::tag::NbtTag;
 use pumpkin_util::math::position::BlockPos;
 use pumpkin_wasm_host_common::state::PluginHostState;
 use tracing::info;
-use wasmtime::component::{Access, HasSelf, Resource};
+use wasmtime::component::{Accessor, HasSelf, Resource};
 
 const fn from_wit_position(position: &WitBlockPos) -> BlockPos {
     BlockPos::new(position.x, position.y, position.z)
@@ -174,27 +175,19 @@ impl Host for PluginHostState {
 
 impl HostWithStore<PluginHostState> for HasSelf<PluginHostState> {
     async fn remove_block_entity(
-        mut host: Access<'_, PluginHostState, Self>,
+        accessor: &Accessor<PluginHostState, Self>,
         target_world: Resource<WitWorld>,
         pos: WitBlockPos,
     ) -> wasmtime::Result<bool> {
-        let (world, plugin) = {
-            let state = host.get();
-            let world = Arc::clone(state.get(&target_world)?);
-            let plugin = state
-                .plugin
-                .as_ref()
-                .and_then(std::sync::Weak::upgrade)
-                .ok_or_else(|| wasmtime::Error::msg("Plugin instance not available"))?;
-            (world, plugin)
-        };
+        let world = accessor.get_res(&target_world)?;
         let position = from_wit_position(&pos);
-
-        plugin
-            .store
-            .pump_blocking(&mut host, move || {
-                world.remove_plugin_block_entity(&position)
-            })
-            .await
+        // `run_blocking`, not `StoreHandle::pump_blocking`: the removal fires
+        // `block-entity-unload-event` back into this plugin, and only the accessor-based pump
+        // services that callback from the active host frame (`pump_blocking` queues it on the
+        // store driver, which cannot run it while this call is in flight).
+        run_blocking(accessor, move || {
+            world.remove_plugin_block_entity(&position)
+        })
+        .await
     }
 }

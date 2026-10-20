@@ -332,6 +332,37 @@ enum ControlMessage {
 
 type ReentrySender<T> = mpsc::Sender<Box<dyn GuestStoreJob<T>>>;
 
+std::thread_local! {
+    /// The admission of the Store whose driver is polling its guest calls on this thread right now.
+    ///
+    /// Wasmtime's event loop polls host imports outside the guest call's task-local scope (see
+    /// [`StoreHandle::in_active_context`]), so a callback into a plugin Store cannot read the
+    /// chain from there. This marks the thread for the duration of one poll of the driver only, so
+    /// such a callback is told apart from a fresh root call that a worker polls afterwards: taking
+    /// a root admission for the callback would wait for the semaphore its own call holds.
+    static DRIVING_ADMISSION: std::cell::Cell<Option<u64>> = const { std::cell::Cell::new(None) };
+}
+
+/// The admission of the driver polling on this thread, if any.
+fn driving_admission() -> Option<u64> {
+    DRIVING_ADMISSION.with(std::cell::Cell::get)
+}
+
+/// Sets [`DRIVING_ADMISSION`] while alive and restores the previous value on drop.
+struct DrivingAdmissionGuard(Option<u64>);
+
+impl DrivingAdmissionGuard {
+    fn enter(admission_id: u64) -> Self {
+        Self(DRIVING_ADMISSION.with(|current| current.replace(Some(admission_id))))
+    }
+}
+
+impl Drop for DrivingAdmissionGuard {
+    fn drop(&mut self) {
+        DRIVING_ADMISSION.with(|current| current.set(self.0));
+    }
+}
+
 struct ReentryScope<T> {
     id: u64,
     sender: ReentrySender<T>,
@@ -619,6 +650,24 @@ impl<T> StoreHandle<T, LegacySyncReentry>
 where
     T: Send + 'static,
 {
+    /// The context of a guest call the driver polls on the current thread, if any.
+    ///
+    /// `None` outside the driver's poll, so a root call from another task never looks nested. The
+    /// driver may be polling another Store of the same admission authority; the callback still
+    /// belongs to that chain, so the Store takes a context of the same policy instead of a root
+    /// admission that the chain already holds.
+    fn polled_call_context(&self) -> Option<ReentryContext> {
+        if driving_admission() != Some(self.shared.policy.admission_id()) {
+            return None;
+        }
+        Some(
+            self.shared
+                .reentry
+                .current_context()
+                .unwrap_or_else(|| self.shared.policy.root_context()),
+        )
+    }
+
     /// Queues a synchronous guest call, or routes it through the active host
     /// frame when this Store already appears in the current causal chain.
     pub async fn call_guest<R, F>(&self, call: F) -> wasmtime::Result<R>
@@ -641,6 +690,19 @@ where
                 "Inherited legacy Wasm plugin root admission"
             );
             (context, None)
+        } else if let Some(context) = self.polled_call_context() {
+            // This is a callback of a guest call the driver is running on this thread, not a
+            // fresh root call: Wasmtime's event loop polls host imports outside the guest call's
+            // task-local scope, so the chain is only visible here. Acquiring a root admission
+            // would wait for the semaphore that call is holding while it waits for this callback.
+            let context = context.child()?;
+            tracing::trace!(
+                wasm_plugin_admission_id = context.admission_id,
+                wasm_plugin_chain_id = context.chain_id,
+                wasm_plugin_reentry_depth = context.depth,
+                "Recovered the legacy Wasm plugin chain of the polled guest call"
+            );
+            (context, None)
         } else {
             self.ensure_accepting("Wasm plugin store is shutting down")?;
             let admission = self.shared.policy.acquire_root().await?;
@@ -660,7 +722,10 @@ where
         {
             match sender.send(job).await {
                 Ok(()) => {
-                    self.shared.reentry.routed_jobs.fetch_add(1, Ordering::Relaxed);
+                    self.shared
+                        .reentry
+                        .routed_jobs
+                        .fetch_add(1, Ordering::Relaxed);
                     return self
                         .receive_result(receiver, "Wasm plugin guest call did not complete")
                         .await;
@@ -769,21 +834,22 @@ where
             return self.spawn_blocking_in_active_context(operation).await;
         };
         let context = context.child()?;
-        let (result, receiver) = oneshot::channel();
-        self.shared
-            .spawner
-            .spawn_blocking(Box::new(move || {
-                let output = catch_unwind(AssertUnwindSafe(|| sync_scope(context, operation)))
-                    .map_err(|payload| panic_message(payload.as_ref()));
-                let _ = result.send(output);
-            }))
-            .map_err(|error| {
-                wasmtime::Error::msg(format!(
-                    "Failed to spawn synchronous Wasm plugin host operation: {error}"
-                ))
-            })?;
-
+        // Register before the operation starts: it can fire a callback into this Store before
+        // `spawn_blocking` returns, and a callback that finds no scope is queued on the driver,
+        // which cannot run it while the outer guest call is suspended here.
         let (mut registration, mut reentry) = self.shared.reentry.register(context);
+        let (result, receiver) = oneshot::channel();
+        if let Err(error) = self.shared.spawner.spawn_blocking(Box::new(move || {
+            let output = catch_unwind(AssertUnwindSafe(|| sync_scope(context, operation)))
+                .map_err(|payload| panic_message(payload.as_ref()));
+            let _ = result.send(output);
+        })) {
+            registration.close();
+            return Err(wasmtime::Error::msg(format!(
+                "Failed to spawn synchronous Wasm plugin host operation: {error}"
+            )));
+        }
+
         let output = pump_reentrant_jobs(accessor, &mut reentry, receiver).await;
         registration.close();
         reentry.close();
@@ -830,7 +896,24 @@ where
         S: AsContextMut<Data = T> + Send,
         F: Future<Output = R> + Send,
     {
-        let (mut registration, mut receiver) = self.shared.reentry.register(context);
+        let (registration, receiver) = self.shared.reentry.register(context);
+        self.pump_registered(store, registration, receiver, context, future)
+            .await
+    }
+
+    /// Services the callbacks routed to an already registered scope until `future` completes.
+    async fn pump_registered<R, S, F>(
+        &self,
+        store: &mut S,
+        mut registration: ReentryRegistration<T>,
+        mut receiver: mpsc::Receiver<Box<dyn GuestStoreJob<T>>>,
+        context: ReentryContext,
+        future: F,
+    ) -> wasmtime::Result<R>
+    where
+        S: AsContextMut<Data = T> + Send,
+        F: Future<Output = R> + Send,
+    {
         let scoped_future = scope(context, future);
         tokio::pin!(scoped_future);
 
@@ -860,21 +943,23 @@ where
         F: FnOnce() -> R + Send + 'static,
     {
         let context = self.next_reentry_context()?;
+        // Register before the operation starts: it can fire a callback into this Store before
+        // `spawn_blocking` returns, and a callback that finds no scope is queued on the driver,
+        // which cannot run it while the outer guest call is suspended here.
+        let (registration, reentry) = self.shared.reentry.register(context);
         let (result, receiver) = oneshot::channel();
-        self.shared
-            .spawner
-            .spawn_blocking(Box::new(move || {
-                let output = catch_unwind(AssertUnwindSafe(|| sync_scope(context, operation)))
-                    .map_err(|payload| panic_message(payload.as_ref()));
-                let _ = result.send(output);
-            }))
-            .map_err(|error| {
-                wasmtime::Error::msg(format!(
-                    "Failed to spawn synchronous Wasm plugin host operation: {error}"
-                ))
-            })?;
+        if let Err(error) = self.shared.spawner.spawn_blocking(Box::new(move || {
+            let output = catch_unwind(AssertUnwindSafe(|| sync_scope(context, operation)))
+                .map_err(|payload| panic_message(payload.as_ref()));
+            let _ = result.send(output);
+        })) {
+            drop(registration);
+            return Err(wasmtime::Error::msg(format!(
+                "Failed to spawn synchronous Wasm plugin host operation: {error}"
+            )));
+        }
 
-        self.pump_reentry_with_context(store, context, receiver)
+        self.pump_registered(store, registration, reentry, context, receiver)
             .await?
             .map_err(|_| {
                 wasmtime::Error::msg("Synchronous Wasm plugin host operation did not complete")
@@ -959,6 +1044,7 @@ where
         });
         let (ready_sender, ready) = oneshot::channel();
         let policy_name = P::NAME;
+        let admission_id = shared.policy.admission_id();
         let task_guard = DriverTaskGuard::new(Arc::clone(&lifecycle), accepting);
 
         tracing::debug!(
@@ -976,6 +1062,7 @@ where
                     Arc::clone(&task_guard.lifecycle),
                     ready_sender,
                     policy_name,
+                    admission_id,
                 )
                 .await;
                 task_guard.disarm();
@@ -1162,6 +1249,19 @@ fn control_result(message: Option<&ControlMessage>) -> wasmtime::Result<()> {
     }
 }
 
+/// Drives `driver` until it completes, marking every poll with [`DRIVING_ADMISSION`].
+///
+/// The mark may not span suspension points: another task polled on the same thread afterwards
+/// would still look like it runs inside a guest call.
+async fn drive_marked<R>(driver: impl Future<Output = R>, admission_id: u64) -> R {
+    let mut driver = std::pin::pin!(driver);
+    poll_fn(|cx| {
+        let _driving = DrivingAdmissionGuard::enter(admission_id);
+        driver.as_mut().poll(cx)
+    })
+    .await
+}
+
 #[allow(clippy::too_many_lines)]
 async fn run_driver<T>(
     mut store: Store<T>,
@@ -1170,12 +1270,13 @@ async fn run_driver<T>(
     lifecycle: Arc<Lifecycle>,
     ready: oneshot::Sender<()>,
     policy_name: &'static str,
+    admission_id: u64,
 ) where
     T: Send + 'static,
 {
     let loop_lifecycle = Arc::clone(&lifecycle);
-    let result = store
-        .run_concurrent(async move |accessor| -> wasmtime::Result<()> {
+    let result = drive_marked(
+        store.run_concurrent(async move |accessor| -> wasmtime::Result<()> {
             loop_lifecycle.transition(DriverState::Accepting);
             let _ = ready.send(());
             let mut active_calls = FuturesUnordered::new();
@@ -1259,8 +1360,10 @@ async fn run_driver<T>(
                     }
                 }
             }
-        })
-        .await;
+        }),
+        admission_id,
+    )
+    .await;
     drop(store);
 
     match result {
@@ -1354,6 +1457,7 @@ mod tests {
             Arc::clone(&lifecycle),
             ready_sender,
             "test",
+            1,
         ));
 
         timeout(Duration::from_secs(10), async {

@@ -99,6 +99,10 @@ impl PluginRuntime {
         config.wasm_component_model(true);
         config.wasm_component_model_async(true);
         config.concurrency_support(true);
+        // The component is ~17 MB and Cranelift compiles it single-threaded by default: a cold
+        // start spends ~158 s there, before the server is usable. Compilation is cached
+        // afterwards (`cache` below), so this only pays off once per component build.
+        config.parallel_compilation(true);
         let mut path =
             std::path::absolute(path.as_ref()).map_err(PluginInitError::PathResolutionFailed)?;
         path.pop();

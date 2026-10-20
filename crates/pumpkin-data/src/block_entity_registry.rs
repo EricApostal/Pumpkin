@@ -91,26 +91,50 @@ pub const fn vanilla_block_entity_type_count() -> u32 {
     BLOCK_ENTITY_TYPES.len() as u32
 }
 
+/// Checks the block keys a block entity type is valid for, see
+/// [`register_plugin_block_entity_type`].
+///
+/// Vanilla blocks may be written with or without the namespace; a custom block has to name its
+/// namespace, because an unqualified key would be stored as written and then never match the
+/// block's `namespace:path` resource location.
+fn validate_valid_blocks(valid_blocks: &[String]) -> Result<(), RegistryError> {
+    if valid_blocks.len() > MAX_VALID_BLOCKS {
+        return Err(RegistryError::InvalidDefinition(format!(
+            "a block entity type has at most {MAX_VALID_BLOCKS} valid blocks"
+        )));
+    }
+    for block in valid_blocks {
+        let path = block.strip_prefix("minecraft:").unwrap_or(block);
+        if path.is_empty() {
+            return Err(RegistryError::InvalidDefinition(format!(
+                "'{block}' is not a block key"
+            )));
+        }
+        if path.contains(':') {
+            if let Err(error) = split_plugin_key(path) {
+                return Err(RegistryError::InvalidDefinition(format!(
+                    "'{block}' is not a block key: {error}"
+                )));
+            }
+        } else if crate::Block::from_name(path).is_none() {
+            // An unqualified custom key would be stored as written and then never match the
+            // block's `namespace:path` resource location, so the entity silently never attaches.
+            return Err(RegistryError::InvalidDefinition(format!(
+                "'{block}' is not a block key: a custom block needs its namespace, like \
+                 'create:{path}'"
+            )));
+        }
+    }
+    Ok(())
+}
+
 /// Registers a block entity type. Registering the same definition again returns the existing type,
 /// a different one for a known key is [`RegistryError::Duplicate`].
 pub fn register_plugin_block_entity_type(
     key: &str,
     valid_blocks: Vec<String>,
 ) -> Result<&'static PluginBlockEntityType, RegistryError> {
-    if valid_blocks.len() > MAX_VALID_BLOCKS {
-        return Err(RegistryError::InvalidDefinition(format!(
-            "a block entity type has at most {MAX_VALID_BLOCKS} valid blocks"
-        )));
-    }
-    for block in &valid_blocks {
-        // Vanilla blocks may be written with or without the namespace, plugin blocks need it.
-        let path = block.strip_prefix("minecraft:").unwrap_or(block);
-        if path.is_empty() || (path.contains(':') && split_plugin_key(path).is_err()) {
-            return Err(RegistryError::InvalidDefinition(format!(
-                "'{block}' is not a block key"
-            )));
-        }
-    }
+    validate_valid_blocks(&valid_blocks)?;
     let same = |existing: &'static PluginBlockEntityType| {
         existing.valid_blocks.len() == valid_blocks.len()
             && existing
@@ -158,4 +182,71 @@ pub fn plugin_block_entity_type_by_key(key: &str) -> Option<&'static PluginBlock
 pub fn plugin_block_entity_type_by_id(id: u32) -> Option<&'static PluginBlockEntityType> {
     let index = id.checked_sub(vanilla_block_entity_type_count())?;
     read_registry().get_by_index(index as usize)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::validate_valid_blocks;
+    use crate::plugin_registry::RegistryError;
+
+    fn keys(blocks: &[&str]) -> Vec<String> {
+        blocks.iter().map(|block| (*block).to_string()).collect()
+    }
+
+    #[test]
+    fn vanilla_blocks_may_omit_the_namespace() {
+        validate_valid_blocks(&keys(&["stone", "minecraft:chest", "minecraft:furnace"]))
+            .expect("vanilla block keys");
+    }
+
+    #[test]
+    fn custom_blocks_may_be_namespaced() {
+        validate_valid_blocks(&keys(&["create:funnel", "create:gearbox"])).expect("custom keys");
+        // Not registered yet is fine, the block only has to exist once the entity is placed.
+        validate_valid_blocks(&keys(&["create:not_registered_yet"])).expect("custom key");
+    }
+
+    /// `create:funnel` written as `funnel` was accepted and then never matched the block, so the
+    /// block entity silently never attached. It has to fail at registration instead.
+    #[test]
+    fn a_custom_block_without_a_namespace_is_rejected() {
+        let error = validate_valid_blocks(&keys(&["create:funnel", "funnel"]))
+            .expect_err("an unqualified custom block key has to fail");
+        assert_eq!(
+            error,
+            RegistryError::InvalidDefinition(
+                "'funnel' is not a block key: a custom block needs its namespace, like \
+                 'create:funnel'"
+                    .to_string()
+            )
+        );
+    }
+
+    #[test]
+    fn malformed_block_keys_are_rejected() {
+        for key in [
+            "",
+            "minecraft:",
+            "create:",
+            ":funnel",
+            "create:Funnel",
+            "create:funnel:x",
+        ] {
+            let error = validate_valid_blocks(&keys(&[key]))
+                .expect_err("a malformed block key has to fail");
+            assert!(
+                matches!(error, RegistryError::InvalidDefinition(_)),
+                "'{key}' gave {error}"
+            );
+        }
+    }
+
+    #[test]
+    fn too_many_valid_blocks_are_rejected() {
+        let blocks = vec!["stone".to_string(); super::MAX_VALID_BLOCKS + 1];
+        assert!(matches!(
+            validate_valid_blocks(&blocks),
+            Err(RegistryError::InvalidDefinition(_))
+        ));
+    }
 }

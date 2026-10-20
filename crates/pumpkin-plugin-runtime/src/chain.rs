@@ -50,6 +50,12 @@ impl RootAdmission {
         }
     }
 
+    /// The id of this admission authority, shared by every context it hands out.
+    #[must_use]
+    pub fn id(&self) -> u64 {
+        self.state.id
+    }
+
     pub fn admits(&self, context: ReentryContext) -> bool {
         context.admission_id == self.state.id
     }
