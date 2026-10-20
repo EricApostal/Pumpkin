@@ -12,7 +12,7 @@ use pumpkin_data::block_registry::{
 };
 use pumpkin_data::block_state::PistonBehavior;
 use pumpkin_data::item::Item;
-use pumpkin_data::{Block, BlockDirection, BlockId};
+use pumpkin_data::{Block, BlockDirection, BlockId, Property};
 use pumpkin_wasm_host_common::state::PluginHostState;
 use tracing::info;
 
@@ -165,13 +165,13 @@ fn plugin_name(state: &PluginHostState) -> &str {
 /// State id of a vanilla block with the given property values, `None` for an unknown property or
 /// value. Unlisted properties keep their default.
 fn vanilla_state_id(block: &'static Block, properties: &[(&str, &str)]) -> Option<u32> {
-    let mut merged: Vec<(&str, &str)> = block
+    let mut merged: Vec<Property> = block
         .properties(block.default_state.id)
         .map(|defaults| defaults.to_props())
         .unwrap_or_default();
     for &(name, value) in properties {
-        let entry = merged.iter_mut().find(|entry| entry.0 == name)?;
-        entry.1 = value;
+        let entry = merged.iter_mut().find(|entry| entry.key_str() == name)?;
+        *entry = Property::from_str_pair(name, value)?;
     }
     block
         .state_from_properties(&merged)

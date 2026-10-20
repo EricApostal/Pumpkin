@@ -4,9 +4,7 @@ use crate::pumpkin::plugin::block_placement::{
 };
 use pumpkin_core::plugin::permissions;
 use pumpkin_data::Block;
-use pumpkin_data::block_registry::{
-    PlacementRule, PlacementSource, ShaftKind, ShaftNeighbour,
-};
+use pumpkin_data::block_registry::{PlacementRule, PlacementSource, ShaftKind, ShaftNeighbour};
 use pumpkin_wasm_host_common::state::PluginHostState;
 use tracing::info;
 
@@ -17,6 +15,7 @@ fn from_wit_shaft(shaft: WitShaftNeighbour) -> ShaftNeighbour {
         kind: match shaft.kind {
             WitShaftKind::Facing => ShaftKind::Facing,
             WitShaftKind::Axis => ShaftKind::Axis,
+            WitShaftKind::FacingOpposite => ShaftKind::FacingOpposite,
         },
     }
 }

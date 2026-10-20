@@ -272,7 +272,7 @@ pub(crate) fn to_wit_block_state(
         .map(|p| {
             p.to_props()
                 .into_iter()
-                .map(|(k, v)| (k.to_string(), v.to_string()))
+                .map(|prop| (prop.key_str().to_string(), prop.value_str().to_string()))
                 .collect()
         })
         .unwrap_or_default();
@@ -437,9 +437,9 @@ impl pumpkin::plugin::world::Host for PluginHostState {
             return Ok(Some(block.default_state.id.as_u32()));
         }
 
-        let props: Vec<(&str, &str)> = properties
+        let props: Vec<pumpkin_data::Property> = properties
             .iter()
-            .map(|(k, v)| (k.as_str(), v.as_str()))
+            .filter_map(|(k, v)| pumpkin_data::Property::from_str_pair(k, v))
             .collect();
         // from_properties/from_value panics on unknown property values,
         // so catch panics to avoid crashing on schematics from other MC versions.
@@ -463,7 +463,7 @@ impl pumpkin::plugin::world::Host for PluginHostState {
                 .map(|p| {
                     p.to_props()
                         .into_iter()
-                        .map(|(k, v)| (k.to_string(), v.to_string()))
+                        .map(|prop| (prop.key_str().to_string(), prop.value_str().to_string()))
                         .collect()
                 })
                 .unwrap_or_default();
@@ -549,7 +549,7 @@ impl pumpkin::plugin::world::Host for PluginHostState {
             .map(|p| {
                 p.to_props()
                     .into_iter()
-                    .map(|(k, v)| (k.to_string(), v.to_string()))
+                    .map(|prop| (prop.key_str().to_string(), prop.value_str().to_string()))
                     .collect()
             })
             .unwrap_or_default();

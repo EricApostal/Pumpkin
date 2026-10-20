@@ -14,7 +14,9 @@ use std::sync::{LazyLock, OnceLock, PoisonError, RwLock, RwLockReadGuard, RwLock
 use pumpkin_util::math::boundingbox::BoundingBox;
 use pumpkin_util::math::vector3::Vector3;
 
-use crate::block_properties::{BlockProperties, COLLISION_SHAPES, EnumVariants, NoteblockInstrument};
+use crate::block_properties::{
+    BlockProperties, COLLISION_SHAPES, EnumVariants, NoteblockInstrument, Property,
+};
 use crate::block_state::{self as flags, PistonBehavior};
 use crate::tag::{RegistryKey, Taggable};
 use crate::{Block, BlockDirection, BlockId, BlockState, BlockStateId};
@@ -191,11 +193,16 @@ pub struct ConnectRule {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ShaftKind {
     /// The property lists a direction (`facing`): the shaft points into the placed block when the
-    /// value is the opposite of the direction from the neighbour to the placed block.
+    /// value is the direction from the placed block to the neighbour, which is
+    /// `IRotate.hasShaftTowards` of a directional block (`face == facing.getOpposite()`).
     Facing,
     /// The property lists an axis (`axis`): the shaft points into the placed block when the
     /// direction from the neighbour to the placed block runs along that axis.
     Axis,
+    /// The property lists a direction (`facing`): the shaft points into the placed block when the
+    /// value is the opposite of the direction from the placed block to the neighbour, like
+    /// Create's creative motor (`face == facing`).
+    FacingOpposite,
 }
 
 /// A neighbour that has a shaft pointing into the placed block, like Create's
@@ -405,10 +412,7 @@ impl PlacementContext {
     /// [`ShaftNeighbour`]. `None` when there is none, or when two of them lie on different axes:
     /// `DirectionalKineticBlock.getPreferredFacing` then gives up and returns `null`.
     #[must_use]
-    pub fn shaft_neighbour_direction(
-        &self,
-        rules: &[ShaftNeighbour],
-    ) -> Option<BlockDirection> {
+    pub fn shaft_neighbour_direction(&self, rules: &[ShaftNeighbour]) -> Option<BlockDirection> {
         let mut preferred: Option<BlockDirection> = None;
         for direction in BlockDirection::all() {
             if !self.has_shaft_towards(direction, rules) {
@@ -445,8 +449,12 @@ impl PlacementContext {
                 return false;
             };
             match rule.kind {
-                ShaftKind::Facing => *value == direction_name(direction.opposite()),
+                // `IRotate.hasShaftTowards(face)` for a directional block is
+                // `face == FACING.getOpposite()`, where `face` points from the neighbour to the
+                // placed block.
+                ShaftKind::Facing => *value == direction_name(direction),
                 ShaftKind::Axis => *value == direction.to_axis().to_value(),
+                ShaftKind::FacingOpposite => *value == direction_name(direction.opposite()),
             }
         })
     }
@@ -1082,7 +1090,9 @@ impl DynamicBlockInfo {
     #[must_use]
     pub fn state_index(&self, id: BlockStateId) -> Option<u16> {
         let index = id.as_u32().checked_sub(self.base_state_id)?;
-        (index < self.state_count).then(|| u16::try_from(index).ok()).flatten()
+        (index < self.state_count)
+            .then(|| u16::try_from(index).ok())
+            .flatten()
     }
 
     #[must_use]
@@ -1446,17 +1456,31 @@ impl BlockProperties for DynamicBlockProperties {
         Self::new(info, info.default_index)
     }
 
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
-        self.info.to_props(self.index)
+    fn to_props(&self) -> Vec<Property> {
+        // The registry stores property names and values as strings. A name that is not a
+        // vanilla property has no `Property` variant, so it is left out here.
+        self.info
+            .to_props(self.index)
+            .into_iter()
+            .filter_map(|(name, value)| Property::from_str_pair(name, value))
+            .collect()
     }
 
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self
+    fn from_props(props: &[Property], block: &Block) -> Self
     where
         Self: Sized,
     {
         let info = info_of(block);
-        Self::new(info, info.index_from_props(props))
+        Self::new(info, info.index_from_props(&props_to_pairs(props)))
     }
+}
+
+/// The string pairs of `Property` values, the representation the dynamic registry stores.
+fn props_to_pairs(props: &[Property]) -> Vec<(&'static str, &'static str)> {
+    props
+        .iter()
+        .map(|property| (property.key_str(), property.value_str()))
+        .collect()
 }
 
 fn unit_box() -> BoundingBox {
@@ -1724,8 +1748,8 @@ impl DynamicBlockRegistry {
 
         let index = self.blocks.len();
         let block_id = usize::from(BlockId::BLOCK_COUNT) + index;
-        let base_state_id =
-            u32::from(BlockStateId::STATE_COUNT) + u32::try_from(self.states.len()).map_err(|_| BlockRegistrationError::Full)?;
+        let base_state_id = u32::from(BlockStateId::STATE_COUNT)
+            + u32::try_from(self.states.len()).map_err(|_| BlockRegistrationError::Full)?;
         let id = u16::try_from(block_id).map_err(|_| BlockRegistrationError::Full)?;
         let base = base_state_id;
 
@@ -2160,14 +2184,11 @@ impl Block {
 
     /// `from_properties` for a dynamic block.
     #[must_use]
-    pub fn dynamic_from_properties(
-        &self,
-        props: &[(&str, &str)],
-    ) -> Option<Box<dyn BlockProperties>> {
+    pub fn dynamic_from_properties(&self, props: &[Property]) -> Option<Box<dyn BlockProperties>> {
         let info = self.dynamic_info()?;
         Some(Box::new(DynamicBlockProperties::new(
             info,
-            info.index_from_props(props),
+            info.index_from_props(&props_to_pairs(props)),
         )))
     }
 }
@@ -2691,21 +2712,21 @@ mod tests {
         let state = &block.states[0];
         let props = block.properties(state.id).unwrap().to_props();
         assert_eq!(props.len(), 6);
-        assert!(props.iter().all(|(_, value)| *value == "true"));
-        let from_props = block.from_properties(&[("north", "true")]);
+        assert!(props.iter().all(|prop| prop.value_str() == "true"));
+        let from_props = block.from_properties(&[Property::North(true)]);
         let id = from_props.to_state_id(block);
         let reread = block.properties(id).unwrap().to_props();
-        assert!(reread.contains(&("north", "true")));
-        assert!(reread.contains(&("down", "false")));
+        assert!(reread.contains(&Property::North(true)));
+        assert!(reread.contains(&Property::Down(false)));
         assert_eq!(
             block
                 .state_from_properties(&[
-                    ("down", "true"),
-                    ("east", "true"),
-                    ("north", "true"),
-                    ("south", "true"),
-                    ("up", "true"),
-                    ("west", "true"),
+                    Property::Down(true),
+                    Property::East(true),
+                    Property::North(true),
+                    Property::South(true),
+                    Property::Up(true),
+                    Property::West(true),
                 ])
                 .map(|state| state.id),
             Some(block.states[0].id)
@@ -3090,7 +3111,9 @@ mod tests {
                 .properties(state.id)
                 .expect("the vanilla block has properties")
                 .to_props();
-            for (name, value) in props {
+            for prop in props {
+                let name = prop.key_str();
+                let value = prop.value_str();
                 let position = match names.iter().position(|known| *known == name) {
                     Some(position) => position,
                     None => {
@@ -3136,7 +3159,13 @@ mod tests {
         assert_eq!(block.states.len(), vanilla.states.len(), "{key}");
         for (index, state) in vanilla.states.iter().enumerate() {
             let index = u16::try_from(index).unwrap();
-            let mut expected = vanilla.properties(state.id).unwrap().to_props();
+            let mut expected: Vec<(&'static str, &'static str)> = vanilla
+                .properties(state.id)
+                .unwrap()
+                .to_props()
+                .into_iter()
+                .map(|prop| (prop.key_str(), prop.value_str()))
+                .collect();
             expected.sort_unstable();
             let mut actual = info.to_props(index);
             actual.sort_unstable();

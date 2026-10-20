@@ -111,10 +111,10 @@ impl CauldronKind {
             (_, 0) => Block::CAULDRON.default_state.id,
             (Self::Lava, _) => Block::LAVA_CAULDRON.default_state.id,
             (Self::Water, level) => Block::WATER_CAULDRON
-                .from_properties(&[("level", &level.to_string())])
+                .from_properties(&[pumpkin_data::Property::Level(level)])
                 .to_state_id(&Block::WATER_CAULDRON),
             (Self::PowderSnow, level) => Block::POWDER_SNOW_CAULDRON
-                .from_properties(&[("level", &level.to_string())])
+                .from_properties(&[pumpkin_data::Property::Level(level)])
                 .to_state_id(&Block::POWDER_SNOW_CAULDRON),
         }
     }

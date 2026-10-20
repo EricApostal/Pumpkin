@@ -71,7 +71,18 @@ impl JavaClient {
                             return;
                         }
                     }
-                    if !server.item_registry.can_mine(held.item, player) {
+                    let gamemode = player.gamemode.load();
+                    let cannot_mine = !server.item_registry.can_mine(held.item, player)
+                        || gamemode == GameMode::Spectator
+                        || (gamemode == GameMode::Creative
+                            && held
+                                .get_data_component::<pumpkin_data::data_component_impl::ToolImpl>()
+                                .is_some_and(|t| !t.can_destroy_blocks_in_creative))
+                        || (gamemode == GameMode::Adventure
+                            && !held
+                                .get_data_component::<pumpkin_data::data_component_impl::CanBreakImpl>()
+                                .is_some_and(|c| c.matches_block(block)));
+                    if cannot_mine {
                         player.try_send_client_packet(&CBlockUpdate::new(
                             position,
                             VarInt(state.id.as_u32() as i32),
@@ -82,7 +93,7 @@ impl JavaClient {
 
                     // TODO: do validation
                     // TODO: Config
-                    if player.gamemode.load() == GameMode::Creative {
+                    if gamemode == GameMode::Creative {
                         // Block break & play sound
                         let new_state = world.break_block(
                             &position,

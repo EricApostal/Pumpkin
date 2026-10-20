@@ -9,12 +9,10 @@ use crate::slot::{NormalSlot, Slot};
 
 use crate::inventory::Inventory;
 use crate::inventory::SimpleInventory;
-use pumpkin_data::data_component_impl::TrimImpl;
+use pumpkin_data::data_component_impl::{ProvidesTrimMaterialImpl, TrimImpl};
 use pumpkin_data::item::Item;
 use pumpkin_data::item_stack::ItemStack;
-use pumpkin_data::recipes::{
-    get_smithing_transform_recipe, get_smithing_trim_recipe, get_trim_material_for_item,
-};
+use pumpkin_data::recipes::{get_smithing_transform_recipe, get_smithing_trim_recipe};
 use pumpkin_data::screen::WindowType;
 use pumpkin_data::statistic::StatisticCategory;
 use pumpkin_nbt::tag::NbtTag;
@@ -141,8 +139,9 @@ impl SmithingTableScreenHandler {
 
         if let Some(recipe) =
             get_smithing_trim_recipe(template_stack.item, base_stack.item, addition_stack.item)
-            && let Some(material) = get_trim_material_for_item(addition_stack.item)
+            && let Some(provides) = addition_stack.get_data_component::<ProvidesTrimMaterialImpl>()
         {
+            let material = provides.material.as_ref();
             if let Some(trim) = base_stack.get_data_component::<TrimImpl>() {
                 let curr_mat = match &trim.material {
                     NbtTag::String(s) => s.as_ref(),
@@ -161,7 +160,7 @@ impl SmithingTableScreenHandler {
             let mut result = base_stack.clone();
             result.item_count = 1;
             result.set_data_component(TrimImpl {
-                material: NbtTag::String(material.into()),
+                material: NbtTag::String(material.to_string().into()),
                 pattern: NbtTag::String(recipe.pattern.into()),
             });
 

@@ -589,6 +589,1666 @@ mod __random_ticks_bitset {
         ((RANDOM_TICKS_BITSET[index] >> bit) & 1) != 0
     }
 }
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
+pub enum PropertyKey {
+    Age,
+    Attached,
+    Attachment,
+    Axis,
+    Berries,
+    Bites,
+    Bloom,
+    Bottom,
+    CanSummon,
+    Candles,
+    Charges,
+    Conditional,
+    CopperGolemPose,
+    Cracked,
+    Crafting,
+    CreakingHeartState,
+    Delay,
+    Disarmed,
+    Distance,
+    Down,
+    Drag,
+    Dusted,
+    East,
+    Eggs,
+    Enabled,
+    Extended,
+    Eye,
+    Face,
+    Facing,
+    Falling,
+    FlowerAmount,
+    Half,
+    Hanging,
+    HasBook,
+    HasBottle0,
+    HasBottle1,
+    HasBottle2,
+    HasRecord,
+    Hatch,
+    Hinge,
+    HoneyLevel,
+    Hydration,
+    InWall,
+    Instrument,
+    Inverted,
+    Layers,
+    Leaves,
+    Level,
+    Lit,
+    Locked,
+    Map,
+    Mode,
+    Moisture,
+    Natural,
+    North,
+    Note,
+    Occupied,
+    Ominous,
+    Open,
+    Orientation,
+    Part,
+    Persistent,
+    Pickles,
+    PotentSulfurState,
+    Power,
+    Powered,
+    Rotation,
+    SculkSensorPhase,
+    SegmentAmount,
+    Shape,
+    Short,
+    Shrieking,
+    SideChain,
+    SignalFire,
+    Slot0Occupied,
+    Slot1Occupied,
+    Slot2Occupied,
+    Slot3Occupied,
+    Slot4Occupied,
+    Slot5Occupied,
+    Snowy,
+    South,
+    Stage,
+    Thickness,
+    Tilt,
+    Tip,
+    TrialSpawnerState,
+    Triggered,
+    Type,
+    Unstable,
+    Up,
+    VaultState,
+    VerticalDirection,
+    Waterlogged,
+    West,
+}
+impl PropertyKey {
+    #[must_use]
+    pub const fn to_str(self) -> &'static str {
+        match self {
+            Self::Age => "age",
+            Self::Attached => "attached",
+            Self::Attachment => "attachment",
+            Self::Axis => "axis",
+            Self::Berries => "berries",
+            Self::Bites => "bites",
+            Self::Bloom => "bloom",
+            Self::Bottom => "bottom",
+            Self::CanSummon => "can_summon",
+            Self::Candles => "candles",
+            Self::Charges => "charges",
+            Self::Conditional => "conditional",
+            Self::CopperGolemPose => "copper_golem_pose",
+            Self::Cracked => "cracked",
+            Self::Crafting => "crafting",
+            Self::CreakingHeartState => "creaking_heart_state",
+            Self::Delay => "delay",
+            Self::Disarmed => "disarmed",
+            Self::Distance => "distance",
+            Self::Down => "down",
+            Self::Drag => "drag",
+            Self::Dusted => "dusted",
+            Self::East => "east",
+            Self::Eggs => "eggs",
+            Self::Enabled => "enabled",
+            Self::Extended => "extended",
+            Self::Eye => "eye",
+            Self::Face => "face",
+            Self::Facing => "facing",
+            Self::Falling => "falling",
+            Self::FlowerAmount => "flower_amount",
+            Self::Half => "half",
+            Self::Hanging => "hanging",
+            Self::HasBook => "has_book",
+            Self::HasBottle0 => "has_bottle_0",
+            Self::HasBottle1 => "has_bottle_1",
+            Self::HasBottle2 => "has_bottle_2",
+            Self::HasRecord => "has_record",
+            Self::Hatch => "hatch",
+            Self::Hinge => "hinge",
+            Self::HoneyLevel => "honey_level",
+            Self::Hydration => "hydration",
+            Self::InWall => "in_wall",
+            Self::Instrument => "instrument",
+            Self::Inverted => "inverted",
+            Self::Layers => "layers",
+            Self::Leaves => "leaves",
+            Self::Level => "level",
+            Self::Lit => "lit",
+            Self::Locked => "locked",
+            Self::Map => "map",
+            Self::Mode => "mode",
+            Self::Moisture => "moisture",
+            Self::Natural => "natural",
+            Self::North => "north",
+            Self::Note => "note",
+            Self::Occupied => "occupied",
+            Self::Ominous => "ominous",
+            Self::Open => "open",
+            Self::Orientation => "orientation",
+            Self::Part => "part",
+            Self::Persistent => "persistent",
+            Self::Pickles => "pickles",
+            Self::PotentSulfurState => "potent_sulfur_state",
+            Self::Power => "power",
+            Self::Powered => "powered",
+            Self::Rotation => "rotation",
+            Self::SculkSensorPhase => "sculk_sensor_phase",
+            Self::SegmentAmount => "segment_amount",
+            Self::Shape => "shape",
+            Self::Short => "short",
+            Self::Shrieking => "shrieking",
+            Self::SideChain => "side_chain",
+            Self::SignalFire => "signal_fire",
+            Self::Slot0Occupied => "slot_0_occupied",
+            Self::Slot1Occupied => "slot_1_occupied",
+            Self::Slot2Occupied => "slot_2_occupied",
+            Self::Slot3Occupied => "slot_3_occupied",
+            Self::Slot4Occupied => "slot_4_occupied",
+            Self::Slot5Occupied => "slot_5_occupied",
+            Self::Snowy => "snowy",
+            Self::South => "south",
+            Self::Stage => "stage",
+            Self::Thickness => "thickness",
+            Self::Tilt => "tilt",
+            Self::Tip => "tip",
+            Self::TrialSpawnerState => "trial_spawner_state",
+            Self::Triggered => "triggered",
+            Self::Type => "type",
+            Self::Unstable => "unstable",
+            Self::Up => "up",
+            Self::VaultState => "vault_state",
+            Self::VerticalDirection => "vertical_direction",
+            Self::Waterlogged => "waterlogged",
+            Self::West => "west",
+        }
+    }
+    #[must_use]
+    #[allow(clippy::should_implement_trait)]
+    pub fn from_str(name: &str) -> Option<Self> {
+        match name {
+            "age" => Some(Self::Age),
+            "attached" => Some(Self::Attached),
+            "attachment" => Some(Self::Attachment),
+            "axis" => Some(Self::Axis),
+            "berries" => Some(Self::Berries),
+            "bites" => Some(Self::Bites),
+            "bloom" => Some(Self::Bloom),
+            "bottom" => Some(Self::Bottom),
+            "can_summon" => Some(Self::CanSummon),
+            "candles" => Some(Self::Candles),
+            "charges" => Some(Self::Charges),
+            "conditional" => Some(Self::Conditional),
+            "copper_golem_pose" => Some(Self::CopperGolemPose),
+            "cracked" => Some(Self::Cracked),
+            "crafting" => Some(Self::Crafting),
+            "creaking_heart_state" => Some(Self::CreakingHeartState),
+            "delay" => Some(Self::Delay),
+            "disarmed" => Some(Self::Disarmed),
+            "distance" => Some(Self::Distance),
+            "down" => Some(Self::Down),
+            "drag" => Some(Self::Drag),
+            "dusted" => Some(Self::Dusted),
+            "east" => Some(Self::East),
+            "eggs" => Some(Self::Eggs),
+            "enabled" => Some(Self::Enabled),
+            "extended" => Some(Self::Extended),
+            "eye" => Some(Self::Eye),
+            "face" => Some(Self::Face),
+            "facing" => Some(Self::Facing),
+            "falling" => Some(Self::Falling),
+            "flower_amount" => Some(Self::FlowerAmount),
+            "half" => Some(Self::Half),
+            "hanging" => Some(Self::Hanging),
+            "has_book" => Some(Self::HasBook),
+            "has_bottle_0" => Some(Self::HasBottle0),
+            "has_bottle_1" => Some(Self::HasBottle1),
+            "has_bottle_2" => Some(Self::HasBottle2),
+            "has_record" => Some(Self::HasRecord),
+            "hatch" => Some(Self::Hatch),
+            "hinge" => Some(Self::Hinge),
+            "honey_level" => Some(Self::HoneyLevel),
+            "hydration" => Some(Self::Hydration),
+            "in_wall" => Some(Self::InWall),
+            "instrument" => Some(Self::Instrument),
+            "inverted" => Some(Self::Inverted),
+            "layers" => Some(Self::Layers),
+            "leaves" => Some(Self::Leaves),
+            "level" => Some(Self::Level),
+            "lit" => Some(Self::Lit),
+            "locked" => Some(Self::Locked),
+            "map" => Some(Self::Map),
+            "mode" => Some(Self::Mode),
+            "moisture" => Some(Self::Moisture),
+            "natural" => Some(Self::Natural),
+            "north" => Some(Self::North),
+            "note" => Some(Self::Note),
+            "occupied" => Some(Self::Occupied),
+            "ominous" => Some(Self::Ominous),
+            "open" => Some(Self::Open),
+            "orientation" => Some(Self::Orientation),
+            "part" => Some(Self::Part),
+            "persistent" => Some(Self::Persistent),
+            "pickles" => Some(Self::Pickles),
+            "potent_sulfur_state" => Some(Self::PotentSulfurState),
+            "power" => Some(Self::Power),
+            "powered" => Some(Self::Powered),
+            "rotation" => Some(Self::Rotation),
+            "sculk_sensor_phase" => Some(Self::SculkSensorPhase),
+            "segment_amount" => Some(Self::SegmentAmount),
+            "shape" => Some(Self::Shape),
+            "short" => Some(Self::Short),
+            "shrieking" => Some(Self::Shrieking),
+            "side_chain" => Some(Self::SideChain),
+            "signal_fire" => Some(Self::SignalFire),
+            "slot_0_occupied" => Some(Self::Slot0Occupied),
+            "slot_1_occupied" => Some(Self::Slot1Occupied),
+            "slot_2_occupied" => Some(Self::Slot2Occupied),
+            "slot_3_occupied" => Some(Self::Slot3Occupied),
+            "slot_4_occupied" => Some(Self::Slot4Occupied),
+            "slot_5_occupied" => Some(Self::Slot5Occupied),
+            "snowy" => Some(Self::Snowy),
+            "south" => Some(Self::South),
+            "stage" => Some(Self::Stage),
+            "thickness" => Some(Self::Thickness),
+            "tilt" => Some(Self::Tilt),
+            "tip" => Some(Self::Tip),
+            "trial_spawner_state" => Some(Self::TrialSpawnerState),
+            "triggered" => Some(Self::Triggered),
+            "type" => Some(Self::Type),
+            "unstable" => Some(Self::Unstable),
+            "up" => Some(Self::Up),
+            "vault_state" => Some(Self::VaultState),
+            "vertical_direction" => Some(Self::VerticalDirection),
+            "waterlogged" => Some(Self::Waterlogged),
+            "west" => Some(Self::West),
+            _ => None,
+        }
+    }
+}
+impl AsRef<str> for PropertyKey {
+    fn as_ref(&self) -> &str {
+        self.to_str()
+    }
+}
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub enum Property {
+    Age(u8),
+    Attached(bool),
+    Attachment(BellAttachment),
+    Axis(Axis),
+    Berries(bool),
+    Bites(u8),
+    Bloom(bool),
+    Bottom(bool),
+    CanSummon(bool),
+    Candles(u8),
+    Charges(u8),
+    Conditional(bool),
+    CopperGolemPose(CopperGolemPose),
+    Cracked(bool),
+    Crafting(bool),
+    CreakingHeartState(CreakingHeartState),
+    Delay(u8),
+    Disarmed(bool),
+    Distance(u8),
+    Down(bool),
+    Drag(bool),
+    Dusted(u8),
+    East(bool),
+    EastRedstone(EastRedstone),
+    EastWall(EastWall),
+    Eggs(u8),
+    Enabled(bool),
+    Extended(bool),
+    Eye(bool),
+    Face(AttachFace),
+    Facing(Facing),
+    Falling(bool),
+    FlowerAmount(u8),
+    DoubleBlockHalf(DoubleBlockHalf),
+    Half(Half),
+    Hanging(bool),
+    HasBook(bool),
+    HasBottle0(bool),
+    HasBottle1(bool),
+    HasBottle2(bool),
+    HasRecord(bool),
+    Hatch(u8),
+    Hinge(DoorHinge),
+    HoneyLevel(u8),
+    Hydration(u8),
+    InWall(bool),
+    Instrument(NoteblockInstrument),
+    Inverted(bool),
+    Layers(u8),
+    Leaves(BambooLeaves),
+    Level(u8),
+    Lit(bool),
+    Locked(bool),
+    Map(bool),
+    ModeComparator(ModeComparator),
+    StructureblockMode(StructureblockMode),
+    TestBlockMode(TestBlockMode),
+    Moisture(u8),
+    Natural(bool),
+    North(bool),
+    NorthRedstone(NorthRedstone),
+    NorthWall(NorthWall),
+    Note(u8),
+    Occupied(bool),
+    Ominous(bool),
+    Open(bool),
+    Orientation(Orientation),
+    Part(BedPart),
+    Persistent(bool),
+    Pickles(u8),
+    PotentSulfurState(PotentSulfurState),
+    Power(u8),
+    Powered(bool),
+    Rotation(u8),
+    SculkSensorPhase(SculkSensorPhase),
+    SegmentAmount(u8),
+    RailShape(RailShape),
+    StairsShape(StairsShape),
+    Short(bool),
+    Shrieking(bool),
+    SideChain(SideChainPart),
+    SignalFire(bool),
+    Slot0Occupied(bool),
+    Slot1Occupied(bool),
+    Slot2Occupied(bool),
+    Slot3Occupied(bool),
+    Slot4Occupied(bool),
+    Slot5Occupied(bool),
+    Snowy(bool),
+    South(bool),
+    SouthRedstone(SouthRedstone),
+    SouthWall(SouthWall),
+    Stage(u8),
+    Thickness(SpeleothemThickness),
+    Tilt(Tilt),
+    Tip(bool),
+    TrialSpawnerState(TrialSpawnerState),
+    Triggered(bool),
+    ChestType(ChestType),
+    PistonType(PistonType),
+    SlabType(SlabType),
+    Unstable(bool),
+    Up(bool),
+    VaultState(VaultState),
+    VerticalDirection(VerticalDirection),
+    Waterlogged(bool),
+    West(bool),
+    WestRedstone(WestRedstone),
+    WestWall(WestWall),
+}
+impl Property {
+    #[must_use]
+    pub const fn key(self) -> PropertyKey {
+        match self {
+            Self::Age(_) => PropertyKey::Age,
+            Self::Attached(_) => PropertyKey::Attached,
+            Self::Attachment(_) => PropertyKey::Attachment,
+            Self::Axis(_) => PropertyKey::Axis,
+            Self::Berries(_) => PropertyKey::Berries,
+            Self::Bites(_) => PropertyKey::Bites,
+            Self::Bloom(_) => PropertyKey::Bloom,
+            Self::Bottom(_) => PropertyKey::Bottom,
+            Self::CanSummon(_) => PropertyKey::CanSummon,
+            Self::Candles(_) => PropertyKey::Candles,
+            Self::Charges(_) => PropertyKey::Charges,
+            Self::Conditional(_) => PropertyKey::Conditional,
+            Self::CopperGolemPose(_) => PropertyKey::CopperGolemPose,
+            Self::Cracked(_) => PropertyKey::Cracked,
+            Self::Crafting(_) => PropertyKey::Crafting,
+            Self::CreakingHeartState(_) => PropertyKey::CreakingHeartState,
+            Self::Delay(_) => PropertyKey::Delay,
+            Self::Disarmed(_) => PropertyKey::Disarmed,
+            Self::Distance(_) => PropertyKey::Distance,
+            Self::Down(_) => PropertyKey::Down,
+            Self::Drag(_) => PropertyKey::Drag,
+            Self::Dusted(_) => PropertyKey::Dusted,
+            Self::East(_) => PropertyKey::East,
+            Self::EastRedstone(_) => PropertyKey::East,
+            Self::EastWall(_) => PropertyKey::East,
+            Self::Eggs(_) => PropertyKey::Eggs,
+            Self::Enabled(_) => PropertyKey::Enabled,
+            Self::Extended(_) => PropertyKey::Extended,
+            Self::Eye(_) => PropertyKey::Eye,
+            Self::Face(_) => PropertyKey::Face,
+            Self::Facing(_) => PropertyKey::Facing,
+            Self::Falling(_) => PropertyKey::Falling,
+            Self::FlowerAmount(_) => PropertyKey::FlowerAmount,
+            Self::DoubleBlockHalf(_) => PropertyKey::Half,
+            Self::Half(_) => PropertyKey::Half,
+            Self::Hanging(_) => PropertyKey::Hanging,
+            Self::HasBook(_) => PropertyKey::HasBook,
+            Self::HasBottle0(_) => PropertyKey::HasBottle0,
+            Self::HasBottle1(_) => PropertyKey::HasBottle1,
+            Self::HasBottle2(_) => PropertyKey::HasBottle2,
+            Self::HasRecord(_) => PropertyKey::HasRecord,
+            Self::Hatch(_) => PropertyKey::Hatch,
+            Self::Hinge(_) => PropertyKey::Hinge,
+            Self::HoneyLevel(_) => PropertyKey::HoneyLevel,
+            Self::Hydration(_) => PropertyKey::Hydration,
+            Self::InWall(_) => PropertyKey::InWall,
+            Self::Instrument(_) => PropertyKey::Instrument,
+            Self::Inverted(_) => PropertyKey::Inverted,
+            Self::Layers(_) => PropertyKey::Layers,
+            Self::Leaves(_) => PropertyKey::Leaves,
+            Self::Level(_) => PropertyKey::Level,
+            Self::Lit(_) => PropertyKey::Lit,
+            Self::Locked(_) => PropertyKey::Locked,
+            Self::Map(_) => PropertyKey::Map,
+            Self::ModeComparator(_) => PropertyKey::Mode,
+            Self::StructureblockMode(_) => PropertyKey::Mode,
+            Self::TestBlockMode(_) => PropertyKey::Mode,
+            Self::Moisture(_) => PropertyKey::Moisture,
+            Self::Natural(_) => PropertyKey::Natural,
+            Self::North(_) => PropertyKey::North,
+            Self::NorthRedstone(_) => PropertyKey::North,
+            Self::NorthWall(_) => PropertyKey::North,
+            Self::Note(_) => PropertyKey::Note,
+            Self::Occupied(_) => PropertyKey::Occupied,
+            Self::Ominous(_) => PropertyKey::Ominous,
+            Self::Open(_) => PropertyKey::Open,
+            Self::Orientation(_) => PropertyKey::Orientation,
+            Self::Part(_) => PropertyKey::Part,
+            Self::Persistent(_) => PropertyKey::Persistent,
+            Self::Pickles(_) => PropertyKey::Pickles,
+            Self::PotentSulfurState(_) => PropertyKey::PotentSulfurState,
+            Self::Power(_) => PropertyKey::Power,
+            Self::Powered(_) => PropertyKey::Powered,
+            Self::Rotation(_) => PropertyKey::Rotation,
+            Self::SculkSensorPhase(_) => PropertyKey::SculkSensorPhase,
+            Self::SegmentAmount(_) => PropertyKey::SegmentAmount,
+            Self::RailShape(_) => PropertyKey::Shape,
+            Self::StairsShape(_) => PropertyKey::Shape,
+            Self::Short(_) => PropertyKey::Short,
+            Self::Shrieking(_) => PropertyKey::Shrieking,
+            Self::SideChain(_) => PropertyKey::SideChain,
+            Self::SignalFire(_) => PropertyKey::SignalFire,
+            Self::Slot0Occupied(_) => PropertyKey::Slot0Occupied,
+            Self::Slot1Occupied(_) => PropertyKey::Slot1Occupied,
+            Self::Slot2Occupied(_) => PropertyKey::Slot2Occupied,
+            Self::Slot3Occupied(_) => PropertyKey::Slot3Occupied,
+            Self::Slot4Occupied(_) => PropertyKey::Slot4Occupied,
+            Self::Slot5Occupied(_) => PropertyKey::Slot5Occupied,
+            Self::Snowy(_) => PropertyKey::Snowy,
+            Self::South(_) => PropertyKey::South,
+            Self::SouthRedstone(_) => PropertyKey::South,
+            Self::SouthWall(_) => PropertyKey::South,
+            Self::Stage(_) => PropertyKey::Stage,
+            Self::Thickness(_) => PropertyKey::Thickness,
+            Self::Tilt(_) => PropertyKey::Tilt,
+            Self::Tip(_) => PropertyKey::Tip,
+            Self::TrialSpawnerState(_) => PropertyKey::TrialSpawnerState,
+            Self::Triggered(_) => PropertyKey::Triggered,
+            Self::ChestType(_) => PropertyKey::Type,
+            Self::PistonType(_) => PropertyKey::Type,
+            Self::SlabType(_) => PropertyKey::Type,
+            Self::Unstable(_) => PropertyKey::Unstable,
+            Self::Up(_) => PropertyKey::Up,
+            Self::VaultState(_) => PropertyKey::VaultState,
+            Self::VerticalDirection(_) => PropertyKey::VerticalDirection,
+            Self::Waterlogged(_) => PropertyKey::Waterlogged,
+            Self::West(_) => PropertyKey::West,
+            Self::WestRedstone(_) => PropertyKey::West,
+            Self::WestWall(_) => PropertyKey::West,
+        }
+    }
+    #[must_use]
+    pub const fn key_str(self) -> &'static str {
+        self.key().to_str()
+    }
+    #[must_use]
+    pub const fn value_str(self) -> &'static str {
+        const INT_STRS: [&str; 26] = [
+            "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15",
+            "16", "17", "18", "19", "20", "21", "22", "23", "24", "25",
+        ];
+        match self {
+            Self::Age(v) => {
+                if (v as usize) < INT_STRS.len() {
+                    INT_STRS[v as usize]
+                } else {
+                    "0"
+                }
+            }
+            Self::Attached(v) => {
+                if v {
+                    "true"
+                } else {
+                    "false"
+                }
+            }
+            Self::Attachment(v) => v.to_value(),
+            Self::Axis(v) => v.to_value(),
+            Self::Berries(v) => {
+                if v {
+                    "true"
+                } else {
+                    "false"
+                }
+            }
+            Self::Bites(v) => {
+                if (v as usize) < INT_STRS.len() {
+                    INT_STRS[v as usize]
+                } else {
+                    "0"
+                }
+            }
+            Self::Bloom(v) => {
+                if v {
+                    "true"
+                } else {
+                    "false"
+                }
+            }
+            Self::Bottom(v) => {
+                if v {
+                    "true"
+                } else {
+                    "false"
+                }
+            }
+            Self::CanSummon(v) => {
+                if v {
+                    "true"
+                } else {
+                    "false"
+                }
+            }
+            Self::Candles(v) => {
+                if (v as usize) < INT_STRS.len() {
+                    INT_STRS[v as usize]
+                } else {
+                    "0"
+                }
+            }
+            Self::Charges(v) => {
+                if (v as usize) < INT_STRS.len() {
+                    INT_STRS[v as usize]
+                } else {
+                    "0"
+                }
+            }
+            Self::Conditional(v) => {
+                if v {
+                    "true"
+                } else {
+                    "false"
+                }
+            }
+            Self::CopperGolemPose(v) => v.to_value(),
+            Self::Cracked(v) => {
+                if v {
+                    "true"
+                } else {
+                    "false"
+                }
+            }
+            Self::Crafting(v) => {
+                if v {
+                    "true"
+                } else {
+                    "false"
+                }
+            }
+            Self::CreakingHeartState(v) => v.to_value(),
+            Self::Delay(v) => {
+                if (v as usize) < INT_STRS.len() {
+                    INT_STRS[v as usize]
+                } else {
+                    "0"
+                }
+            }
+            Self::Disarmed(v) => {
+                if v {
+                    "true"
+                } else {
+                    "false"
+                }
+            }
+            Self::Distance(v) => {
+                if (v as usize) < INT_STRS.len() {
+                    INT_STRS[v as usize]
+                } else {
+                    "0"
+                }
+            }
+            Self::Down(v) => {
+                if v {
+                    "true"
+                } else {
+                    "false"
+                }
+            }
+            Self::Drag(v) => {
+                if v {
+                    "true"
+                } else {
+                    "false"
+                }
+            }
+            Self::Dusted(v) => {
+                if (v as usize) < INT_STRS.len() {
+                    INT_STRS[v as usize]
+                } else {
+                    "0"
+                }
+            }
+            Self::East(v) => {
+                if v {
+                    "true"
+                } else {
+                    "false"
+                }
+            }
+            Self::EastRedstone(v) => v.to_value(),
+            Self::EastWall(v) => v.to_value(),
+            Self::Eggs(v) => {
+                if (v as usize) < INT_STRS.len() {
+                    INT_STRS[v as usize]
+                } else {
+                    "0"
+                }
+            }
+            Self::Enabled(v) => {
+                if v {
+                    "true"
+                } else {
+                    "false"
+                }
+            }
+            Self::Extended(v) => {
+                if v {
+                    "true"
+                } else {
+                    "false"
+                }
+            }
+            Self::Eye(v) => {
+                if v {
+                    "true"
+                } else {
+                    "false"
+                }
+            }
+            Self::Face(v) => v.to_value(),
+            Self::Facing(v) => v.to_value(),
+            Self::Falling(v) => {
+                if v {
+                    "true"
+                } else {
+                    "false"
+                }
+            }
+            Self::FlowerAmount(v) => {
+                if (v as usize) < INT_STRS.len() {
+                    INT_STRS[v as usize]
+                } else {
+                    "0"
+                }
+            }
+            Self::DoubleBlockHalf(v) => v.to_value(),
+            Self::Half(v) => v.to_value(),
+            Self::Hanging(v) => {
+                if v {
+                    "true"
+                } else {
+                    "false"
+                }
+            }
+            Self::HasBook(v) => {
+                if v {
+                    "true"
+                } else {
+                    "false"
+                }
+            }
+            Self::HasBottle0(v) => {
+                if v {
+                    "true"
+                } else {
+                    "false"
+                }
+            }
+            Self::HasBottle1(v) => {
+                if v {
+                    "true"
+                } else {
+                    "false"
+                }
+            }
+            Self::HasBottle2(v) => {
+                if v {
+                    "true"
+                } else {
+                    "false"
+                }
+            }
+            Self::HasRecord(v) => {
+                if v {
+                    "true"
+                } else {
+                    "false"
+                }
+            }
+            Self::Hatch(v) => {
+                if (v as usize) < INT_STRS.len() {
+                    INT_STRS[v as usize]
+                } else {
+                    "0"
+                }
+            }
+            Self::Hinge(v) => v.to_value(),
+            Self::HoneyLevel(v) => {
+                if (v as usize) < INT_STRS.len() {
+                    INT_STRS[v as usize]
+                } else {
+                    "0"
+                }
+            }
+            Self::Hydration(v) => {
+                if (v as usize) < INT_STRS.len() {
+                    INT_STRS[v as usize]
+                } else {
+                    "0"
+                }
+            }
+            Self::InWall(v) => {
+                if v {
+                    "true"
+                } else {
+                    "false"
+                }
+            }
+            Self::Instrument(v) => v.to_value(),
+            Self::Inverted(v) => {
+                if v {
+                    "true"
+                } else {
+                    "false"
+                }
+            }
+            Self::Layers(v) => {
+                if (v as usize) < INT_STRS.len() {
+                    INT_STRS[v as usize]
+                } else {
+                    "0"
+                }
+            }
+            Self::Leaves(v) => v.to_value(),
+            Self::Level(v) => {
+                if (v as usize) < INT_STRS.len() {
+                    INT_STRS[v as usize]
+                } else {
+                    "0"
+                }
+            }
+            Self::Lit(v) => {
+                if v {
+                    "true"
+                } else {
+                    "false"
+                }
+            }
+            Self::Locked(v) => {
+                if v {
+                    "true"
+                } else {
+                    "false"
+                }
+            }
+            Self::Map(v) => {
+                if v {
+                    "true"
+                } else {
+                    "false"
+                }
+            }
+            Self::ModeComparator(v) => v.to_value(),
+            Self::StructureblockMode(v) => v.to_value(),
+            Self::TestBlockMode(v) => v.to_value(),
+            Self::Moisture(v) => {
+                if (v as usize) < INT_STRS.len() {
+                    INT_STRS[v as usize]
+                } else {
+                    "0"
+                }
+            }
+            Self::Natural(v) => {
+                if v {
+                    "true"
+                } else {
+                    "false"
+                }
+            }
+            Self::North(v) => {
+                if v {
+                    "true"
+                } else {
+                    "false"
+                }
+            }
+            Self::NorthRedstone(v) => v.to_value(),
+            Self::NorthWall(v) => v.to_value(),
+            Self::Note(v) => {
+                if (v as usize) < INT_STRS.len() {
+                    INT_STRS[v as usize]
+                } else {
+                    "0"
+                }
+            }
+            Self::Occupied(v) => {
+                if v {
+                    "true"
+                } else {
+                    "false"
+                }
+            }
+            Self::Ominous(v) => {
+                if v {
+                    "true"
+                } else {
+                    "false"
+                }
+            }
+            Self::Open(v) => {
+                if v {
+                    "true"
+                } else {
+                    "false"
+                }
+            }
+            Self::Orientation(v) => v.to_value(),
+            Self::Part(v) => v.to_value(),
+            Self::Persistent(v) => {
+                if v {
+                    "true"
+                } else {
+                    "false"
+                }
+            }
+            Self::Pickles(v) => {
+                if (v as usize) < INT_STRS.len() {
+                    INT_STRS[v as usize]
+                } else {
+                    "0"
+                }
+            }
+            Self::PotentSulfurState(v) => v.to_value(),
+            Self::Power(v) => {
+                if (v as usize) < INT_STRS.len() {
+                    INT_STRS[v as usize]
+                } else {
+                    "0"
+                }
+            }
+            Self::Powered(v) => {
+                if v {
+                    "true"
+                } else {
+                    "false"
+                }
+            }
+            Self::Rotation(v) => {
+                if (v as usize) < INT_STRS.len() {
+                    INT_STRS[v as usize]
+                } else {
+                    "0"
+                }
+            }
+            Self::SculkSensorPhase(v) => v.to_value(),
+            Self::SegmentAmount(v) => {
+                if (v as usize) < INT_STRS.len() {
+                    INT_STRS[v as usize]
+                } else {
+                    "0"
+                }
+            }
+            Self::RailShape(v) => v.to_value(),
+            Self::StairsShape(v) => v.to_value(),
+            Self::Short(v) => {
+                if v {
+                    "true"
+                } else {
+                    "false"
+                }
+            }
+            Self::Shrieking(v) => {
+                if v {
+                    "true"
+                } else {
+                    "false"
+                }
+            }
+            Self::SideChain(v) => v.to_value(),
+            Self::SignalFire(v) => {
+                if v {
+                    "true"
+                } else {
+                    "false"
+                }
+            }
+            Self::Slot0Occupied(v) => {
+                if v {
+                    "true"
+                } else {
+                    "false"
+                }
+            }
+            Self::Slot1Occupied(v) => {
+                if v {
+                    "true"
+                } else {
+                    "false"
+                }
+            }
+            Self::Slot2Occupied(v) => {
+                if v {
+                    "true"
+                } else {
+                    "false"
+                }
+            }
+            Self::Slot3Occupied(v) => {
+                if v {
+                    "true"
+                } else {
+                    "false"
+                }
+            }
+            Self::Slot4Occupied(v) => {
+                if v {
+                    "true"
+                } else {
+                    "false"
+                }
+            }
+            Self::Slot5Occupied(v) => {
+                if v {
+                    "true"
+                } else {
+                    "false"
+                }
+            }
+            Self::Snowy(v) => {
+                if v {
+                    "true"
+                } else {
+                    "false"
+                }
+            }
+            Self::South(v) => {
+                if v {
+                    "true"
+                } else {
+                    "false"
+                }
+            }
+            Self::SouthRedstone(v) => v.to_value(),
+            Self::SouthWall(v) => v.to_value(),
+            Self::Stage(v) => {
+                if (v as usize) < INT_STRS.len() {
+                    INT_STRS[v as usize]
+                } else {
+                    "0"
+                }
+            }
+            Self::Thickness(v) => v.to_value(),
+            Self::Tilt(v) => v.to_value(),
+            Self::Tip(v) => {
+                if v {
+                    "true"
+                } else {
+                    "false"
+                }
+            }
+            Self::TrialSpawnerState(v) => v.to_value(),
+            Self::Triggered(v) => {
+                if v {
+                    "true"
+                } else {
+                    "false"
+                }
+            }
+            Self::ChestType(v) => v.to_value(),
+            Self::PistonType(v) => v.to_value(),
+            Self::SlabType(v) => v.to_value(),
+            Self::Unstable(v) => {
+                if v {
+                    "true"
+                } else {
+                    "false"
+                }
+            }
+            Self::Up(v) => {
+                if v {
+                    "true"
+                } else {
+                    "false"
+                }
+            }
+            Self::VaultState(v) => v.to_value(),
+            Self::VerticalDirection(v) => v.to_value(),
+            Self::Waterlogged(v) => {
+                if v {
+                    "true"
+                } else {
+                    "false"
+                }
+            }
+            Self::West(v) => {
+                if v {
+                    "true"
+                } else {
+                    "false"
+                }
+            }
+            Self::WestRedstone(v) => v.to_value(),
+            Self::WestWall(v) => v.to_value(),
+        }
+    }
+    #[must_use]
+    pub const fn from_key_and_int(key: PropertyKey, value: u8) -> Option<Self> {
+        match key {
+            PropertyKey::Age => Some(Self::Age(value)),
+            PropertyKey::Bites => Some(Self::Bites(value)),
+            PropertyKey::Candles => Some(Self::Candles(value)),
+            PropertyKey::Charges => Some(Self::Charges(value)),
+            PropertyKey::Delay => Some(Self::Delay(value)),
+            PropertyKey::Distance => Some(Self::Distance(value)),
+            PropertyKey::Dusted => Some(Self::Dusted(value)),
+            PropertyKey::Eggs => Some(Self::Eggs(value)),
+            PropertyKey::FlowerAmount => Some(Self::FlowerAmount(value)),
+            PropertyKey::Hatch => Some(Self::Hatch(value)),
+            PropertyKey::HoneyLevel => Some(Self::HoneyLevel(value)),
+            PropertyKey::Hydration => Some(Self::Hydration(value)),
+            PropertyKey::Layers => Some(Self::Layers(value)),
+            PropertyKey::Level => Some(Self::Level(value)),
+            PropertyKey::Moisture => Some(Self::Moisture(value)),
+            PropertyKey::Note => Some(Self::Note(value)),
+            PropertyKey::Pickles => Some(Self::Pickles(value)),
+            PropertyKey::Power => Some(Self::Power(value)),
+            PropertyKey::Rotation => Some(Self::Rotation(value)),
+            PropertyKey::SegmentAmount => Some(Self::SegmentAmount(value)),
+            PropertyKey::Stage => Some(Self::Stage(value)),
+            _ => None,
+        }
+    }
+    #[must_use]
+    pub fn from_key_value_str(key: PropertyKey, value: &str) -> Option<Self> {
+        match key {
+            PropertyKey::Age => value.parse::<u8>().ok().map(Self::Age),
+            PropertyKey::Attached => match value {
+                "true" => Some(Self::Attached(true)),
+                "false" => Some(Self::Attached(false)),
+                _ => None,
+            },
+            PropertyKey::Attachment => match value {
+                "floor" => Some(Self::Attachment(BellAttachment::Floor)),
+                "ceiling" => Some(Self::Attachment(BellAttachment::Ceiling)),
+                "single_wall" => Some(Self::Attachment(BellAttachment::SingleWall)),
+                "double_wall" => Some(Self::Attachment(BellAttachment::DoubleWall)),
+                _ => None,
+            },
+            PropertyKey::Axis => match value {
+                "x" => Some(Self::Axis(Axis::X)),
+                "y" => Some(Self::Axis(Axis::Y)),
+                "z" => Some(Self::Axis(Axis::Z)),
+                _ => None,
+            },
+            PropertyKey::Berries => match value {
+                "true" => Some(Self::Berries(true)),
+                "false" => Some(Self::Berries(false)),
+                _ => None,
+            },
+            PropertyKey::Bites => value.parse::<u8>().ok().map(Self::Bites),
+            PropertyKey::Bloom => match value {
+                "true" => Some(Self::Bloom(true)),
+                "false" => Some(Self::Bloom(false)),
+                _ => None,
+            },
+            PropertyKey::Bottom => match value {
+                "true" => Some(Self::Bottom(true)),
+                "false" => Some(Self::Bottom(false)),
+                _ => None,
+            },
+            PropertyKey::CanSummon => match value {
+                "true" => Some(Self::CanSummon(true)),
+                "false" => Some(Self::CanSummon(false)),
+                _ => None,
+            },
+            PropertyKey::Candles => value.parse::<u8>().ok().map(Self::Candles),
+            PropertyKey::Charges => value.parse::<u8>().ok().map(Self::Charges),
+            PropertyKey::Conditional => match value {
+                "true" => Some(Self::Conditional(true)),
+                "false" => Some(Self::Conditional(false)),
+                _ => None,
+            },
+            PropertyKey::CopperGolemPose => match value {
+                "standing" => Some(Self::CopperGolemPose(CopperGolemPose::Standing)),
+                "sitting" => Some(Self::CopperGolemPose(CopperGolemPose::Sitting)),
+                "running" => Some(Self::CopperGolemPose(CopperGolemPose::Running)),
+                "star" => Some(Self::CopperGolemPose(CopperGolemPose::Star)),
+                _ => None,
+            },
+            PropertyKey::Cracked => match value {
+                "true" => Some(Self::Cracked(true)),
+                "false" => Some(Self::Cracked(false)),
+                _ => None,
+            },
+            PropertyKey::Crafting => match value {
+                "true" => Some(Self::Crafting(true)),
+                "false" => Some(Self::Crafting(false)),
+                _ => None,
+            },
+            PropertyKey::CreakingHeartState => match value {
+                "uprooted" => Some(Self::CreakingHeartState(CreakingHeartState::Uprooted)),
+                "dormant" => Some(Self::CreakingHeartState(CreakingHeartState::Dormant)),
+                "awake" => Some(Self::CreakingHeartState(CreakingHeartState::Awake)),
+                _ => None,
+            },
+            PropertyKey::Delay => value.parse::<u8>().ok().map(Self::Delay),
+            PropertyKey::Disarmed => match value {
+                "true" => Some(Self::Disarmed(true)),
+                "false" => Some(Self::Disarmed(false)),
+                _ => None,
+            },
+            PropertyKey::Distance => value.parse::<u8>().ok().map(Self::Distance),
+            PropertyKey::Down => match value {
+                "true" => Some(Self::Down(true)),
+                "false" => Some(Self::Down(false)),
+                _ => None,
+            },
+            PropertyKey::Drag => match value {
+                "true" => Some(Self::Drag(true)),
+                "false" => Some(Self::Drag(false)),
+                _ => None,
+            },
+            PropertyKey::Dusted => value.parse::<u8>().ok().map(Self::Dusted),
+            PropertyKey::East => match value {
+                "true" => Some(Self::East(true)),
+                "false" => Some(Self::East(false)),
+                "up" => Some(Self::EastRedstone(EastRedstone::Up)),
+                "side" => Some(Self::EastRedstone(EastRedstone::Side)),
+                "none" => Some(Self::EastRedstone(EastRedstone::None)),
+                "low" => Some(Self::EastWall(EastWall::Low)),
+                "tall" => Some(Self::EastWall(EastWall::Tall)),
+                _ => None,
+            },
+            PropertyKey::Eggs => value.parse::<u8>().ok().map(Self::Eggs),
+            PropertyKey::Enabled => match value {
+                "true" => Some(Self::Enabled(true)),
+                "false" => Some(Self::Enabled(false)),
+                _ => None,
+            },
+            PropertyKey::Extended => match value {
+                "true" => Some(Self::Extended(true)),
+                "false" => Some(Self::Extended(false)),
+                _ => None,
+            },
+            PropertyKey::Eye => match value {
+                "true" => Some(Self::Eye(true)),
+                "false" => Some(Self::Eye(false)),
+                _ => None,
+            },
+            PropertyKey::Face => match value {
+                "floor" => Some(Self::Face(AttachFace::Floor)),
+                "wall" => Some(Self::Face(AttachFace::Wall)),
+                "ceiling" => Some(Self::Face(AttachFace::Ceiling)),
+                _ => None,
+            },
+            PropertyKey::Facing => match value {
+                "north" => Some(Self::Facing(Facing::North)),
+                "east" => Some(Self::Facing(Facing::East)),
+                "south" => Some(Self::Facing(Facing::South)),
+                "west" => Some(Self::Facing(Facing::West)),
+                "up" => Some(Self::Facing(Facing::Up)),
+                "down" => Some(Self::Facing(Facing::Down)),
+                _ => None,
+            },
+            PropertyKey::Falling => match value {
+                "true" => Some(Self::Falling(true)),
+                "false" => Some(Self::Falling(false)),
+                _ => None,
+            },
+            PropertyKey::FlowerAmount => value.parse::<u8>().ok().map(Self::FlowerAmount),
+            PropertyKey::Half => match value {
+                "upper" => Some(Self::DoubleBlockHalf(DoubleBlockHalf::Upper)),
+                "lower" => Some(Self::DoubleBlockHalf(DoubleBlockHalf::Lower)),
+                "top" => Some(Self::Half(Half::Top)),
+                "bottom" => Some(Self::Half(Half::Bottom)),
+                _ => None,
+            },
+            PropertyKey::Hanging => match value {
+                "true" => Some(Self::Hanging(true)),
+                "false" => Some(Self::Hanging(false)),
+                _ => None,
+            },
+            PropertyKey::HasBook => match value {
+                "true" => Some(Self::HasBook(true)),
+                "false" => Some(Self::HasBook(false)),
+                _ => None,
+            },
+            PropertyKey::HasBottle0 => match value {
+                "true" => Some(Self::HasBottle0(true)),
+                "false" => Some(Self::HasBottle0(false)),
+                _ => None,
+            },
+            PropertyKey::HasBottle1 => match value {
+                "true" => Some(Self::HasBottle1(true)),
+                "false" => Some(Self::HasBottle1(false)),
+                _ => None,
+            },
+            PropertyKey::HasBottle2 => match value {
+                "true" => Some(Self::HasBottle2(true)),
+                "false" => Some(Self::HasBottle2(false)),
+                _ => None,
+            },
+            PropertyKey::HasRecord => match value {
+                "true" => Some(Self::HasRecord(true)),
+                "false" => Some(Self::HasRecord(false)),
+                _ => None,
+            },
+            PropertyKey::Hatch => value.parse::<u8>().ok().map(Self::Hatch),
+            PropertyKey::Hinge => match value {
+                "left" => Some(Self::Hinge(DoorHinge::Left)),
+                "right" => Some(Self::Hinge(DoorHinge::Right)),
+                _ => None,
+            },
+            PropertyKey::HoneyLevel => value.parse::<u8>().ok().map(Self::HoneyLevel),
+            PropertyKey::Hydration => value.parse::<u8>().ok().map(Self::Hydration),
+            PropertyKey::InWall => match value {
+                "true" => Some(Self::InWall(true)),
+                "false" => Some(Self::InWall(false)),
+                _ => None,
+            },
+            PropertyKey::Instrument => match value {
+                "harp" => Some(Self::Instrument(NoteblockInstrument::Harp)),
+                "basedrum" => Some(Self::Instrument(NoteblockInstrument::Basedrum)),
+                "snare" => Some(Self::Instrument(NoteblockInstrument::Snare)),
+                "hat" => Some(Self::Instrument(NoteblockInstrument::Hat)),
+                "bass" => Some(Self::Instrument(NoteblockInstrument::Bass)),
+                "flute" => Some(Self::Instrument(NoteblockInstrument::Flute)),
+                "bell" => Some(Self::Instrument(NoteblockInstrument::Bell)),
+                "guitar" => Some(Self::Instrument(NoteblockInstrument::Guitar)),
+                "chime" => Some(Self::Instrument(NoteblockInstrument::Chime)),
+                "xylophone" => Some(Self::Instrument(NoteblockInstrument::Xylophone)),
+                "iron_xylophone" => Some(Self::Instrument(NoteblockInstrument::IronXylophone)),
+                "cow_bell" => Some(Self::Instrument(NoteblockInstrument::CowBell)),
+                "didgeridoo" => Some(Self::Instrument(NoteblockInstrument::Didgeridoo)),
+                "bit" => Some(Self::Instrument(NoteblockInstrument::Bit)),
+                "banjo" => Some(Self::Instrument(NoteblockInstrument::Banjo)),
+                "pling" => Some(Self::Instrument(NoteblockInstrument::Pling)),
+                "trumpet" => Some(Self::Instrument(NoteblockInstrument::Trumpet)),
+                "trumpet_exposed" => Some(Self::Instrument(NoteblockInstrument::TrumpetExposed)),
+                "trumpet_oxidized" => Some(Self::Instrument(NoteblockInstrument::TrumpetOxidized)),
+                "trumpet_weathered" => {
+                    Some(Self::Instrument(NoteblockInstrument::TrumpetWeathered))
+                }
+                "zombie" => Some(Self::Instrument(NoteblockInstrument::Zombie)),
+                "skeleton" => Some(Self::Instrument(NoteblockInstrument::Skeleton)),
+                "creeper" => Some(Self::Instrument(NoteblockInstrument::Creeper)),
+                "dragon" => Some(Self::Instrument(NoteblockInstrument::Dragon)),
+                "wither_skeleton" => Some(Self::Instrument(NoteblockInstrument::WitherSkeleton)),
+                "piglin" => Some(Self::Instrument(NoteblockInstrument::Piglin)),
+                "custom_head" => Some(Self::Instrument(NoteblockInstrument::CustomHead)),
+                _ => None,
+            },
+            PropertyKey::Inverted => match value {
+                "true" => Some(Self::Inverted(true)),
+                "false" => Some(Self::Inverted(false)),
+                _ => None,
+            },
+            PropertyKey::Layers => value.parse::<u8>().ok().map(Self::Layers),
+            PropertyKey::Leaves => match value {
+                "none" => Some(Self::Leaves(BambooLeaves::None)),
+                "small" => Some(Self::Leaves(BambooLeaves::Small)),
+                "large" => Some(Self::Leaves(BambooLeaves::Large)),
+                _ => None,
+            },
+            PropertyKey::Level => value.parse::<u8>().ok().map(Self::Level),
+            PropertyKey::Lit => match value {
+                "true" => Some(Self::Lit(true)),
+                "false" => Some(Self::Lit(false)),
+                _ => None,
+            },
+            PropertyKey::Locked => match value {
+                "true" => Some(Self::Locked(true)),
+                "false" => Some(Self::Locked(false)),
+                _ => None,
+            },
+            PropertyKey::Map => match value {
+                "true" => Some(Self::Map(true)),
+                "false" => Some(Self::Map(false)),
+                _ => None,
+            },
+            PropertyKey::Mode => match value {
+                "compare" => Some(Self::ModeComparator(ModeComparator::Compare)),
+                "subtract" => Some(Self::ModeComparator(ModeComparator::Subtract)),
+                "save" => Some(Self::StructureblockMode(StructureblockMode::Save)),
+                "load" => Some(Self::StructureblockMode(StructureblockMode::Load)),
+                "corner" => Some(Self::StructureblockMode(StructureblockMode::Corner)),
+                "data" => Some(Self::StructureblockMode(StructureblockMode::Data)),
+                "start" => Some(Self::TestBlockMode(TestBlockMode::Start)),
+                "log" => Some(Self::TestBlockMode(TestBlockMode::Log)),
+                "fail" => Some(Self::TestBlockMode(TestBlockMode::Fail)),
+                "accept" => Some(Self::TestBlockMode(TestBlockMode::Accept)),
+                _ => None,
+            },
+            PropertyKey::Moisture => value.parse::<u8>().ok().map(Self::Moisture),
+            PropertyKey::Natural => match value {
+                "true" => Some(Self::Natural(true)),
+                "false" => Some(Self::Natural(false)),
+                _ => None,
+            },
+            PropertyKey::North => match value {
+                "true" => Some(Self::North(true)),
+                "false" => Some(Self::North(false)),
+                "up" => Some(Self::NorthRedstone(NorthRedstone::Up)),
+                "side" => Some(Self::NorthRedstone(NorthRedstone::Side)),
+                "none" => Some(Self::NorthRedstone(NorthRedstone::None)),
+                "low" => Some(Self::NorthWall(NorthWall::Low)),
+                "tall" => Some(Self::NorthWall(NorthWall::Tall)),
+                _ => None,
+            },
+            PropertyKey::Note => value.parse::<u8>().ok().map(Self::Note),
+            PropertyKey::Occupied => match value {
+                "true" => Some(Self::Occupied(true)),
+                "false" => Some(Self::Occupied(false)),
+                _ => None,
+            },
+            PropertyKey::Ominous => match value {
+                "true" => Some(Self::Ominous(true)),
+                "false" => Some(Self::Ominous(false)),
+                _ => None,
+            },
+            PropertyKey::Open => match value {
+                "true" => Some(Self::Open(true)),
+                "false" => Some(Self::Open(false)),
+                _ => None,
+            },
+            PropertyKey::Orientation => match value {
+                "down_east" => Some(Self::Orientation(Orientation::DownEast)),
+                "down_north" => Some(Self::Orientation(Orientation::DownNorth)),
+                "down_south" => Some(Self::Orientation(Orientation::DownSouth)),
+                "down_west" => Some(Self::Orientation(Orientation::DownWest)),
+                "up_east" => Some(Self::Orientation(Orientation::UpEast)),
+                "up_north" => Some(Self::Orientation(Orientation::UpNorth)),
+                "up_south" => Some(Self::Orientation(Orientation::UpSouth)),
+                "up_west" => Some(Self::Orientation(Orientation::UpWest)),
+                "west_up" => Some(Self::Orientation(Orientation::WestUp)),
+                "east_up" => Some(Self::Orientation(Orientation::EastUp)),
+                "north_up" => Some(Self::Orientation(Orientation::NorthUp)),
+                "south_up" => Some(Self::Orientation(Orientation::SouthUp)),
+                _ => None,
+            },
+            PropertyKey::Part => match value {
+                "head" => Some(Self::Part(BedPart::Head)),
+                "foot" => Some(Self::Part(BedPart::Foot)),
+                _ => None,
+            },
+            PropertyKey::Persistent => match value {
+                "true" => Some(Self::Persistent(true)),
+                "false" => Some(Self::Persistent(false)),
+                _ => None,
+            },
+            PropertyKey::Pickles => value.parse::<u8>().ok().map(Self::Pickles),
+            PropertyKey::PotentSulfurState => match value {
+                "dry" => Some(Self::PotentSulfurState(PotentSulfurState::Dry)),
+                "wet" => Some(Self::PotentSulfurState(PotentSulfurState::Wet)),
+                "dormant" => Some(Self::PotentSulfurState(PotentSulfurState::Dormant)),
+                "erupting" => Some(Self::PotentSulfurState(PotentSulfurState::Erupting)),
+                "continuous" => Some(Self::PotentSulfurState(PotentSulfurState::Continuous)),
+                _ => None,
+            },
+            PropertyKey::Power => value.parse::<u8>().ok().map(Self::Power),
+            PropertyKey::Powered => match value {
+                "true" => Some(Self::Powered(true)),
+                "false" => Some(Self::Powered(false)),
+                _ => None,
+            },
+            PropertyKey::Rotation => value.parse::<u8>().ok().map(Self::Rotation),
+            PropertyKey::SculkSensorPhase => match value {
+                "inactive" => Some(Self::SculkSensorPhase(SculkSensorPhase::Inactive)),
+                "active" => Some(Self::SculkSensorPhase(SculkSensorPhase::Active)),
+                "cooldown" => Some(Self::SculkSensorPhase(SculkSensorPhase::Cooldown)),
+                _ => None,
+            },
+            PropertyKey::SegmentAmount => value.parse::<u8>().ok().map(Self::SegmentAmount),
+            PropertyKey::Shape => match value {
+                "north_south" => Some(Self::RailShape(RailShape::NorthSouth)),
+                "east_west" => Some(Self::RailShape(RailShape::EastWest)),
+                "ascending_east" => Some(Self::RailShape(RailShape::AscendingEast)),
+                "ascending_west" => Some(Self::RailShape(RailShape::AscendingWest)),
+                "ascending_north" => Some(Self::RailShape(RailShape::AscendingNorth)),
+                "ascending_south" => Some(Self::RailShape(RailShape::AscendingSouth)),
+                "south_east" => Some(Self::RailShape(RailShape::SouthEast)),
+                "south_west" => Some(Self::RailShape(RailShape::SouthWest)),
+                "north_west" => Some(Self::RailShape(RailShape::NorthWest)),
+                "north_east" => Some(Self::RailShape(RailShape::NorthEast)),
+                "straight" => Some(Self::StairsShape(StairsShape::Straight)),
+                "inner_left" => Some(Self::StairsShape(StairsShape::InnerLeft)),
+                "inner_right" => Some(Self::StairsShape(StairsShape::InnerRight)),
+                "outer_left" => Some(Self::StairsShape(StairsShape::OuterLeft)),
+                "outer_right" => Some(Self::StairsShape(StairsShape::OuterRight)),
+                _ => None,
+            },
+            PropertyKey::Short => match value {
+                "true" => Some(Self::Short(true)),
+                "false" => Some(Self::Short(false)),
+                _ => None,
+            },
+            PropertyKey::Shrieking => match value {
+                "true" => Some(Self::Shrieking(true)),
+                "false" => Some(Self::Shrieking(false)),
+                _ => None,
+            },
+            PropertyKey::SideChain => match value {
+                "unconnected" => Some(Self::SideChain(SideChainPart::Unconnected)),
+                "right" => Some(Self::SideChain(SideChainPart::Right)),
+                "center" => Some(Self::SideChain(SideChainPart::Center)),
+                "left" => Some(Self::SideChain(SideChainPart::Left)),
+                _ => None,
+            },
+            PropertyKey::SignalFire => match value {
+                "true" => Some(Self::SignalFire(true)),
+                "false" => Some(Self::SignalFire(false)),
+                _ => None,
+            },
+            PropertyKey::Slot0Occupied => match value {
+                "true" => Some(Self::Slot0Occupied(true)),
+                "false" => Some(Self::Slot0Occupied(false)),
+                _ => None,
+            },
+            PropertyKey::Slot1Occupied => match value {
+                "true" => Some(Self::Slot1Occupied(true)),
+                "false" => Some(Self::Slot1Occupied(false)),
+                _ => None,
+            },
+            PropertyKey::Slot2Occupied => match value {
+                "true" => Some(Self::Slot2Occupied(true)),
+                "false" => Some(Self::Slot2Occupied(false)),
+                _ => None,
+            },
+            PropertyKey::Slot3Occupied => match value {
+                "true" => Some(Self::Slot3Occupied(true)),
+                "false" => Some(Self::Slot3Occupied(false)),
+                _ => None,
+            },
+            PropertyKey::Slot4Occupied => match value {
+                "true" => Some(Self::Slot4Occupied(true)),
+                "false" => Some(Self::Slot4Occupied(false)),
+                _ => None,
+            },
+            PropertyKey::Slot5Occupied => match value {
+                "true" => Some(Self::Slot5Occupied(true)),
+                "false" => Some(Self::Slot5Occupied(false)),
+                _ => None,
+            },
+            PropertyKey::Snowy => match value {
+                "true" => Some(Self::Snowy(true)),
+                "false" => Some(Self::Snowy(false)),
+                _ => None,
+            },
+            PropertyKey::South => match value {
+                "true" => Some(Self::South(true)),
+                "false" => Some(Self::South(false)),
+                "up" => Some(Self::SouthRedstone(SouthRedstone::Up)),
+                "side" => Some(Self::SouthRedstone(SouthRedstone::Side)),
+                "none" => Some(Self::SouthRedstone(SouthRedstone::None)),
+                "low" => Some(Self::SouthWall(SouthWall::Low)),
+                "tall" => Some(Self::SouthWall(SouthWall::Tall)),
+                _ => None,
+            },
+            PropertyKey::Stage => value.parse::<u8>().ok().map(Self::Stage),
+            PropertyKey::Thickness => match value {
+                "tip_merge" => Some(Self::Thickness(SpeleothemThickness::TipMerge)),
+                "tip" => Some(Self::Thickness(SpeleothemThickness::Tip)),
+                "frustum" => Some(Self::Thickness(SpeleothemThickness::Frustum)),
+                "middle" => Some(Self::Thickness(SpeleothemThickness::Middle)),
+                "base" => Some(Self::Thickness(SpeleothemThickness::Base)),
+                _ => None,
+            },
+            PropertyKey::Tilt => match value {
+                "none" => Some(Self::Tilt(Tilt::None)),
+                "unstable" => Some(Self::Tilt(Tilt::Unstable)),
+                "partial" => Some(Self::Tilt(Tilt::Partial)),
+                "full" => Some(Self::Tilt(Tilt::Full)),
+                _ => None,
+            },
+            PropertyKey::Tip => match value {
+                "true" => Some(Self::Tip(true)),
+                "false" => Some(Self::Tip(false)),
+                _ => None,
+            },
+            PropertyKey::TrialSpawnerState => match value {
+                "inactive" => Some(Self::TrialSpawnerState(TrialSpawnerState::Inactive)),
+                "waiting_for_players" => Some(Self::TrialSpawnerState(
+                    TrialSpawnerState::WaitingForPlayers,
+                )),
+                "active" => Some(Self::TrialSpawnerState(TrialSpawnerState::Active)),
+                "waiting_for_reward_ejection" => Some(Self::TrialSpawnerState(
+                    TrialSpawnerState::WaitingForRewardEjection,
+                )),
+                "ejecting_reward" => {
+                    Some(Self::TrialSpawnerState(TrialSpawnerState::EjectingReward))
+                }
+                "cooldown" => Some(Self::TrialSpawnerState(TrialSpawnerState::Cooldown)),
+                _ => None,
+            },
+            PropertyKey::Triggered => match value {
+                "true" => Some(Self::Triggered(true)),
+                "false" => Some(Self::Triggered(false)),
+                _ => None,
+            },
+            PropertyKey::Type => match value {
+                "single" => Some(Self::ChestType(ChestType::Single)),
+                "left" => Some(Self::ChestType(ChestType::Left)),
+                "right" => Some(Self::ChestType(ChestType::Right)),
+                "normal" => Some(Self::PistonType(PistonType::Normal)),
+                "sticky" => Some(Self::PistonType(PistonType::Sticky)),
+                "top" => Some(Self::SlabType(SlabType::Top)),
+                "bottom" => Some(Self::SlabType(SlabType::Bottom)),
+                "double" => Some(Self::SlabType(SlabType::Double)),
+                _ => None,
+            },
+            PropertyKey::Unstable => match value {
+                "true" => Some(Self::Unstable(true)),
+                "false" => Some(Self::Unstable(false)),
+                _ => None,
+            },
+            PropertyKey::Up => match value {
+                "true" => Some(Self::Up(true)),
+                "false" => Some(Self::Up(false)),
+                _ => None,
+            },
+            PropertyKey::VaultState => match value {
+                "inactive" => Some(Self::VaultState(VaultState::Inactive)),
+                "active" => Some(Self::VaultState(VaultState::Active)),
+                "unlocking" => Some(Self::VaultState(VaultState::Unlocking)),
+                "ejecting" => Some(Self::VaultState(VaultState::Ejecting)),
+                _ => None,
+            },
+            PropertyKey::VerticalDirection => match value {
+                "up" => Some(Self::VerticalDirection(VerticalDirection::Up)),
+                "down" => Some(Self::VerticalDirection(VerticalDirection::Down)),
+                _ => None,
+            },
+            PropertyKey::Waterlogged => match value {
+                "true" => Some(Self::Waterlogged(true)),
+                "false" => Some(Self::Waterlogged(false)),
+                _ => None,
+            },
+            PropertyKey::West => match value {
+                "true" => Some(Self::West(true)),
+                "false" => Some(Self::West(false)),
+                "up" => Some(Self::WestRedstone(WestRedstone::Up)),
+                "side" => Some(Self::WestRedstone(WestRedstone::Side)),
+                "none" => Some(Self::WestRedstone(WestRedstone::None)),
+                "low" => Some(Self::WestWall(WestWall::Low)),
+                "tall" => Some(Self::WestWall(WestWall::Tall)),
+                _ => None,
+            },
+        }
+    }
+    #[must_use]
+    pub fn from_str_pair(key: &str, value: &str) -> Option<Self> {
+        PropertyKey::from_str(key).and_then(|k| Self::from_key_value_str(k, value))
+    }
+    #[must_use]
+    pub fn matches_property(self, other: Self) -> bool {
+        self == other
+            || match (self, other) {
+                (Self::EastRedstone(EastRedstone::None), Self::EastWall(EastWall::None)) => true,
+                (Self::EastWall(EastWall::None), Self::EastRedstone(EastRedstone::None)) => true,
+                (Self::NorthRedstone(NorthRedstone::None), Self::NorthWall(NorthWall::None)) => {
+                    true
+                }
+                (Self::NorthWall(NorthWall::None), Self::NorthRedstone(NorthRedstone::None)) => {
+                    true
+                }
+                (Self::SouthRedstone(SouthRedstone::None), Self::SouthWall(SouthWall::None)) => {
+                    true
+                }
+                (Self::SouthWall(SouthWall::None), Self::SouthRedstone(SouthRedstone::None)) => {
+                    true
+                }
+                (Self::WestRedstone(WestRedstone::None), Self::WestWall(WestWall::None)) => true,
+                (Self::WestWall(WestWall::None), Self::WestRedstone(WestRedstone::None)) => true,
+                _ => false,
+            }
+    }
+}
 #[derive(Clone, Copy, Debug)]
 pub struct BlockProperty {
     pub name: &'static str,
@@ -612,8 +2272,8 @@ where
     fn default(block: &Block) -> Self
     where
         Self: Sized;
-    fn to_props(&self) -> Vec<(&'static str, &'static str)>;
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self
+    fn to_props(&self) -> Vec<Property>;
+    fn from_props(props: &[Property], block: &Block) -> Self
     where
         Self: Sized;
 }
@@ -598902,7 +600562,7 @@ impl Block {
     }
     #[track_caller]
     #[doc = r" Get the properties of the block."]
-    pub fn from_properties(&self, props: &[(&str, &str)]) -> Box<dyn BlockProperties> {
+    pub fn from_properties(&self, props: &[Property]) -> Box<dyn BlockProperties> {
         match self.id {
             BlockId::TNT => Box::new(TntLikeProperties::from_props(props, self)),
             BlockId::BROWN_MUSHROOM_BLOCK
@@ -601190,11 +602850,21 @@ impl BlockId {
         mappings::BLOCK_ID_FROM_STATE_ID[id.as_u32() as usize]
     }
 }
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum AttachFace {
     Floor,
     Wall,
     Ceiling,
+}
+impl AttachFace {
+    #[must_use]
+    pub const fn to_value(&self) -> &'static str {
+        match self {
+            Self::Floor => "floor",
+            Self::Wall => "wall",
+            Self::Ceiling => "ceiling",
+        }
+    }
 }
 impl EnumVariants for AttachFace {
     fn variant_count() -> u16 {
@@ -601216,11 +602886,7 @@ impl EnumVariants for AttachFace {
         }
     }
     fn to_value(&self) -> &'static str {
-        match self {
-            Self::Floor => "floor",
-            Self::Wall => "wall",
-            Self::Ceiling => "ceiling",
-        }
+        self.to_value()
     }
     fn from_value(value: &str) -> Self {
         match value {
@@ -601231,11 +602897,21 @@ impl EnumVariants for AttachFace {
         }
     }
 }
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum Axis {
     X,
     Y,
     Z,
+}
+impl Axis {
+    #[must_use]
+    pub const fn to_value(&self) -> &'static str {
+        match self {
+            Self::X => "x",
+            Self::Y => "y",
+            Self::Z => "z",
+        }
+    }
 }
 impl EnumVariants for Axis {
     fn variant_count() -> u16 {
@@ -601257,11 +602933,7 @@ impl EnumVariants for Axis {
         }
     }
     fn to_value(&self) -> &'static str {
-        match self {
-            Self::X => "x",
-            Self::Y => "y",
-            Self::Z => "z",
-        }
+        self.to_value()
     }
     fn from_value(value: &str) -> Self {
         match value {
@@ -601272,11 +602944,21 @@ impl EnumVariants for Axis {
         }
     }
 }
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum BambooLeaves {
     None,
     Small,
     Large,
+}
+impl BambooLeaves {
+    #[must_use]
+    pub const fn to_value(&self) -> &'static str {
+        match self {
+            Self::None => "none",
+            Self::Small => "small",
+            Self::Large => "large",
+        }
+    }
 }
 impl EnumVariants for BambooLeaves {
     fn variant_count() -> u16 {
@@ -601298,11 +602980,7 @@ impl EnumVariants for BambooLeaves {
         }
     }
     fn to_value(&self) -> &'static str {
-        match self {
-            Self::None => "none",
-            Self::Small => "small",
-            Self::Large => "large",
-        }
+        self.to_value()
     }
     fn from_value(value: &str) -> Self {
         match value {
@@ -601313,10 +602991,19 @@ impl EnumVariants for BambooLeaves {
         }
     }
 }
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum BedPart {
     Head,
     Foot,
+}
+impl BedPart {
+    #[must_use]
+    pub const fn to_value(&self) -> &'static str {
+        match self {
+            Self::Head => "head",
+            Self::Foot => "foot",
+        }
+    }
 }
 impl EnumVariants for BedPart {
     fn variant_count() -> u16 {
@@ -601336,10 +603023,7 @@ impl EnumVariants for BedPart {
         }
     }
     fn to_value(&self) -> &'static str {
-        match self {
-            Self::Head => "head",
-            Self::Foot => "foot",
-        }
+        self.to_value()
     }
     fn from_value(value: &str) -> Self {
         match value {
@@ -601349,12 +603033,23 @@ impl EnumVariants for BedPart {
         }
     }
 }
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum BellAttachment {
     Floor,
     Ceiling,
     SingleWall,
     DoubleWall,
+}
+impl BellAttachment {
+    #[must_use]
+    pub const fn to_value(&self) -> &'static str {
+        match self {
+            Self::Floor => "floor",
+            Self::Ceiling => "ceiling",
+            Self::SingleWall => "single_wall",
+            Self::DoubleWall => "double_wall",
+        }
+    }
 }
 impl EnumVariants for BellAttachment {
     fn variant_count() -> u16 {
@@ -601378,12 +603073,7 @@ impl EnumVariants for BellAttachment {
         }
     }
     fn to_value(&self) -> &'static str {
-        match self {
-            Self::Floor => "floor",
-            Self::Ceiling => "ceiling",
-            Self::SingleWall => "single_wall",
-            Self::DoubleWall => "double_wall",
-        }
+        self.to_value()
     }
     fn from_value(value: &str) -> Self {
         match value {
@@ -601395,11 +603085,21 @@ impl EnumVariants for BellAttachment {
         }
     }
 }
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum ChestType {
     Single,
     Left,
     Right,
+}
+impl ChestType {
+    #[must_use]
+    pub const fn to_value(&self) -> &'static str {
+        match self {
+            Self::Single => "single",
+            Self::Left => "left",
+            Self::Right => "right",
+        }
+    }
 }
 impl EnumVariants for ChestType {
     fn variant_count() -> u16 {
@@ -601421,11 +603121,7 @@ impl EnumVariants for ChestType {
         }
     }
     fn to_value(&self) -> &'static str {
-        match self {
-            Self::Single => "single",
-            Self::Left => "left",
-            Self::Right => "right",
-        }
+        self.to_value()
     }
     fn from_value(value: &str) -> Self {
         match value {
@@ -601436,12 +603132,23 @@ impl EnumVariants for ChestType {
         }
     }
 }
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum CopperGolemPose {
     Standing,
     Sitting,
     Running,
     Star,
+}
+impl CopperGolemPose {
+    #[must_use]
+    pub const fn to_value(&self) -> &'static str {
+        match self {
+            Self::Standing => "standing",
+            Self::Sitting => "sitting",
+            Self::Running => "running",
+            Self::Star => "star",
+        }
+    }
 }
 impl EnumVariants for CopperGolemPose {
     fn variant_count() -> u16 {
@@ -601465,12 +603172,7 @@ impl EnumVariants for CopperGolemPose {
         }
     }
     fn to_value(&self) -> &'static str {
-        match self {
-            Self::Standing => "standing",
-            Self::Sitting => "sitting",
-            Self::Running => "running",
-            Self::Star => "star",
-        }
+        self.to_value()
     }
     fn from_value(value: &str) -> Self {
         match value {
@@ -601482,11 +603184,21 @@ impl EnumVariants for CopperGolemPose {
         }
     }
 }
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum CreakingHeartState {
     Uprooted,
     Dormant,
     Awake,
+}
+impl CreakingHeartState {
+    #[must_use]
+    pub const fn to_value(&self) -> &'static str {
+        match self {
+            Self::Uprooted => "uprooted",
+            Self::Dormant => "dormant",
+            Self::Awake => "awake",
+        }
+    }
 }
 impl EnumVariants for CreakingHeartState {
     fn variant_count() -> u16 {
@@ -601508,11 +603220,7 @@ impl EnumVariants for CreakingHeartState {
         }
     }
     fn to_value(&self) -> &'static str {
-        match self {
-            Self::Uprooted => "uprooted",
-            Self::Dormant => "dormant",
-            Self::Awake => "awake",
-        }
+        self.to_value()
     }
     fn from_value(value: &str) -> Self {
         match value {
@@ -601523,10 +603231,19 @@ impl EnumVariants for CreakingHeartState {
         }
     }
 }
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum DoorHinge {
     Left,
     Right,
+}
+impl DoorHinge {
+    #[must_use]
+    pub const fn to_value(&self) -> &'static str {
+        match self {
+            Self::Left => "left",
+            Self::Right => "right",
+        }
+    }
 }
 impl EnumVariants for DoorHinge {
     fn variant_count() -> u16 {
@@ -601546,10 +603263,7 @@ impl EnumVariants for DoorHinge {
         }
     }
     fn to_value(&self) -> &'static str {
-        match self {
-            Self::Left => "left",
-            Self::Right => "right",
-        }
+        self.to_value()
     }
     fn from_value(value: &str) -> Self {
         match value {
@@ -601559,10 +603273,19 @@ impl EnumVariants for DoorHinge {
         }
     }
 }
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum DoubleBlockHalf {
     Upper,
     Lower,
+}
+impl DoubleBlockHalf {
+    #[must_use]
+    pub const fn to_value(&self) -> &'static str {
+        match self {
+            Self::Upper => "upper",
+            Self::Lower => "lower",
+        }
+    }
 }
 impl EnumVariants for DoubleBlockHalf {
     fn variant_count() -> u16 {
@@ -601582,10 +603305,7 @@ impl EnumVariants for DoubleBlockHalf {
         }
     }
     fn to_value(&self) -> &'static str {
-        match self {
-            Self::Upper => "upper",
-            Self::Lower => "lower",
-        }
+        self.to_value()
     }
     fn from_value(value: &str) -> Self {
         match value {
@@ -601595,11 +603315,21 @@ impl EnumVariants for DoubleBlockHalf {
         }
     }
 }
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum EastRedstone {
     Up,
     Side,
     None,
+}
+impl EastRedstone {
+    #[must_use]
+    pub const fn to_value(&self) -> &'static str {
+        match self {
+            Self::Up => "up",
+            Self::Side => "side",
+            Self::None => "none",
+        }
+    }
 }
 impl EnumVariants for EastRedstone {
     fn variant_count() -> u16 {
@@ -601621,11 +603351,7 @@ impl EnumVariants for EastRedstone {
         }
     }
     fn to_value(&self) -> &'static str {
-        match self {
-            Self::Up => "up",
-            Self::Side => "side",
-            Self::None => "none",
-        }
+        self.to_value()
     }
     fn from_value(value: &str) -> Self {
         match value {
@@ -601636,11 +603362,21 @@ impl EnumVariants for EastRedstone {
         }
     }
 }
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum EastWall {
     None,
     Low,
     Tall,
+}
+impl EastWall {
+    #[must_use]
+    pub const fn to_value(&self) -> &'static str {
+        match self {
+            Self::None => "none",
+            Self::Low => "low",
+            Self::Tall => "tall",
+        }
+    }
 }
 impl EnumVariants for EastWall {
     fn variant_count() -> u16 {
@@ -601662,11 +603398,7 @@ impl EnumVariants for EastWall {
         }
     }
     fn to_value(&self) -> &'static str {
-        match self {
-            Self::None => "none",
-            Self::Low => "low",
-            Self::Tall => "tall",
-        }
+        self.to_value()
     }
     fn from_value(value: &str) -> Self {
         match value {
@@ -601677,7 +603409,7 @@ impl EnumVariants for EastWall {
         }
     }
 }
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum Facing {
     North,
     East,
@@ -601685,6 +603417,19 @@ pub enum Facing {
     West,
     Up,
     Down,
+}
+impl Facing {
+    #[must_use]
+    pub const fn to_value(&self) -> &'static str {
+        match self {
+            Self::North => "north",
+            Self::East => "east",
+            Self::South => "south",
+            Self::West => "west",
+            Self::Up => "up",
+            Self::Down => "down",
+        }
+    }
 }
 impl EnumVariants for Facing {
     fn variant_count() -> u16 {
@@ -601712,14 +603457,7 @@ impl EnumVariants for Facing {
         }
     }
     fn to_value(&self) -> &'static str {
-        match self {
-            Self::North => "north",
-            Self::East => "east",
-            Self::South => "south",
-            Self::West => "west",
-            Self::Up => "up",
-            Self::Down => "down",
-        }
+        self.to_value()
     }
     fn from_value(value: &str) -> Self {
         match value {
@@ -601733,13 +603471,25 @@ impl EnumVariants for Facing {
         }
     }
 }
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum FacingHopper {
     Down,
     North,
     South,
     West,
     East,
+}
+impl FacingHopper {
+    #[must_use]
+    pub const fn to_value(&self) -> &'static str {
+        match self {
+            Self::Down => "down",
+            Self::North => "north",
+            Self::South => "south",
+            Self::West => "west",
+            Self::East => "east",
+        }
+    }
 }
 impl EnumVariants for FacingHopper {
     fn variant_count() -> u16 {
@@ -601765,13 +603515,7 @@ impl EnumVariants for FacingHopper {
         }
     }
     fn to_value(&self) -> &'static str {
-        match self {
-            Self::Down => "down",
-            Self::North => "north",
-            Self::South => "south",
-            Self::West => "west",
-            Self::East => "east",
-        }
+        self.to_value()
     }
     fn from_value(value: &str) -> Self {
         match value {
@@ -601784,10 +603528,19 @@ impl EnumVariants for FacingHopper {
         }
     }
 }
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum Half {
     Top,
     Bottom,
+}
+impl Half {
+    #[must_use]
+    pub const fn to_value(&self) -> &'static str {
+        match self {
+            Self::Top => "top",
+            Self::Bottom => "bottom",
+        }
+    }
 }
 impl EnumVariants for Half {
     fn variant_count() -> u16 {
@@ -601807,10 +603560,7 @@ impl EnumVariants for Half {
         }
     }
     fn to_value(&self) -> &'static str {
-        match self {
-            Self::Top => "top",
-            Self::Bottom => "bottom",
-        }
+        self.to_value()
     }
     fn from_value(value: &str) -> Self {
         match value {
@@ -601820,10 +603570,19 @@ impl EnumVariants for Half {
         }
     }
 }
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum HorizontalAxis {
     X,
     Z,
+}
+impl HorizontalAxis {
+    #[must_use]
+    pub const fn to_value(&self) -> &'static str {
+        match self {
+            Self::X => "x",
+            Self::Z => "z",
+        }
+    }
 }
 impl EnumVariants for HorizontalAxis {
     fn variant_count() -> u16 {
@@ -601843,10 +603602,7 @@ impl EnumVariants for HorizontalAxis {
         }
     }
     fn to_value(&self) -> &'static str {
-        match self {
-            Self::X => "x",
-            Self::Z => "z",
-        }
+        self.to_value()
     }
     fn from_value(value: &str) -> Self {
         match value {
@@ -601856,12 +603612,23 @@ impl EnumVariants for HorizontalAxis {
         }
     }
 }
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum HorizontalFacing {
     North,
     South,
     West,
     East,
+}
+impl HorizontalFacing {
+    #[must_use]
+    pub const fn to_value(&self) -> &'static str {
+        match self {
+            Self::North => "north",
+            Self::South => "south",
+            Self::West => "west",
+            Self::East => "east",
+        }
+    }
 }
 impl EnumVariants for HorizontalFacing {
     fn variant_count() -> u16 {
@@ -601885,12 +603652,7 @@ impl EnumVariants for HorizontalFacing {
         }
     }
     fn to_value(&self) -> &'static str {
-        match self {
-            Self::North => "north",
-            Self::South => "south",
-            Self::West => "west",
-            Self::East => "east",
-        }
+        self.to_value()
     }
     fn from_value(value: &str) -> Self {
         match value {
@@ -601902,10 +603664,19 @@ impl EnumVariants for HorizontalFacing {
         }
     }
 }
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum ModeComparator {
     Compare,
     Subtract,
+}
+impl ModeComparator {
+    #[must_use]
+    pub const fn to_value(&self) -> &'static str {
+        match self {
+            Self::Compare => "compare",
+            Self::Subtract => "subtract",
+        }
+    }
 }
 impl EnumVariants for ModeComparator {
     fn variant_count() -> u16 {
@@ -601925,10 +603696,7 @@ impl EnumVariants for ModeComparator {
         }
     }
     fn to_value(&self) -> &'static str {
-        match self {
-            Self::Compare => "compare",
-            Self::Subtract => "subtract",
-        }
+        self.to_value()
     }
     fn from_value(value: &str) -> Self {
         match value {
@@ -601938,11 +603706,21 @@ impl EnumVariants for ModeComparator {
         }
     }
 }
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum NorthRedstone {
     Up,
     Side,
     None,
+}
+impl NorthRedstone {
+    #[must_use]
+    pub const fn to_value(&self) -> &'static str {
+        match self {
+            Self::Up => "up",
+            Self::Side => "side",
+            Self::None => "none",
+        }
+    }
 }
 impl EnumVariants for NorthRedstone {
     fn variant_count() -> u16 {
@@ -601964,11 +603742,7 @@ impl EnumVariants for NorthRedstone {
         }
     }
     fn to_value(&self) -> &'static str {
-        match self {
-            Self::Up => "up",
-            Self::Side => "side",
-            Self::None => "none",
-        }
+        self.to_value()
     }
     fn from_value(value: &str) -> Self {
         match value {
@@ -601979,11 +603753,21 @@ impl EnumVariants for NorthRedstone {
         }
     }
 }
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum NorthWall {
     None,
     Low,
     Tall,
+}
+impl NorthWall {
+    #[must_use]
+    pub const fn to_value(&self) -> &'static str {
+        match self {
+            Self::None => "none",
+            Self::Low => "low",
+            Self::Tall => "tall",
+        }
+    }
 }
 impl EnumVariants for NorthWall {
     fn variant_count() -> u16 {
@@ -602005,11 +603789,7 @@ impl EnumVariants for NorthWall {
         }
     }
     fn to_value(&self) -> &'static str {
-        match self {
-            Self::None => "none",
-            Self::Low => "low",
-            Self::Tall => "tall",
-        }
+        self.to_value()
     }
     fn from_value(value: &str) -> Self {
         match value {
@@ -602020,7 +603800,7 @@ impl EnumVariants for NorthWall {
         }
     }
 }
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum NoteblockInstrument {
     Harp,
     Basedrum,
@@ -602049,6 +603829,40 @@ pub enum NoteblockInstrument {
     WitherSkeleton,
     Piglin,
     CustomHead,
+}
+impl NoteblockInstrument {
+    #[must_use]
+    pub const fn to_value(&self) -> &'static str {
+        match self {
+            Self::Harp => "harp",
+            Self::Basedrum => "basedrum",
+            Self::Snare => "snare",
+            Self::Hat => "hat",
+            Self::Bass => "bass",
+            Self::Flute => "flute",
+            Self::Bell => "bell",
+            Self::Guitar => "guitar",
+            Self::Chime => "chime",
+            Self::Xylophone => "xylophone",
+            Self::IronXylophone => "iron_xylophone",
+            Self::CowBell => "cow_bell",
+            Self::Didgeridoo => "didgeridoo",
+            Self::Bit => "bit",
+            Self::Banjo => "banjo",
+            Self::Pling => "pling",
+            Self::Trumpet => "trumpet",
+            Self::TrumpetExposed => "trumpet_exposed",
+            Self::TrumpetOxidized => "trumpet_oxidized",
+            Self::TrumpetWeathered => "trumpet_weathered",
+            Self::Zombie => "zombie",
+            Self::Skeleton => "skeleton",
+            Self::Creeper => "creeper",
+            Self::Dragon => "dragon",
+            Self::WitherSkeleton => "wither_skeleton",
+            Self::Piglin => "piglin",
+            Self::CustomHead => "custom_head",
+        }
+    }
 }
 impl EnumVariants for NoteblockInstrument {
     fn variant_count() -> u16 {
@@ -602118,35 +603932,7 @@ impl EnumVariants for NoteblockInstrument {
         }
     }
     fn to_value(&self) -> &'static str {
-        match self {
-            Self::Harp => "harp",
-            Self::Basedrum => "basedrum",
-            Self::Snare => "snare",
-            Self::Hat => "hat",
-            Self::Bass => "bass",
-            Self::Flute => "flute",
-            Self::Bell => "bell",
-            Self::Guitar => "guitar",
-            Self::Chime => "chime",
-            Self::Xylophone => "xylophone",
-            Self::IronXylophone => "iron_xylophone",
-            Self::CowBell => "cow_bell",
-            Self::Didgeridoo => "didgeridoo",
-            Self::Bit => "bit",
-            Self::Banjo => "banjo",
-            Self::Pling => "pling",
-            Self::Trumpet => "trumpet",
-            Self::TrumpetExposed => "trumpet_exposed",
-            Self::TrumpetOxidized => "trumpet_oxidized",
-            Self::TrumpetWeathered => "trumpet_weathered",
-            Self::Zombie => "zombie",
-            Self::Skeleton => "skeleton",
-            Self::Creeper => "creeper",
-            Self::Dragon => "dragon",
-            Self::WitherSkeleton => "wither_skeleton",
-            Self::Piglin => "piglin",
-            Self::CustomHead => "custom_head",
-        }
+        self.to_value()
     }
     fn from_value(value: &str) -> Self {
         match value {
@@ -602181,7 +603967,7 @@ impl EnumVariants for NoteblockInstrument {
         }
     }
 }
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum Orientation {
     DownEast,
     DownNorth,
@@ -602195,6 +603981,25 @@ pub enum Orientation {
     EastUp,
     NorthUp,
     SouthUp,
+}
+impl Orientation {
+    #[must_use]
+    pub const fn to_value(&self) -> &'static str {
+        match self {
+            Self::DownEast => "down_east",
+            Self::DownNorth => "down_north",
+            Self::DownSouth => "down_south",
+            Self::DownWest => "down_west",
+            Self::UpEast => "up_east",
+            Self::UpNorth => "up_north",
+            Self::UpSouth => "up_south",
+            Self::UpWest => "up_west",
+            Self::WestUp => "west_up",
+            Self::EastUp => "east_up",
+            Self::NorthUp => "north_up",
+            Self::SouthUp => "south_up",
+        }
+    }
 }
 impl EnumVariants for Orientation {
     fn variant_count() -> u16 {
@@ -602234,20 +604039,7 @@ impl EnumVariants for Orientation {
         }
     }
     fn to_value(&self) -> &'static str {
-        match self {
-            Self::DownEast => "down_east",
-            Self::DownNorth => "down_north",
-            Self::DownSouth => "down_south",
-            Self::DownWest => "down_west",
-            Self::UpEast => "up_east",
-            Self::UpNorth => "up_north",
-            Self::UpSouth => "up_south",
-            Self::UpWest => "up_west",
-            Self::WestUp => "west_up",
-            Self::EastUp => "east_up",
-            Self::NorthUp => "north_up",
-            Self::SouthUp => "south_up",
-        }
+        self.to_value()
     }
     fn from_value(value: &str) -> Self {
         match value {
@@ -602267,10 +604059,19 @@ impl EnumVariants for Orientation {
         }
     }
 }
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum PistonType {
     Normal,
     Sticky,
+}
+impl PistonType {
+    #[must_use]
+    pub const fn to_value(&self) -> &'static str {
+        match self {
+            Self::Normal => "normal",
+            Self::Sticky => "sticky",
+        }
+    }
 }
 impl EnumVariants for PistonType {
     fn variant_count() -> u16 {
@@ -602290,10 +604091,7 @@ impl EnumVariants for PistonType {
         }
     }
     fn to_value(&self) -> &'static str {
-        match self {
-            Self::Normal => "normal",
-            Self::Sticky => "sticky",
-        }
+        self.to_value()
     }
     fn from_value(value: &str) -> Self {
         match value {
@@ -602303,13 +604101,25 @@ impl EnumVariants for PistonType {
         }
     }
 }
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum PotentSulfurState {
     Dry,
     Wet,
     Dormant,
     Erupting,
     Continuous,
+}
+impl PotentSulfurState {
+    #[must_use]
+    pub const fn to_value(&self) -> &'static str {
+        match self {
+            Self::Dry => "dry",
+            Self::Wet => "wet",
+            Self::Dormant => "dormant",
+            Self::Erupting => "erupting",
+            Self::Continuous => "continuous",
+        }
+    }
 }
 impl EnumVariants for PotentSulfurState {
     fn variant_count() -> u16 {
@@ -602335,13 +604145,7 @@ impl EnumVariants for PotentSulfurState {
         }
     }
     fn to_value(&self) -> &'static str {
-        match self {
-            Self::Dry => "dry",
-            Self::Wet => "wet",
-            Self::Dormant => "dormant",
-            Self::Erupting => "erupting",
-            Self::Continuous => "continuous",
-        }
+        self.to_value()
     }
     fn from_value(value: &str) -> Self {
         match value {
@@ -602354,7 +604158,7 @@ impl EnumVariants for PotentSulfurState {
         }
     }
 }
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum RailShape {
     NorthSouth,
     EastWest,
@@ -602366,6 +604170,23 @@ pub enum RailShape {
     SouthWest,
     NorthWest,
     NorthEast,
+}
+impl RailShape {
+    #[must_use]
+    pub const fn to_value(&self) -> &'static str {
+        match self {
+            Self::NorthSouth => "north_south",
+            Self::EastWest => "east_west",
+            Self::AscendingEast => "ascending_east",
+            Self::AscendingWest => "ascending_west",
+            Self::AscendingNorth => "ascending_north",
+            Self::AscendingSouth => "ascending_south",
+            Self::SouthEast => "south_east",
+            Self::SouthWest => "south_west",
+            Self::NorthWest => "north_west",
+            Self::NorthEast => "north_east",
+        }
+    }
 }
 impl EnumVariants for RailShape {
     fn variant_count() -> u16 {
@@ -602401,18 +604222,7 @@ impl EnumVariants for RailShape {
         }
     }
     fn to_value(&self) -> &'static str {
-        match self {
-            Self::NorthSouth => "north_south",
-            Self::EastWest => "east_west",
-            Self::AscendingEast => "ascending_east",
-            Self::AscendingWest => "ascending_west",
-            Self::AscendingNorth => "ascending_north",
-            Self::AscendingSouth => "ascending_south",
-            Self::SouthEast => "south_east",
-            Self::SouthWest => "south_west",
-            Self::NorthWest => "north_west",
-            Self::NorthEast => "north_east",
-        }
+        self.to_value()
     }
     fn from_value(value: &str) -> Self {
         match value {
@@ -602430,7 +604240,7 @@ impl EnumVariants for RailShape {
         }
     }
 }
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum RailShapeStraight {
     NorthSouth,
     EastWest,
@@ -602438,6 +604248,19 @@ pub enum RailShapeStraight {
     AscendingWest,
     AscendingNorth,
     AscendingSouth,
+}
+impl RailShapeStraight {
+    #[must_use]
+    pub const fn to_value(&self) -> &'static str {
+        match self {
+            Self::NorthSouth => "north_south",
+            Self::EastWest => "east_west",
+            Self::AscendingEast => "ascending_east",
+            Self::AscendingWest => "ascending_west",
+            Self::AscendingNorth => "ascending_north",
+            Self::AscendingSouth => "ascending_south",
+        }
+    }
 }
 impl EnumVariants for RailShapeStraight {
     fn variant_count() -> u16 {
@@ -602465,14 +604288,7 @@ impl EnumVariants for RailShapeStraight {
         }
     }
     fn to_value(&self) -> &'static str {
-        match self {
-            Self::NorthSouth => "north_south",
-            Self::EastWest => "east_west",
-            Self::AscendingEast => "ascending_east",
-            Self::AscendingWest => "ascending_west",
-            Self::AscendingNorth => "ascending_north",
-            Self::AscendingSouth => "ascending_south",
-        }
+        self.to_value()
     }
     fn from_value(value: &str) -> Self {
         match value {
@@ -602486,11 +604302,21 @@ impl EnumVariants for RailShapeStraight {
         }
     }
 }
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum SculkSensorPhase {
     Inactive,
     Active,
     Cooldown,
+}
+impl SculkSensorPhase {
+    #[must_use]
+    pub const fn to_value(&self) -> &'static str {
+        match self {
+            Self::Inactive => "inactive",
+            Self::Active => "active",
+            Self::Cooldown => "cooldown",
+        }
+    }
 }
 impl EnumVariants for SculkSensorPhase {
     fn variant_count() -> u16 {
@@ -602512,11 +604338,7 @@ impl EnumVariants for SculkSensorPhase {
         }
     }
     fn to_value(&self) -> &'static str {
-        match self {
-            Self::Inactive => "inactive",
-            Self::Active => "active",
-            Self::Cooldown => "cooldown",
-        }
+        self.to_value()
     }
     fn from_value(value: &str) -> Self {
         match value {
@@ -602527,12 +604349,23 @@ impl EnumVariants for SculkSensorPhase {
         }
     }
 }
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum SideChainPart {
     Unconnected,
     Right,
     Center,
     Left,
+}
+impl SideChainPart {
+    #[must_use]
+    pub const fn to_value(&self) -> &'static str {
+        match self {
+            Self::Unconnected => "unconnected",
+            Self::Right => "right",
+            Self::Center => "center",
+            Self::Left => "left",
+        }
+    }
 }
 impl EnumVariants for SideChainPart {
     fn variant_count() -> u16 {
@@ -602556,12 +604389,7 @@ impl EnumVariants for SideChainPart {
         }
     }
     fn to_value(&self) -> &'static str {
-        match self {
-            Self::Unconnected => "unconnected",
-            Self::Right => "right",
-            Self::Center => "center",
-            Self::Left => "left",
-        }
+        self.to_value()
     }
     fn from_value(value: &str) -> Self {
         match value {
@@ -602573,11 +604401,21 @@ impl EnumVariants for SideChainPart {
         }
     }
 }
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum SlabType {
     Top,
     Bottom,
     Double,
+}
+impl SlabType {
+    #[must_use]
+    pub const fn to_value(&self) -> &'static str {
+        match self {
+            Self::Top => "top",
+            Self::Bottom => "bottom",
+            Self::Double => "double",
+        }
+    }
 }
 impl EnumVariants for SlabType {
     fn variant_count() -> u16 {
@@ -602599,11 +604437,7 @@ impl EnumVariants for SlabType {
         }
     }
     fn to_value(&self) -> &'static str {
-        match self {
-            Self::Top => "top",
-            Self::Bottom => "bottom",
-            Self::Double => "double",
-        }
+        self.to_value()
     }
     fn from_value(value: &str) -> Self {
         match value {
@@ -602614,11 +604448,21 @@ impl EnumVariants for SlabType {
         }
     }
 }
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum SouthRedstone {
     Up,
     Side,
     None,
+}
+impl SouthRedstone {
+    #[must_use]
+    pub const fn to_value(&self) -> &'static str {
+        match self {
+            Self::Up => "up",
+            Self::Side => "side",
+            Self::None => "none",
+        }
+    }
 }
 impl EnumVariants for SouthRedstone {
     fn variant_count() -> u16 {
@@ -602640,11 +604484,7 @@ impl EnumVariants for SouthRedstone {
         }
     }
     fn to_value(&self) -> &'static str {
-        match self {
-            Self::Up => "up",
-            Self::Side => "side",
-            Self::None => "none",
-        }
+        self.to_value()
     }
     fn from_value(value: &str) -> Self {
         match value {
@@ -602655,11 +604495,21 @@ impl EnumVariants for SouthRedstone {
         }
     }
 }
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum SouthWall {
     None,
     Low,
     Tall,
+}
+impl SouthWall {
+    #[must_use]
+    pub const fn to_value(&self) -> &'static str {
+        match self {
+            Self::None => "none",
+            Self::Low => "low",
+            Self::Tall => "tall",
+        }
+    }
 }
 impl EnumVariants for SouthWall {
     fn variant_count() -> u16 {
@@ -602681,11 +604531,7 @@ impl EnumVariants for SouthWall {
         }
     }
     fn to_value(&self) -> &'static str {
-        match self {
-            Self::None => "none",
-            Self::Low => "low",
-            Self::Tall => "tall",
-        }
+        self.to_value()
     }
     fn from_value(value: &str) -> Self {
         match value {
@@ -602696,13 +604542,25 @@ impl EnumVariants for SouthWall {
         }
     }
 }
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum SpeleothemThickness {
     TipMerge,
     Tip,
     Frustum,
     Middle,
     Base,
+}
+impl SpeleothemThickness {
+    #[must_use]
+    pub const fn to_value(&self) -> &'static str {
+        match self {
+            Self::TipMerge => "tip_merge",
+            Self::Tip => "tip",
+            Self::Frustum => "frustum",
+            Self::Middle => "middle",
+            Self::Base => "base",
+        }
+    }
 }
 impl EnumVariants for SpeleothemThickness {
     fn variant_count() -> u16 {
@@ -602728,13 +604586,7 @@ impl EnumVariants for SpeleothemThickness {
         }
     }
     fn to_value(&self) -> &'static str {
-        match self {
-            Self::TipMerge => "tip_merge",
-            Self::Tip => "tip",
-            Self::Frustum => "frustum",
-            Self::Middle => "middle",
-            Self::Base => "base",
-        }
+        self.to_value()
     }
     fn from_value(value: &str) -> Self {
         match value {
@@ -602747,13 +604599,25 @@ impl EnumVariants for SpeleothemThickness {
         }
     }
 }
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum StairsShape {
     Straight,
     InnerLeft,
     InnerRight,
     OuterLeft,
     OuterRight,
+}
+impl StairsShape {
+    #[must_use]
+    pub const fn to_value(&self) -> &'static str {
+        match self {
+            Self::Straight => "straight",
+            Self::InnerLeft => "inner_left",
+            Self::InnerRight => "inner_right",
+            Self::OuterLeft => "outer_left",
+            Self::OuterRight => "outer_right",
+        }
+    }
 }
 impl EnumVariants for StairsShape {
     fn variant_count() -> u16 {
@@ -602779,13 +604643,7 @@ impl EnumVariants for StairsShape {
         }
     }
     fn to_value(&self) -> &'static str {
-        match self {
-            Self::Straight => "straight",
-            Self::InnerLeft => "inner_left",
-            Self::InnerRight => "inner_right",
-            Self::OuterLeft => "outer_left",
-            Self::OuterRight => "outer_right",
-        }
+        self.to_value()
     }
     fn from_value(value: &str) -> Self {
         match value {
@@ -602798,12 +604656,23 @@ impl EnumVariants for StairsShape {
         }
     }
 }
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum StructureblockMode {
     Save,
     Load,
     Corner,
     Data,
+}
+impl StructureblockMode {
+    #[must_use]
+    pub const fn to_value(&self) -> &'static str {
+        match self {
+            Self::Save => "save",
+            Self::Load => "load",
+            Self::Corner => "corner",
+            Self::Data => "data",
+        }
+    }
 }
 impl EnumVariants for StructureblockMode {
     fn variant_count() -> u16 {
@@ -602827,12 +604696,7 @@ impl EnumVariants for StructureblockMode {
         }
     }
     fn to_value(&self) -> &'static str {
-        match self {
-            Self::Save => "save",
-            Self::Load => "load",
-            Self::Corner => "corner",
-            Self::Data => "data",
-        }
+        self.to_value()
     }
     fn from_value(value: &str) -> Self {
         match value {
@@ -602844,12 +604708,23 @@ impl EnumVariants for StructureblockMode {
         }
     }
 }
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum TestBlockMode {
     Start,
     Log,
     Fail,
     Accept,
+}
+impl TestBlockMode {
+    #[must_use]
+    pub const fn to_value(&self) -> &'static str {
+        match self {
+            Self::Start => "start",
+            Self::Log => "log",
+            Self::Fail => "fail",
+            Self::Accept => "accept",
+        }
+    }
 }
 impl EnumVariants for TestBlockMode {
     fn variant_count() -> u16 {
@@ -602873,12 +604748,7 @@ impl EnumVariants for TestBlockMode {
         }
     }
     fn to_value(&self) -> &'static str {
-        match self {
-            Self::Start => "start",
-            Self::Log => "log",
-            Self::Fail => "fail",
-            Self::Accept => "accept",
-        }
+        self.to_value()
     }
     fn from_value(value: &str) -> Self {
         match value {
@@ -602890,12 +604760,23 @@ impl EnumVariants for TestBlockMode {
         }
     }
 }
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum Tilt {
     None,
     Unstable,
     Partial,
     Full,
+}
+impl Tilt {
+    #[must_use]
+    pub const fn to_value(&self) -> &'static str {
+        match self {
+            Self::None => "none",
+            Self::Unstable => "unstable",
+            Self::Partial => "partial",
+            Self::Full => "full",
+        }
+    }
 }
 impl EnumVariants for Tilt {
     fn variant_count() -> u16 {
@@ -602919,12 +604800,7 @@ impl EnumVariants for Tilt {
         }
     }
     fn to_value(&self) -> &'static str {
-        match self {
-            Self::None => "none",
-            Self::Unstable => "unstable",
-            Self::Partial => "partial",
-            Self::Full => "full",
-        }
+        self.to_value()
     }
     fn from_value(value: &str) -> Self {
         match value {
@@ -602936,7 +604812,7 @@ impl EnumVariants for Tilt {
         }
     }
 }
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum TrialSpawnerState {
     Inactive,
     WaitingForPlayers,
@@ -602944,6 +604820,19 @@ pub enum TrialSpawnerState {
     WaitingForRewardEjection,
     EjectingReward,
     Cooldown,
+}
+impl TrialSpawnerState {
+    #[must_use]
+    pub const fn to_value(&self) -> &'static str {
+        match self {
+            Self::Inactive => "inactive",
+            Self::WaitingForPlayers => "waiting_for_players",
+            Self::Active => "active",
+            Self::WaitingForRewardEjection => "waiting_for_reward_ejection",
+            Self::EjectingReward => "ejecting_reward",
+            Self::Cooldown => "cooldown",
+        }
+    }
 }
 impl EnumVariants for TrialSpawnerState {
     fn variant_count() -> u16 {
@@ -602971,14 +604860,7 @@ impl EnumVariants for TrialSpawnerState {
         }
     }
     fn to_value(&self) -> &'static str {
-        match self {
-            Self::Inactive => "inactive",
-            Self::WaitingForPlayers => "waiting_for_players",
-            Self::Active => "active",
-            Self::WaitingForRewardEjection => "waiting_for_reward_ejection",
-            Self::EjectingReward => "ejecting_reward",
-            Self::Cooldown => "cooldown",
-        }
+        self.to_value()
     }
     fn from_value(value: &str) -> Self {
         match value {
@@ -602992,12 +604874,23 @@ impl EnumVariants for TrialSpawnerState {
         }
     }
 }
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum VaultState {
     Inactive,
     Active,
     Unlocking,
     Ejecting,
+}
+impl VaultState {
+    #[must_use]
+    pub const fn to_value(&self) -> &'static str {
+        match self {
+            Self::Inactive => "inactive",
+            Self::Active => "active",
+            Self::Unlocking => "unlocking",
+            Self::Ejecting => "ejecting",
+        }
+    }
 }
 impl EnumVariants for VaultState {
     fn variant_count() -> u16 {
@@ -603021,12 +604914,7 @@ impl EnumVariants for VaultState {
         }
     }
     fn to_value(&self) -> &'static str {
-        match self {
-            Self::Inactive => "inactive",
-            Self::Active => "active",
-            Self::Unlocking => "unlocking",
-            Self::Ejecting => "ejecting",
-        }
+        self.to_value()
     }
     fn from_value(value: &str) -> Self {
         match value {
@@ -603038,10 +604926,19 @@ impl EnumVariants for VaultState {
         }
     }
 }
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum VerticalDirection {
     Up,
     Down,
+}
+impl VerticalDirection {
+    #[must_use]
+    pub const fn to_value(&self) -> &'static str {
+        match self {
+            Self::Up => "up",
+            Self::Down => "down",
+        }
+    }
 }
 impl EnumVariants for VerticalDirection {
     fn variant_count() -> u16 {
@@ -603061,10 +604958,7 @@ impl EnumVariants for VerticalDirection {
         }
     }
     fn to_value(&self) -> &'static str {
-        match self {
-            Self::Up => "up",
-            Self::Down => "down",
-        }
+        self.to_value()
     }
     fn from_value(value: &str) -> Self {
         match value {
@@ -603074,11 +604968,21 @@ impl EnumVariants for VerticalDirection {
         }
     }
 }
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum WestRedstone {
     Up,
     Side,
     None,
+}
+impl WestRedstone {
+    #[must_use]
+    pub const fn to_value(&self) -> &'static str {
+        match self {
+            Self::Up => "up",
+            Self::Side => "side",
+            Self::None => "none",
+        }
+    }
 }
 impl EnumVariants for WestRedstone {
     fn variant_count() -> u16 {
@@ -603100,11 +605004,7 @@ impl EnumVariants for WestRedstone {
         }
     }
     fn to_value(&self) -> &'static str {
-        match self {
-            Self::Up => "up",
-            Self::Side => "side",
-            Self::None => "none",
-        }
+        self.to_value()
     }
     fn from_value(value: &str) -> Self {
         match value {
@@ -603115,11 +605015,21 @@ impl EnumVariants for WestRedstone {
         }
     }
 }
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum WestWall {
     None,
     Low,
     Tall,
+}
+impl WestWall {
+    #[must_use]
+    pub const fn to_value(&self) -> &'static str {
+        match self {
+            Self::None => "none",
+            Self::Low => "low",
+            Self::Tall => "tall",
+        }
+    }
 }
 impl EnumVariants for WestWall {
     fn variant_count() -> u16 {
@@ -603141,11 +605051,7 @@ impl EnumVariants for WestWall {
         }
     }
     fn to_value(&self) -> &'static str {
-        match self {
-            Self::None => "none",
-            Self::Low => "low",
-            Self::Tall => "tall",
-        }
+        self.to_value()
     }
     fn from_value(value: &str) -> Self {
         match value {
@@ -603248,11 +605154,11 @@ impl BlockProperties for TntLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
-        vec![("unstable", if self.r#unstable { "true" } else { "false" })]
+    fn to_props(&self) -> Vec<Property> {
+        vec![Property::Unstable(self.r#unstable)]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -603261,9 +605167,10 @@ impl BlockProperties for TntLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            if *key == "unstable" {
-                block_props.r#unstable = matches!(*value, "true")
+        for prop in props {
+            match prop {
+                Property::Unstable(value) => block_props.r#unstable = *value,
+                _ => {}
             }
         }
         block_props
@@ -603407,18 +605314,18 @@ impl BlockProperties for BrownMushroomBlockLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
+    fn to_props(&self) -> Vec<Property> {
         vec![
-            ("down", if self.r#down { "true" } else { "false" }),
-            ("east", if self.r#east { "true" } else { "false" }),
-            ("north", if self.r#north { "true" } else { "false" }),
-            ("south", if self.r#south { "true" } else { "false" }),
-            ("up", if self.r#up { "true" } else { "false" }),
-            ("west", if self.r#west { "true" } else { "false" }),
+            Property::Down(self.r#down),
+            Property::East(self.r#east),
+            Property::North(self.r#north),
+            Property::South(self.r#south),
+            Property::Up(self.r#up),
+            Property::West(self.r#west),
         ]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -603427,14 +605334,14 @@ impl BlockProperties for BrownMushroomBlockLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            match *key {
-                "down" => block_props.r#down = matches!(*value, "true"),
-                "east" => block_props.r#east = matches!(*value, "true"),
-                "north" => block_props.r#north = matches!(*value, "true"),
-                "south" => block_props.r#south = matches!(*value, "true"),
-                "up" => block_props.r#up = matches!(*value, "true"),
-                "west" => block_props.r#west = matches!(*value, "true"),
+        for prop in props {
+            match prop {
+                Property::Down(value) => block_props.r#down = *value,
+                Property::East(value) => block_props.r#east = *value,
+                Property::North(value) => block_props.r#north = *value,
+                Property::South(value) => block_props.r#south = *value,
+                Property::Up(value) => block_props.r#up = *value,
+                Property::West(value) => block_props.r#west = *value,
                 _ => {}
             }
         }
@@ -603582,22 +605489,19 @@ impl BlockProperties for GlowLichenLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
+    fn to_props(&self) -> Vec<Property> {
         vec![
-            ("down", if self.r#down { "true" } else { "false" }),
-            ("east", if self.r#east { "true" } else { "false" }),
-            ("north", if self.r#north { "true" } else { "false" }),
-            ("south", if self.r#south { "true" } else { "false" }),
-            ("up", if self.r#up { "true" } else { "false" }),
-            (
-                "waterlogged",
-                if self.r#waterlogged { "true" } else { "false" },
-            ),
-            ("west", if self.r#west { "true" } else { "false" }),
+            Property::Down(self.r#down),
+            Property::East(self.r#east),
+            Property::North(self.r#north),
+            Property::South(self.r#south),
+            Property::Up(self.r#up),
+            Property::Waterlogged(self.r#waterlogged),
+            Property::West(self.r#west),
         ]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -603606,15 +605510,15 @@ impl BlockProperties for GlowLichenLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            match *key {
-                "down" => block_props.r#down = matches!(*value, "true"),
-                "east" => block_props.r#east = matches!(*value, "true"),
-                "north" => block_props.r#north = matches!(*value, "true"),
-                "south" => block_props.r#south = matches!(*value, "true"),
-                "up" => block_props.r#up = matches!(*value, "true"),
-                "waterlogged" => block_props.r#waterlogged = matches!(*value, "true"),
-                "west" => block_props.r#west = matches!(*value, "true"),
+        for prop in props {
+            match prop {
+                Property::Down(value) => block_props.r#down = *value,
+                Property::East(value) => block_props.r#east = *value,
+                Property::North(value) => block_props.r#north = *value,
+                Property::South(value) => block_props.r#south = *value,
+                Property::Up(value) => block_props.r#up = *value,
+                Property::Waterlogged(value) => block_props.r#waterlogged = *value,
+                Property::West(value) => block_props.r#west = *value,
                 _ => {}
             }
         }
@@ -603743,17 +605647,17 @@ impl BlockProperties for VineLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
+    fn to_props(&self) -> Vec<Property> {
         vec![
-            ("east", if self.r#east { "true" } else { "false" }),
-            ("north", if self.r#north { "true" } else { "false" }),
-            ("south", if self.r#south { "true" } else { "false" }),
-            ("up", if self.r#up { "true" } else { "false" }),
-            ("west", if self.r#west { "true" } else { "false" }),
+            Property::East(self.r#east),
+            Property::North(self.r#north),
+            Property::South(self.r#south),
+            Property::Up(self.r#up),
+            Property::West(self.r#west),
         ]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -603762,13 +605666,13 @@ impl BlockProperties for VineLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            match *key {
-                "east" => block_props.r#east = matches!(*value, "true"),
-                "north" => block_props.r#north = matches!(*value, "true"),
-                "south" => block_props.r#south = matches!(*value, "true"),
-                "up" => block_props.r#up = matches!(*value, "true"),
-                "west" => block_props.r#west = matches!(*value, "true"),
+        for prop in props {
+            match prop {
+                Property::East(value) => block_props.r#east = *value,
+                Property::North(value) => block_props.r#north = *value,
+                Property::South(value) => block_props.r#south = *value,
+                Property::Up(value) => block_props.r#up = *value,
+                Property::West(value) => block_props.r#west = *value,
                 _ => {}
             }
         }
@@ -603904,39 +605808,18 @@ impl BlockProperties for FireLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
+    fn to_props(&self) -> Vec<Property> {
         vec![
-            (
-                "age",
-                match self.r#age {
-                    0u8 => "0",
-                    1u8 => "1",
-                    2u8 => "2",
-                    3u8 => "3",
-                    4u8 => "4",
-                    5u8 => "5",
-                    6u8 => "6",
-                    7u8 => "7",
-                    8u8 => "8",
-                    9u8 => "9",
-                    10u8 => "10",
-                    11u8 => "11",
-                    12u8 => "12",
-                    13u8 => "13",
-                    14u8 => "14",
-                    15u8 => "15",
-                    _ => unreachable!(),
-                },
-            ),
-            ("east", if self.r#east { "true" } else { "false" }),
-            ("north", if self.r#north { "true" } else { "false" }),
-            ("south", if self.r#south { "true" } else { "false" }),
-            ("up", if self.r#up { "true" } else { "false" }),
-            ("west", if self.r#west { "true" } else { "false" }),
+            Property::Age(self.r#age),
+            Property::East(self.r#east),
+            Property::North(self.r#north),
+            Property::South(self.r#south),
+            Property::Up(self.r#up),
+            Property::West(self.r#west),
         ]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -603945,34 +605828,16 @@ impl BlockProperties for FireLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            match *key {
-                "age" => {
-                    block_props.r#age = match *value {
-                        "0" => 0u8,
-                        "1" => 1u8,
-                        "2" => 2u8,
-                        "3" => 3u8,
-                        "4" => 4u8,
-                        "5" => 5u8,
-                        "6" => 6u8,
-                        "7" => 7u8,
-                        "8" => 8u8,
-                        "9" => 9u8,
-                        "10" => 10u8,
-                        "11" => 11u8,
-                        "12" => 12u8,
-                        "13" => 13u8,
-                        "14" => 14u8,
-                        "15" => 15u8,
-                        _ => 0u8,
-                    }
+        for prop in props {
+            match prop {
+                Property::Age(value) => {
+                    block_props.r#age = if *value <= 15u8 { *value } else { 0 };
                 }
-                "east" => block_props.r#east = matches!(*value, "true"),
-                "north" => block_props.r#north = matches!(*value, "true"),
-                "south" => block_props.r#south = matches!(*value, "true"),
-                "up" => block_props.r#up = matches!(*value, "true"),
-                "west" => block_props.r#west = matches!(*value, "true"),
+                Property::East(value) => block_props.r#east = *value,
+                Property::North(value) => block_props.r#north = *value,
+                Property::South(value) => block_props.r#south = *value,
+                Property::Up(value) => block_props.r#up = *value,
+                Property::West(value) => block_props.r#west = *value,
                 _ => {}
             }
         }
@@ -604174,21 +606039,18 @@ impl BlockProperties for ResinBrickWallLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
+    fn to_props(&self) -> Vec<Property> {
         vec![
-            ("east", self.r#east.to_value()),
-            ("north", self.r#north.to_value()),
-            ("south", self.r#south.to_value()),
-            ("up", if self.r#up { "true" } else { "false" }),
-            (
-                "waterlogged",
-                if self.r#waterlogged { "true" } else { "false" },
-            ),
-            ("west", self.r#west.to_value()),
+            Property::EastWall(self.r#east),
+            Property::NorthWall(self.r#north),
+            Property::SouthWall(self.r#south),
+            Property::Up(self.r#up),
+            Property::Waterlogged(self.r#waterlogged),
+            Property::WestWall(self.r#west),
         ]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -604197,14 +606059,26 @@ impl BlockProperties for ResinBrickWallLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            match *key {
-                "east" => block_props.r#east = EastWall::from_value(value),
-                "north" => block_props.r#north = NorthWall::from_value(value),
-                "south" => block_props.r#south = SouthWall::from_value(value),
-                "up" => block_props.r#up = matches!(*value, "true"),
-                "waterlogged" => block_props.r#waterlogged = matches!(*value, "true"),
-                "west" => block_props.r#west = WestWall::from_value(value),
+        for prop in props {
+            match prop {
+                Property::EastWall(value) => block_props.r#east = *value,
+                Property::EastRedstone(EastRedstone::None) => {
+                    block_props.r#east = EastWall::None;
+                }
+                Property::NorthWall(value) => block_props.r#north = *value,
+                Property::NorthRedstone(NorthRedstone::None) => {
+                    block_props.r#north = NorthWall::None;
+                }
+                Property::SouthWall(value) => block_props.r#south = *value,
+                Property::SouthRedstone(SouthRedstone::None) => {
+                    block_props.r#south = SouthWall::None;
+                }
+                Property::Up(value) => block_props.r#up = *value,
+                Property::Waterlogged(value) => block_props.r#waterlogged = *value,
+                Property::WestWall(value) => block_props.r#west = *value,
+                Property::WestRedstone(WestRedstone::None) => {
+                    block_props.r#west = WestWall::None;
+                }
                 _ => {}
             }
         }
@@ -604312,14 +606186,19 @@ impl BlockProperties for EndPortalFrameLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
+    fn to_props(&self) -> Vec<Property> {
         vec![
-            ("eye", if self.r#eye { "true" } else { "false" }),
-            ("facing", self.r#facing.to_value()),
+            Property::Eye(self.r#eye),
+            Property::Facing(match self.r#facing {
+                HorizontalFacing::North => Facing::North,
+                HorizontalFacing::South => Facing::South,
+                HorizontalFacing::West => Facing::West,
+                HorizontalFacing::East => Facing::East,
+            }),
         ]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -604328,10 +606207,16 @@ impl BlockProperties for EndPortalFrameLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            match *key {
-                "eye" => block_props.r#eye = matches!(*value, "true"),
-                "facing" => block_props.r#facing = HorizontalFacing::from_value(value),
+        for prop in props {
+            match prop {
+                Property::Eye(value) => block_props.r#eye = *value,
+                Property::Facing(value) => match *value {
+                    Facing::North => block_props.r#facing = HorizontalFacing::North,
+                    Facing::South => block_props.r#facing = HorizontalFacing::South,
+                    Facing::West => block_props.r#facing = HorizontalFacing::West,
+                    Facing::East => block_props.r#facing = HorizontalFacing::East,
+                    _ => {}
+                },
                 _ => {}
             }
         }
@@ -604473,11 +606358,11 @@ impl BlockProperties for RedstoneOreLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
-        vec![("lit", if self.r#lit { "true" } else { "false" })]
+    fn to_props(&self) -> Vec<Property> {
+        vec![Property::Lit(self.r#lit)]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -604486,9 +606371,10 @@ impl BlockProperties for RedstoneOreLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            if *key == "lit" {
-                block_props.r#lit = matches!(*value, "true")
+        for prop in props {
+            match prop {
+                Property::Lit(value) => block_props.r#lit = *value,
+                _ => {}
             }
         }
         block_props
@@ -604610,22 +606496,21 @@ impl BlockProperties for CampfireLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
+    fn to_props(&self) -> Vec<Property> {
         vec![
-            ("facing", self.r#facing.to_value()),
-            ("lit", if self.r#lit { "true" } else { "false" }),
-            (
-                "signal_fire",
-                if self.r#signal_fire { "true" } else { "false" },
-            ),
-            (
-                "waterlogged",
-                if self.r#waterlogged { "true" } else { "false" },
-            ),
+            Property::Facing(match self.r#facing {
+                HorizontalFacing::North => Facing::North,
+                HorizontalFacing::South => Facing::South,
+                HorizontalFacing::West => Facing::West,
+                HorizontalFacing::East => Facing::East,
+            }),
+            Property::Lit(self.r#lit),
+            Property::SignalFire(self.r#signal_fire),
+            Property::Waterlogged(self.r#waterlogged),
         ]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -604634,12 +606519,18 @@ impl BlockProperties for CampfireLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            match *key {
-                "facing" => block_props.r#facing = HorizontalFacing::from_value(value),
-                "lit" => block_props.r#lit = matches!(*value, "true"),
-                "signal_fire" => block_props.r#signal_fire = matches!(*value, "true"),
-                "waterlogged" => block_props.r#waterlogged = matches!(*value, "true"),
+        for prop in props {
+            match prop {
+                Property::Facing(value) => match *value {
+                    Facing::North => block_props.r#facing = HorizontalFacing::North,
+                    Facing::South => block_props.r#facing = HorizontalFacing::South,
+                    Facing::West => block_props.r#facing = HorizontalFacing::West,
+                    Facing::East => block_props.r#facing = HorizontalFacing::East,
+                    _ => {}
+                },
+                Property::Lit(value) => block_props.r#lit = *value,
+                Property::SignalFire(value) => block_props.r#signal_fire = *value,
+                Property::Waterlogged(value) => block_props.r#waterlogged = *value,
                 _ => {}
             }
         }
@@ -604789,27 +606680,15 @@ impl BlockProperties for CandleLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
+    fn to_props(&self) -> Vec<Property> {
         vec![
-            (
-                "candles",
-                match self.r#candles {
-                    1u8 => "1",
-                    2u8 => "2",
-                    3u8 => "3",
-                    4u8 => "4",
-                    _ => unreachable!(),
-                },
-            ),
-            ("lit", if self.r#lit { "true" } else { "false" }),
-            (
-                "waterlogged",
-                if self.r#waterlogged { "true" } else { "false" },
-            ),
+            Property::Candles(self.r#candles),
+            Property::Lit(self.r#lit),
+            Property::Waterlogged(self.r#waterlogged),
         ]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -604818,19 +606697,17 @@ impl BlockProperties for CandleLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            match *key {
-                "candles" => {
-                    block_props.r#candles = match *value {
-                        "1" => 1u8,
-                        "2" => 2u8,
-                        "3" => 3u8,
-                        "4" => 4u8,
-                        _ => 1u8,
-                    }
+        for prop in props {
+            match prop {
+                Property::Candles(value) => {
+                    block_props.r#candles = if *value >= 1u8 && *value <= 4u8 {
+                        *value
+                    } else {
+                        1u8
+                    };
                 }
-                "lit" => block_props.r#lit = matches!(*value, "true"),
-                "waterlogged" => block_props.r#waterlogged = matches!(*value, "true"),
+                Property::Lit(value) => block_props.r#lit = *value,
+                Property::Waterlogged(value) => block_props.r#waterlogged = *value,
                 _ => {}
             }
         }
@@ -604947,14 +606824,19 @@ impl BlockProperties for FurnaceLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
+    fn to_props(&self) -> Vec<Property> {
         vec![
-            ("facing", self.r#facing.to_value()),
-            ("lit", if self.r#lit { "true" } else { "false" }),
+            Property::Facing(match self.r#facing {
+                HorizontalFacing::North => Facing::North,
+                HorizontalFacing::South => Facing::South,
+                HorizontalFacing::West => Facing::West,
+                HorizontalFacing::East => Facing::East,
+            }),
+            Property::Lit(self.r#lit),
         ]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -604963,10 +606845,16 @@ impl BlockProperties for FurnaceLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            match *key {
-                "facing" => block_props.r#facing = HorizontalFacing::from_value(value),
-                "lit" => block_props.r#lit = matches!(*value, "true"),
+        for prop in props {
+            match prop {
+                Property::Facing(value) => match *value {
+                    Facing::North => block_props.r#facing = HorizontalFacing::North,
+                    Facing::South => block_props.r#facing = HorizontalFacing::South,
+                    Facing::West => block_props.r#facing = HorizontalFacing::West,
+                    Facing::East => block_props.r#facing = HorizontalFacing::East,
+                    _ => {}
+                },
+                Property::Lit(value) => block_props.r#lit = *value,
                 _ => {}
             }
         }
@@ -605088,14 +606976,11 @@ impl BlockProperties for CopperBulbLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
-        vec![
-            ("lit", if self.r#lit { "true" } else { "false" }),
-            ("powered", if self.r#powered { "true" } else { "false" }),
-        ]
+    fn to_props(&self) -> Vec<Property> {
+        vec![Property::Lit(self.r#lit), Property::Powered(self.r#powered)]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -605104,10 +606989,10 @@ impl BlockProperties for CopperBulbLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            match *key {
-                "lit" => block_props.r#lit = matches!(*value, "true"),
-                "powered" => block_props.r#powered = matches!(*value, "true"),
+        for prop in props {
+            match prop {
+                Property::Lit(value) => block_props.r#lit = *value,
+                Property::Powered(value) => block_props.r#powered = *value,
                 _ => {}
             }
         }
@@ -605206,11 +607091,11 @@ impl BlockProperties for PaleHangingMossLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
-        vec![("tip", if self.r#tip { "true" } else { "false" })]
+    fn to_props(&self) -> Vec<Property> {
+        vec![Property::Tip(self.r#tip)]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -605219,9 +607104,10 @@ impl BlockProperties for PaleHangingMossLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            if *key == "tip" {
-                block_props.r#tip = matches!(*value, "true")
+        for prop in props {
+            match prop {
+                Property::Tip(value) => block_props.r#tip = *value,
+                _ => {}
             }
         }
         block_props
@@ -605319,11 +607205,11 @@ impl BlockProperties for BubbleColumnLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
-        vec![("drag", if self.r#drag { "true" } else { "false" })]
+    fn to_props(&self) -> Vec<Property> {
+        vec![Property::Drag(self.r#drag)]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -605332,9 +607218,10 @@ impl BlockProperties for BubbleColumnLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            if *key == "drag" {
-                block_props.r#drag = matches!(*value, "true")
+        for prop in props {
+            match prop {
+                Property::Drag(value) => block_props.r#drag = *value,
+                _ => {}
             }
         }
         block_props
@@ -605476,19 +607363,19 @@ impl BlockProperties for TripwireLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
+    fn to_props(&self) -> Vec<Property> {
         vec![
-            ("attached", if self.r#attached { "true" } else { "false" }),
-            ("disarmed", if self.r#disarmed { "true" } else { "false" }),
-            ("east", if self.r#east { "true" } else { "false" }),
-            ("north", if self.r#north { "true" } else { "false" }),
-            ("powered", if self.r#powered { "true" } else { "false" }),
-            ("south", if self.r#south { "true" } else { "false" }),
-            ("west", if self.r#west { "true" } else { "false" }),
+            Property::Attached(self.r#attached),
+            Property::Disarmed(self.r#disarmed),
+            Property::East(self.r#east),
+            Property::North(self.r#north),
+            Property::Powered(self.r#powered),
+            Property::South(self.r#south),
+            Property::West(self.r#west),
         ]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -605497,15 +607384,15 @@ impl BlockProperties for TripwireLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            match *key {
-                "attached" => block_props.r#attached = matches!(*value, "true"),
-                "disarmed" => block_props.r#disarmed = matches!(*value, "true"),
-                "east" => block_props.r#east = matches!(*value, "true"),
-                "north" => block_props.r#north = matches!(*value, "true"),
-                "powered" => block_props.r#powered = matches!(*value, "true"),
-                "south" => block_props.r#south = matches!(*value, "true"),
-                "west" => block_props.r#west = matches!(*value, "true"),
+        for prop in props {
+            match prop {
+                Property::Attached(value) => block_props.r#attached = *value,
+                Property::Disarmed(value) => block_props.r#disarmed = *value,
+                Property::East(value) => block_props.r#east = *value,
+                Property::North(value) => block_props.r#north = *value,
+                Property::Powered(value) => block_props.r#powered = *value,
+                Property::South(value) => block_props.r#south = *value,
+                Property::West(value) => block_props.r#west = *value,
                 _ => {}
             }
         }
@@ -605715,20 +607602,17 @@ impl BlockProperties for OakFenceLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
+    fn to_props(&self) -> Vec<Property> {
         vec![
-            ("east", if self.r#east { "true" } else { "false" }),
-            ("north", if self.r#north { "true" } else { "false" }),
-            ("south", if self.r#south { "true" } else { "false" }),
-            (
-                "waterlogged",
-                if self.r#waterlogged { "true" } else { "false" },
-            ),
-            ("west", if self.r#west { "true" } else { "false" }),
+            Property::East(self.r#east),
+            Property::North(self.r#north),
+            Property::South(self.r#south),
+            Property::Waterlogged(self.r#waterlogged),
+            Property::West(self.r#west),
         ]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -605737,13 +607621,13 @@ impl BlockProperties for OakFenceLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            match *key {
-                "east" => block_props.r#east = matches!(*value, "true"),
-                "north" => block_props.r#north = matches!(*value, "true"),
-                "south" => block_props.r#south = matches!(*value, "true"),
-                "waterlogged" => block_props.r#waterlogged = matches!(*value, "true"),
-                "west" => block_props.r#west = matches!(*value, "true"),
+        for prop in props {
+            match prop {
+                Property::East(value) => block_props.r#east = *value,
+                Property::North(value) => block_props.r#north = *value,
+                Property::South(value) => block_props.r#south = *value,
+                Property::Waterlogged(value) => block_props.r#waterlogged = *value,
+                Property::West(value) => block_props.r#west = *value,
                 _ => {}
             }
         }
@@ -605918,20 +607802,22 @@ impl BlockProperties for OakTrapdoorLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
+    fn to_props(&self) -> Vec<Property> {
         vec![
-            ("facing", self.r#facing.to_value()),
-            ("half", self.r#half.to_value()),
-            ("open", if self.r#open { "true" } else { "false" }),
-            ("powered", if self.r#powered { "true" } else { "false" }),
-            (
-                "waterlogged",
-                if self.r#waterlogged { "true" } else { "false" },
-            ),
+            Property::Facing(match self.r#facing {
+                HorizontalFacing::North => Facing::North,
+                HorizontalFacing::South => Facing::South,
+                HorizontalFacing::West => Facing::West,
+                HorizontalFacing::East => Facing::East,
+            }),
+            Property::Half(self.r#half),
+            Property::Open(self.r#open),
+            Property::Powered(self.r#powered),
+            Property::Waterlogged(self.r#waterlogged),
         ]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -605940,13 +607826,19 @@ impl BlockProperties for OakTrapdoorLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            match *key {
-                "facing" => block_props.r#facing = HorizontalFacing::from_value(value),
-                "half" => block_props.r#half = Half::from_value(value),
-                "open" => block_props.r#open = matches!(*value, "true"),
-                "powered" => block_props.r#powered = matches!(*value, "true"),
-                "waterlogged" => block_props.r#waterlogged = matches!(*value, "true"),
+        for prop in props {
+            match prop {
+                Property::Facing(value) => match *value {
+                    Facing::North => block_props.r#facing = HorizontalFacing::North,
+                    Facing::South => block_props.r#facing = HorizontalFacing::South,
+                    Facing::West => block_props.r#facing = HorizontalFacing::West,
+                    Facing::East => block_props.r#facing = HorizontalFacing::East,
+                    _ => {}
+                },
+                Property::Half(value) => block_props.r#half = *value,
+                Property::Open(value) => block_props.r#open = *value,
+                Property::Powered(value) => block_props.r#powered = *value,
+                Property::Waterlogged(value) => block_props.r#waterlogged = *value,
                 _ => {}
             }
         }
@@ -606121,17 +608013,22 @@ impl BlockProperties for OakDoorLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
+    fn to_props(&self) -> Vec<Property> {
         vec![
-            ("facing", self.r#facing.to_value()),
-            ("half", self.r#half.to_value()),
-            ("hinge", self.r#hinge.to_value()),
-            ("open", if self.r#open { "true" } else { "false" }),
-            ("powered", if self.r#powered { "true" } else { "false" }),
+            Property::Facing(match self.r#facing {
+                HorizontalFacing::North => Facing::North,
+                HorizontalFacing::South => Facing::South,
+                HorizontalFacing::West => Facing::West,
+                HorizontalFacing::East => Facing::East,
+            }),
+            Property::DoubleBlockHalf(self.r#half),
+            Property::Hinge(self.r#hinge),
+            Property::Open(self.r#open),
+            Property::Powered(self.r#powered),
         ]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -606140,13 +608037,19 @@ impl BlockProperties for OakDoorLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            match *key {
-                "facing" => block_props.r#facing = HorizontalFacing::from_value(value),
-                "half" => block_props.r#half = DoubleBlockHalf::from_value(value),
-                "hinge" => block_props.r#hinge = DoorHinge::from_value(value),
-                "open" => block_props.r#open = matches!(*value, "true"),
-                "powered" => block_props.r#powered = matches!(*value, "true"),
+        for prop in props {
+            match prop {
+                Property::Facing(value) => match *value {
+                    Facing::North => block_props.r#facing = HorizontalFacing::North,
+                    Facing::South => block_props.r#facing = HorizontalFacing::South,
+                    Facing::West => block_props.r#facing = HorizontalFacing::West,
+                    Facing::East => block_props.r#facing = HorizontalFacing::East,
+                    _ => {}
+                },
+                Property::DoubleBlockHalf(value) => block_props.r#half = *value,
+                Property::Hinge(value) => block_props.r#hinge = *value,
+                Property::Open(value) => block_props.r#open = *value,
+                Property::Powered(value) => block_props.r#powered = *value,
                 _ => {}
             }
         }
@@ -606296,16 +608199,21 @@ impl BlockProperties for OakFenceGateLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
+    fn to_props(&self) -> Vec<Property> {
         vec![
-            ("facing", self.r#facing.to_value()),
-            ("in_wall", if self.r#in_wall { "true" } else { "false" }),
-            ("open", if self.r#open { "true" } else { "false" }),
-            ("powered", if self.r#powered { "true" } else { "false" }),
+            Property::Facing(match self.r#facing {
+                HorizontalFacing::North => Facing::North,
+                HorizontalFacing::South => Facing::South,
+                HorizontalFacing::West => Facing::West,
+                HorizontalFacing::East => Facing::East,
+            }),
+            Property::InWall(self.r#in_wall),
+            Property::Open(self.r#open),
+            Property::Powered(self.r#powered),
         ]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -606314,12 +608222,18 @@ impl BlockProperties for OakFenceGateLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            match *key {
-                "facing" => block_props.r#facing = HorizontalFacing::from_value(value),
-                "in_wall" => block_props.r#in_wall = matches!(*value, "true"),
-                "open" => block_props.r#open = matches!(*value, "true"),
-                "powered" => block_props.r#powered = matches!(*value, "true"),
+        for prop in props {
+            match prop {
+                Property::Facing(value) => match *value {
+                    Facing::North => block_props.r#facing = HorizontalFacing::North,
+                    Facing::South => block_props.r#facing = HorizontalFacing::South,
+                    Facing::West => block_props.r#facing = HorizontalFacing::West,
+                    Facing::East => block_props.r#facing = HorizontalFacing::East,
+                    _ => {}
+                },
+                Property::InWall(value) => block_props.r#in_wall = *value,
+                Property::Open(value) => block_props.r#open = *value,
+                Property::Powered(value) => block_props.r#powered = *value,
                 _ => {}
             }
         }
@@ -606427,14 +608341,11 @@ impl BlockProperties for BarrelLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
-        vec![
-            ("facing", self.r#facing.to_value()),
-            ("open", if self.r#open { "true" } else { "false" }),
-        ]
+    fn to_props(&self) -> Vec<Property> {
+        vec![Property::Facing(self.r#facing), Property::Open(self.r#open)]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -606443,10 +608354,10 @@ impl BlockProperties for BarrelLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            match *key {
-                "facing" => block_props.r#facing = Facing::from_value(value),
-                "open" => block_props.r#open = matches!(*value, "true"),
+        for prop in props {
+            match prop {
+                Property::Facing(value) => block_props.r#facing = *value,
+                Property::Open(value) => block_props.r#open = *value,
                 _ => {}
             }
         }
@@ -606561,15 +608472,20 @@ impl BlockProperties for VaultLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
+    fn to_props(&self) -> Vec<Property> {
         vec![
-            ("facing", self.r#facing.to_value()),
-            ("ominous", if self.r#ominous { "true" } else { "false" }),
-            ("vault_state", self.r#vault_state.to_value()),
+            Property::Facing(match self.r#facing {
+                HorizontalFacing::North => Facing::North,
+                HorizontalFacing::South => Facing::South,
+                HorizontalFacing::West => Facing::West,
+                HorizontalFacing::East => Facing::East,
+            }),
+            Property::Ominous(self.r#ominous),
+            Property::VaultState(self.r#vault_state),
         ]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -606578,11 +608494,17 @@ impl BlockProperties for VaultLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            match *key {
-                "facing" => block_props.r#facing = HorizontalFacing::from_value(value),
-                "ominous" => block_props.r#ominous = matches!(*value, "true"),
-                "vault_state" => block_props.r#vault_state = VaultState::from_value(value),
+        for prop in props {
+            match prop {
+                Property::Facing(value) => match *value {
+                    Facing::North => block_props.r#facing = HorizontalFacing::North,
+                    Facing::South => block_props.r#facing = HorizontalFacing::South,
+                    Facing::West => block_props.r#facing = HorizontalFacing::West,
+                    Facing::East => block_props.r#facing = HorizontalFacing::East,
+                    _ => {}
+                },
+                Property::Ominous(value) => block_props.r#ominous = *value,
+                Property::VaultState(value) => block_props.r#vault_state = *value,
                 _ => {}
             }
         }
@@ -606733,15 +608655,20 @@ impl BlockProperties for WhiteBedLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
+    fn to_props(&self) -> Vec<Property> {
         vec![
-            ("facing", self.r#facing.to_value()),
-            ("occupied", if self.r#occupied { "true" } else { "false" }),
-            ("part", self.r#part.to_value()),
+            Property::Facing(match self.r#facing {
+                HorizontalFacing::North => Facing::North,
+                HorizontalFacing::South => Facing::South,
+                HorizontalFacing::West => Facing::West,
+                HorizontalFacing::East => Facing::East,
+            }),
+            Property::Occupied(self.r#occupied),
+            Property::Part(self.r#part),
         ]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -606750,11 +608677,17 @@ impl BlockProperties for WhiteBedLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            match *key {
-                "facing" => block_props.r#facing = HorizontalFacing::from_value(value),
-                "occupied" => block_props.r#occupied = matches!(*value, "true"),
-                "part" => block_props.r#part = BedPart::from_value(value),
+        for prop in props {
+            match prop {
+                Property::Facing(value) => match *value {
+                    Facing::North => block_props.r#facing = HorizontalFacing::North,
+                    Facing::South => block_props.r#facing = HorizontalFacing::South,
+                    Facing::West => block_props.r#facing = HorizontalFacing::West,
+                    Facing::East => block_props.r#facing = HorizontalFacing::East,
+                    _ => {}
+                },
+                Property::Occupied(value) => block_props.r#occupied = *value,
+                Property::Part(value) => block_props.r#part = *value,
                 _ => {}
             }
         }
@@ -606869,18 +608802,20 @@ impl BlockProperties for BigDripleafLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
+    fn to_props(&self) -> Vec<Property> {
         vec![
-            ("facing", self.r#facing.to_value()),
-            ("tilt", self.r#tilt.to_value()),
-            (
-                "waterlogged",
-                if self.r#waterlogged { "true" } else { "false" },
-            ),
+            Property::Facing(match self.r#facing {
+                HorizontalFacing::North => Facing::North,
+                HorizontalFacing::South => Facing::South,
+                HorizontalFacing::West => Facing::West,
+                HorizontalFacing::East => Facing::East,
+            }),
+            Property::Tilt(self.r#tilt),
+            Property::Waterlogged(self.r#waterlogged),
         ]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -606889,11 +608824,17 @@ impl BlockProperties for BigDripleafLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            match *key {
-                "facing" => block_props.r#facing = HorizontalFacing::from_value(value),
-                "tilt" => block_props.r#tilt = Tilt::from_value(value),
-                "waterlogged" => block_props.r#waterlogged = matches!(*value, "true"),
+        for prop in props {
+            match prop {
+                Property::Facing(value) => match *value {
+                    Facing::North => block_props.r#facing = HorizontalFacing::North,
+                    Facing::South => block_props.r#facing = HorizontalFacing::South,
+                    Facing::West => block_props.r#facing = HorizontalFacing::West,
+                    Facing::East => block_props.r#facing = HorizontalFacing::East,
+                    _ => {}
+                },
+                Property::Tilt(value) => block_props.r#tilt = *value,
+                Property::Waterlogged(value) => block_props.r#waterlogged = *value,
                 _ => {}
             }
         }
@@ -606992,11 +608933,11 @@ impl BlockProperties for StructureBlockLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
-        vec![("mode", self.r#mode.to_value())]
+    fn to_props(&self) -> Vec<Property> {
+        vec![Property::StructureblockMode(self.r#mode)]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -607005,9 +608946,10 @@ impl BlockProperties for StructureBlockLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            if *key == "mode" {
-                block_props.r#mode = StructureblockMode::from_value(value)
+        for prop in props {
+            match prop {
+                Property::StructureblockMode(value) => block_props.r#mode = *value,
+                _ => {}
             }
         }
         block_props
@@ -607105,11 +609047,11 @@ impl BlockProperties for SculkCatalystLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
-        vec![("bloom", if self.r#bloom { "true" } else { "false" })]
+    fn to_props(&self) -> Vec<Property> {
+        vec![Property::Bloom(self.r#bloom)]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -607118,9 +609060,10 @@ impl BlockProperties for SculkCatalystLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            if *key == "bloom" {
-                block_props.r#bloom = matches!(*value, "true")
+        for prop in props {
+            match prop {
+                Property::Bloom(value) => block_props.r#bloom = *value,
+                _ => {}
             }
         }
         block_props
@@ -607234,15 +609177,15 @@ impl BlockProperties for PistonHeadLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
+    fn to_props(&self) -> Vec<Property> {
         vec![
-            ("facing", self.r#facing.to_value()),
-            ("short", if self.r#short { "true" } else { "false" }),
-            ("type", self.r#type.to_value()),
+            Property::Facing(self.r#facing),
+            Property::Short(self.r#short),
+            Property::PistonType(self.r#type),
         ]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -607251,11 +609194,11 @@ impl BlockProperties for PistonHeadLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            match *key {
-                "facing" => block_props.r#facing = Facing::from_value(value),
-                "short" => block_props.r#short = matches!(*value, "true"),
-                "type" => block_props.r#type = PistonType::from_value(value),
+        for prop in props {
+            match prop {
+                Property::Facing(value) => block_props.r#facing = *value,
+                Property::Short(value) => block_props.r#short = *value,
+                Property::PistonType(value) => block_props.r#type = *value,
                 _ => {}
             }
         }
@@ -607359,11 +609302,11 @@ impl BlockProperties for GrassBlockLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
-        vec![("snowy", if self.r#snowy { "true" } else { "false" })]
+    fn to_props(&self) -> Vec<Property> {
+        vec![Property::Snowy(self.r#snowy)]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -607372,9 +609315,10 @@ impl BlockProperties for GrassBlockLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            if *key == "snowy" {
-                block_props.r#snowy = matches!(*value, "true")
+        for prop in props {
+            match prop {
+                Property::Snowy(value) => block_props.r#snowy = *value,
+                _ => {}
             }
         }
         block_props
@@ -607488,15 +609432,20 @@ impl BlockProperties for LecternLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
+    fn to_props(&self) -> Vec<Property> {
         vec![
-            ("facing", self.r#facing.to_value()),
-            ("has_book", if self.r#has_book { "true" } else { "false" }),
-            ("powered", if self.r#powered { "true" } else { "false" }),
+            Property::Facing(match self.r#facing {
+                HorizontalFacing::North => Facing::North,
+                HorizontalFacing::South => Facing::South,
+                HorizontalFacing::West => Facing::West,
+                HorizontalFacing::East => Facing::East,
+            }),
+            Property::HasBook(self.r#has_book),
+            Property::Powered(self.r#powered),
         ]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -607505,11 +609454,17 @@ impl BlockProperties for LecternLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            match *key {
-                "facing" => block_props.r#facing = HorizontalFacing::from_value(value),
-                "has_book" => block_props.r#has_book = matches!(*value, "true"),
-                "powered" => block_props.r#powered = matches!(*value, "true"),
+        for prop in props {
+            match prop {
+                Property::Facing(value) => match *value {
+                    Facing::North => block_props.r#facing = HorizontalFacing::North,
+                    Facing::South => block_props.r#facing = HorizontalFacing::South,
+                    Facing::West => block_props.r#facing = HorizontalFacing::West,
+                    Facing::East => block_props.r#facing = HorizontalFacing::East,
+                    _ => {}
+                },
+                Property::HasBook(value) => block_props.r#has_book = *value,
+                Property::Powered(value) => block_props.r#powered = *value,
                 _ => {}
             }
         }
@@ -607608,11 +609563,14 @@ impl BlockProperties for NetherPortalLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
-        vec![("axis", self.r#axis.to_value())]
+    fn to_props(&self) -> Vec<Property> {
+        vec![Property::Axis(match self.r#axis {
+            HorizontalAxis::X => Axis::X,
+            HorizontalAxis::Z => Axis::Z,
+        })]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -607621,9 +609579,14 @@ impl BlockProperties for NetherPortalLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            if *key == "axis" {
-                block_props.r#axis = HorizontalAxis::from_value(value)
+        for prop in props {
+            match prop {
+                Property::Axis(value) => match *value {
+                    Axis::X => block_props.r#axis = HorizontalAxis::X,
+                    Axis::Z => block_props.r#axis = HorizontalAxis::Z,
+                    _ => {}
+                },
+                _ => {}
             }
         }
         block_props
@@ -607721,21 +609684,11 @@ impl BlockProperties for RespawnAnchorLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
-        vec![(
-            "charges",
-            match self.r#charges {
-                0u8 => "0",
-                1u8 => "1",
-                2u8 => "2",
-                3u8 => "3",
-                4u8 => "4",
-                _ => unreachable!(),
-            },
-        )]
+    fn to_props(&self) -> Vec<Property> {
+        vec![Property::Charges(self.r#charges)]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -607744,16 +609697,12 @@ impl BlockProperties for RespawnAnchorLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            if *key == "charges" {
-                block_props.r#charges = match *value {
-                    "0" => 0u8,
-                    "1" => 1u8,
-                    "2" => 2u8,
-                    "3" => 3u8,
-                    "4" => 4u8,
-                    _ => 0u8,
+        for prop in props {
+            match prop {
+                Property::Charges(value) => {
+                    block_props.r#charges = if *value <= 4u8 { *value } else { 0 };
                 }
+                _ => {}
             }
         }
         block_props
@@ -607867,21 +609816,15 @@ impl BlockProperties for SculkShriekerLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
+    fn to_props(&self) -> Vec<Property> {
         vec![
-            (
-                "can_summon",
-                if self.r#can_summon { "true" } else { "false" },
-            ),
-            ("shrieking", if self.r#shrieking { "true" } else { "false" }),
-            (
-                "waterlogged",
-                if self.r#waterlogged { "true" } else { "false" },
-            ),
+            Property::CanSummon(self.r#can_summon),
+            Property::Shrieking(self.r#shrieking),
+            Property::Waterlogged(self.r#waterlogged),
         ]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -607890,11 +609833,11 @@ impl BlockProperties for SculkShriekerLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            match *key {
-                "can_summon" => block_props.r#can_summon = matches!(*value, "true"),
-                "shrieking" => block_props.r#shrieking = matches!(*value, "true"),
-                "waterlogged" => block_props.r#waterlogged = matches!(*value, "true"),
+        for prop in props {
+            match prop {
+                Property::CanSummon(value) => block_props.r#can_summon = *value,
+                Property::Shrieking(value) => block_props.r#shrieking = *value,
+                Property::Waterlogged(value) => block_props.r#waterlogged = *value,
                 _ => {}
             }
         }
@@ -608019,40 +609962,21 @@ impl BlockProperties for CalibratedSculkSensorLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
+    fn to_props(&self) -> Vec<Property> {
         vec![
-            ("facing", self.r#facing.to_value()),
-            (
-                "power",
-                match self.r#power {
-                    0u8 => "0",
-                    1u8 => "1",
-                    2u8 => "2",
-                    3u8 => "3",
-                    4u8 => "4",
-                    5u8 => "5",
-                    6u8 => "6",
-                    7u8 => "7",
-                    8u8 => "8",
-                    9u8 => "9",
-                    10u8 => "10",
-                    11u8 => "11",
-                    12u8 => "12",
-                    13u8 => "13",
-                    14u8 => "14",
-                    15u8 => "15",
-                    _ => unreachable!(),
-                },
-            ),
-            ("sculk_sensor_phase", self.r#sculk_sensor_phase.to_value()),
-            (
-                "waterlogged",
-                if self.r#waterlogged { "true" } else { "false" },
-            ),
+            Property::Facing(match self.r#facing {
+                HorizontalFacing::North => Facing::North,
+                HorizontalFacing::South => Facing::South,
+                HorizontalFacing::West => Facing::West,
+                HorizontalFacing::East => Facing::East,
+            }),
+            Property::Power(self.r#power),
+            Property::SculkSensorPhase(self.r#sculk_sensor_phase),
+            Property::Waterlogged(self.r#waterlogged),
         ]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -608061,34 +609985,20 @@ impl BlockProperties for CalibratedSculkSensorLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            match *key {
-                "facing" => block_props.r#facing = HorizontalFacing::from_value(value),
-                "power" => {
-                    block_props.r#power = match *value {
-                        "0" => 0u8,
-                        "1" => 1u8,
-                        "2" => 2u8,
-                        "3" => 3u8,
-                        "4" => 4u8,
-                        "5" => 5u8,
-                        "6" => 6u8,
-                        "7" => 7u8,
-                        "8" => 8u8,
-                        "9" => 9u8,
-                        "10" => 10u8,
-                        "11" => 11u8,
-                        "12" => 12u8,
-                        "13" => 13u8,
-                        "14" => 14u8,
-                        "15" => 15u8,
-                        _ => 0u8,
-                    }
+        for prop in props {
+            match prop {
+                Property::Facing(value) => match *value {
+                    Facing::North => block_props.r#facing = HorizontalFacing::North,
+                    Facing::South => block_props.r#facing = HorizontalFacing::South,
+                    Facing::West => block_props.r#facing = HorizontalFacing::West,
+                    Facing::East => block_props.r#facing = HorizontalFacing::East,
+                    _ => {}
+                },
+                Property::Power(value) => {
+                    block_props.r#power = if *value <= 15u8 { *value } else { 0 };
                 }
-                "sculk_sensor_phase" => {
-                    block_props.r#sculk_sensor_phase = SculkSensorPhase::from_value(value)
-                }
-                "waterlogged" => block_props.r#waterlogged = matches!(*value, "true"),
+                Property::SculkSensorPhase(value) => block_props.r#sculk_sensor_phase = *value,
+                Property::Waterlogged(value) => block_props.r#waterlogged = *value,
                 _ => {}
             }
         }
@@ -608206,39 +610116,15 @@ impl BlockProperties for SculkSensorLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
+    fn to_props(&self) -> Vec<Property> {
         vec![
-            (
-                "power",
-                match self.r#power {
-                    0u8 => "0",
-                    1u8 => "1",
-                    2u8 => "2",
-                    3u8 => "3",
-                    4u8 => "4",
-                    5u8 => "5",
-                    6u8 => "6",
-                    7u8 => "7",
-                    8u8 => "8",
-                    9u8 => "9",
-                    10u8 => "10",
-                    11u8 => "11",
-                    12u8 => "12",
-                    13u8 => "13",
-                    14u8 => "14",
-                    15u8 => "15",
-                    _ => unreachable!(),
-                },
-            ),
-            ("sculk_sensor_phase", self.r#sculk_sensor_phase.to_value()),
-            (
-                "waterlogged",
-                if self.r#waterlogged { "true" } else { "false" },
-            ),
+            Property::Power(self.r#power),
+            Property::SculkSensorPhase(self.r#sculk_sensor_phase),
+            Property::Waterlogged(self.r#waterlogged),
         ]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -608247,33 +610133,13 @@ impl BlockProperties for SculkSensorLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            match *key {
-                "power" => {
-                    block_props.r#power = match *value {
-                        "0" => 0u8,
-                        "1" => 1u8,
-                        "2" => 2u8,
-                        "3" => 3u8,
-                        "4" => 4u8,
-                        "5" => 5u8,
-                        "6" => 6u8,
-                        "7" => 7u8,
-                        "8" => 8u8,
-                        "9" => 9u8,
-                        "10" => 10u8,
-                        "11" => 11u8,
-                        "12" => 12u8,
-                        "13" => 13u8,
-                        "14" => 14u8,
-                        "15" => 15u8,
-                        _ => 0u8,
-                    }
+        for prop in props {
+            match prop {
+                Property::Power(value) => {
+                    block_props.r#power = if *value <= 15u8 { *value } else { 0 };
                 }
-                "sculk_sensor_phase" => {
-                    block_props.r#sculk_sensor_phase = SculkSensorPhase::from_value(value)
-                }
-                "waterlogged" => block_props.r#waterlogged = matches!(*value, "true"),
+                Property::SculkSensorPhase(value) => block_props.r#sculk_sensor_phase = *value,
+                Property::Waterlogged(value) => block_props.r#waterlogged = *value,
                 _ => {}
             }
         }
@@ -608418,33 +610284,15 @@ impl BlockProperties for OakLeavesLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
+    fn to_props(&self) -> Vec<Property> {
         vec![
-            (
-                "distance",
-                match self.r#distance {
-                    1u8 => "1",
-                    2u8 => "2",
-                    3u8 => "3",
-                    4u8 => "4",
-                    5u8 => "5",
-                    6u8 => "6",
-                    7u8 => "7",
-                    _ => unreachable!(),
-                },
-            ),
-            (
-                "persistent",
-                if self.r#persistent { "true" } else { "false" },
-            ),
-            (
-                "waterlogged",
-                if self.r#waterlogged { "true" } else { "false" },
-            ),
+            Property::Distance(self.r#distance),
+            Property::Persistent(self.r#persistent),
+            Property::Waterlogged(self.r#waterlogged),
         ]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -608453,22 +610301,17 @@ impl BlockProperties for OakLeavesLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            match *key {
-                "distance" => {
-                    block_props.r#distance = match *value {
-                        "1" => 1u8,
-                        "2" => 2u8,
-                        "3" => 3u8,
-                        "4" => 4u8,
-                        "5" => 5u8,
-                        "6" => 6u8,
-                        "7" => 7u8,
-                        _ => 1u8,
-                    }
+        for prop in props {
+            match prop {
+                Property::Distance(value) => {
+                    block_props.r#distance = if *value >= 1u8 && *value <= 7u8 {
+                        *value
+                    } else {
+                        1u8
+                    };
                 }
-                "persistent" => block_props.r#persistent = matches!(*value, "true"),
-                "waterlogged" => block_props.r#waterlogged = matches!(*value, "true"),
+                Property::Persistent(value) => block_props.r#persistent = *value,
+                Property::Waterlogged(value) => block_props.r#waterlogged = *value,
                 _ => {}
             }
         }
@@ -608604,18 +610447,20 @@ impl BlockProperties for ChestLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
+    fn to_props(&self) -> Vec<Property> {
         vec![
-            ("facing", self.r#facing.to_value()),
-            ("type", self.r#type.to_value()),
-            (
-                "waterlogged",
-                if self.r#waterlogged { "true" } else { "false" },
-            ),
+            Property::Facing(match self.r#facing {
+                HorizontalFacing::North => Facing::North,
+                HorizontalFacing::South => Facing::South,
+                HorizontalFacing::West => Facing::West,
+                HorizontalFacing::East => Facing::East,
+            }),
+            Property::ChestType(self.r#type),
+            Property::Waterlogged(self.r#waterlogged),
         ]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -608624,11 +610469,17 @@ impl BlockProperties for ChestLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            match *key {
-                "facing" => block_props.r#facing = HorizontalFacing::from_value(value),
-                "type" => block_props.r#type = ChestType::from_value(value),
-                "waterlogged" => block_props.r#waterlogged = matches!(*value, "true"),
+        for prop in props {
+            match prop {
+                Property::Facing(value) => match *value {
+                    Facing::North => block_props.r#facing = HorizontalFacing::North,
+                    Facing::South => block_props.r#facing = HorizontalFacing::South,
+                    Facing::West => block_props.r#facing = HorizontalFacing::West,
+                    Facing::East => block_props.r#facing = HorizontalFacing::East,
+                    _ => {}
+                },
+                Property::ChestType(value) => block_props.r#type = *value,
+                Property::Waterlogged(value) => block_props.r#waterlogged = *value,
                 _ => {}
             }
         }
@@ -608771,39 +610622,15 @@ impl BlockProperties for OakHangingSignLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
+    fn to_props(&self) -> Vec<Property> {
         vec![
-            ("attached", if self.r#attached { "true" } else { "false" }),
-            (
-                "rotation",
-                match self.r#rotation {
-                    0u8 => "0",
-                    1u8 => "1",
-                    2u8 => "2",
-                    3u8 => "3",
-                    4u8 => "4",
-                    5u8 => "5",
-                    6u8 => "6",
-                    7u8 => "7",
-                    8u8 => "8",
-                    9u8 => "9",
-                    10u8 => "10",
-                    11u8 => "11",
-                    12u8 => "12",
-                    13u8 => "13",
-                    14u8 => "14",
-                    15u8 => "15",
-                    _ => unreachable!(),
-                },
-            ),
-            (
-                "waterlogged",
-                if self.r#waterlogged { "true" } else { "false" },
-            ),
+            Property::Attached(self.r#attached),
+            Property::Rotation(self.r#rotation),
+            Property::Waterlogged(self.r#waterlogged),
         ]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -608812,31 +610639,13 @@ impl BlockProperties for OakHangingSignLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            match *key {
-                "attached" => block_props.r#attached = matches!(*value, "true"),
-                "rotation" => {
-                    block_props.r#rotation = match *value {
-                        "0" => 0u8,
-                        "1" => 1u8,
-                        "2" => 2u8,
-                        "3" => 3u8,
-                        "4" => 4u8,
-                        "5" => 5u8,
-                        "6" => 6u8,
-                        "7" => 7u8,
-                        "8" => 8u8,
-                        "9" => 9u8,
-                        "10" => 10u8,
-                        "11" => 11u8,
-                        "12" => 12u8,
-                        "13" => 13u8,
-                        "14" => 14u8,
-                        "15" => 15u8,
-                        _ => 0u8,
-                    }
+        for prop in props {
+            match prop {
+                Property::Attached(value) => block_props.r#attached = *value,
+                Property::Rotation(value) => {
+                    block_props.r#rotation = if *value <= 15u8 { *value } else { 0 };
                 }
-                "waterlogged" => block_props.r#waterlogged = matches!(*value, "true"),
+                Property::Waterlogged(value) => block_props.r#waterlogged = *value,
                 _ => {}
             }
         }
@@ -608951,15 +610760,20 @@ impl BlockProperties for TripwireHookLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
+    fn to_props(&self) -> Vec<Property> {
         vec![
-            ("attached", if self.r#attached { "true" } else { "false" }),
-            ("facing", self.r#facing.to_value()),
-            ("powered", if self.r#powered { "true" } else { "false" }),
+            Property::Attached(self.r#attached),
+            Property::Facing(match self.r#facing {
+                HorizontalFacing::North => Facing::North,
+                HorizontalFacing::South => Facing::South,
+                HorizontalFacing::West => Facing::West,
+                HorizontalFacing::East => Facing::East,
+            }),
+            Property::Powered(self.r#powered),
         ]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -608968,11 +610782,17 @@ impl BlockProperties for TripwireHookLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            match *key {
-                "attached" => block_props.r#attached = matches!(*value, "true"),
-                "facing" => block_props.r#facing = HorizontalFacing::from_value(value),
-                "powered" => block_props.r#powered = matches!(*value, "true"),
+        for prop in props {
+            match prop {
+                Property::Attached(value) => block_props.r#attached = *value,
+                Property::Facing(value) => match *value {
+                    Facing::North => block_props.r#facing = HorizontalFacing::North,
+                    Facing::South => block_props.r#facing = HorizontalFacing::South,
+                    Facing::West => block_props.r#facing = HorizontalFacing::West,
+                    Facing::East => block_props.r#facing = HorizontalFacing::East,
+                    _ => {}
+                },
+                Property::Powered(value) => block_props.r#powered = *value,
                 _ => {}
             }
         }
@@ -609196,11 +611016,11 @@ impl BlockProperties for PaleOakWoodLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
-        vec![("axis", self.r#axis.to_value())]
+    fn to_props(&self) -> Vec<Property> {
+        vec![Property::Axis(self.r#axis)]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -609209,9 +611029,10 @@ impl BlockProperties for PaleOakWoodLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            if *key == "axis" {
-                block_props.r#axis = Axis::from_value(value)
+        for prop in props {
+            match prop {
+                Property::Axis(value) => block_props.r#axis = *value,
+                _ => {}
             }
         }
         block_props
@@ -609338,17 +611159,14 @@ impl BlockProperties for IronChainLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
+    fn to_props(&self) -> Vec<Property> {
         vec![
-            ("axis", self.r#axis.to_value()),
-            (
-                "waterlogged",
-                if self.r#waterlogged { "true" } else { "false" },
-            ),
+            Property::Axis(self.r#axis),
+            Property::Waterlogged(self.r#waterlogged),
         ]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -609357,10 +611175,10 @@ impl BlockProperties for IronChainLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            match *key {
-                "axis" => block_props.r#axis = Axis::from_value(value),
-                "waterlogged" => block_props.r#waterlogged = matches!(*value, "true"),
+        for prop in props {
+            match prop {
+                Property::Axis(value) => block_props.r#axis = *value,
+                Property::Waterlogged(value) => block_props.r#waterlogged = *value,
                 _ => {}
             }
         }
@@ -609478,18 +611296,15 @@ impl BlockProperties for CreakingHeartLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
+    fn to_props(&self) -> Vec<Property> {
         vec![
-            ("axis", self.r#axis.to_value()),
-            (
-                "creaking_heart_state",
-                self.r#creaking_heart_state.to_value(),
-            ),
-            ("natural", if self.r#natural { "true" } else { "false" }),
+            Property::Axis(self.r#axis),
+            Property::CreakingHeartState(self.r#creaking_heart_state),
+            Property::Natural(self.r#natural),
         ]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -609498,13 +611313,11 @@ impl BlockProperties for CreakingHeartLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            match *key {
-                "axis" => block_props.r#axis = Axis::from_value(value),
-                "creaking_heart_state" => {
-                    block_props.r#creaking_heart_state = CreakingHeartState::from_value(value)
-                }
-                "natural" => block_props.r#natural = matches!(*value, "true"),
+        for prop in props {
+            match prop {
+                Property::Axis(value) => block_props.r#axis = *value,
+                Property::CreakingHeartState(value) => block_props.r#creaking_heart_state = *value,
+                Property::Natural(value) => block_props.r#natural = *value,
                 _ => {}
             }
         }
@@ -609622,45 +611435,15 @@ impl BlockProperties for NoteBlockLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
+    fn to_props(&self) -> Vec<Property> {
         vec![
-            ("instrument", self.r#instrument.to_value()),
-            (
-                "note",
-                match self.r#note {
-                    0u8 => "0",
-                    1u8 => "1",
-                    2u8 => "2",
-                    3u8 => "3",
-                    4u8 => "4",
-                    5u8 => "5",
-                    6u8 => "6",
-                    7u8 => "7",
-                    8u8 => "8",
-                    9u8 => "9",
-                    10u8 => "10",
-                    11u8 => "11",
-                    12u8 => "12",
-                    13u8 => "13",
-                    14u8 => "14",
-                    15u8 => "15",
-                    16u8 => "16",
-                    17u8 => "17",
-                    18u8 => "18",
-                    19u8 => "19",
-                    20u8 => "20",
-                    21u8 => "21",
-                    22u8 => "22",
-                    23u8 => "23",
-                    24u8 => "24",
-                    _ => unreachable!(),
-                },
-            ),
-            ("powered", if self.r#powered { "true" } else { "false" }),
+            Property::Instrument(self.r#instrument),
+            Property::Note(self.r#note),
+            Property::Powered(self.r#powered),
         ]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -609669,40 +611452,13 @@ impl BlockProperties for NoteBlockLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            match *key {
-                "instrument" => block_props.r#instrument = NoteblockInstrument::from_value(value),
-                "note" => {
-                    block_props.r#note = match *value {
-                        "0" => 0u8,
-                        "1" => 1u8,
-                        "2" => 2u8,
-                        "3" => 3u8,
-                        "4" => 4u8,
-                        "5" => 5u8,
-                        "6" => 6u8,
-                        "7" => 7u8,
-                        "8" => 8u8,
-                        "9" => 9u8,
-                        "10" => 10u8,
-                        "11" => 11u8,
-                        "12" => 12u8,
-                        "13" => 13u8,
-                        "14" => 14u8,
-                        "15" => 15u8,
-                        "16" => 16u8,
-                        "17" => 17u8,
-                        "18" => 18u8,
-                        "19" => 19u8,
-                        "20" => 20u8,
-                        "21" => 21u8,
-                        "22" => 22u8,
-                        "23" => 23u8,
-                        "24" => 24u8,
-                        _ => 0u8,
-                    }
+        for prop in props {
+            match prop {
+                Property::Instrument(value) => block_props.r#instrument = *value,
+                Property::Note(value) => {
+                    block_props.r#note = if *value <= 24u8 { *value } else { 0 };
                 }
-                "powered" => block_props.r#powered = matches!(*value, "true"),
+                Property::Powered(value) => block_props.r#powered = *value,
                 _ => {}
             }
         }
@@ -609807,35 +611563,14 @@ impl BlockProperties for DaylightDetectorLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
+    fn to_props(&self) -> Vec<Property> {
         vec![
-            ("inverted", if self.r#inverted { "true" } else { "false" }),
-            (
-                "power",
-                match self.r#power {
-                    0u8 => "0",
-                    1u8 => "1",
-                    2u8 => "2",
-                    3u8 => "3",
-                    4u8 => "4",
-                    5u8 => "5",
-                    6u8 => "6",
-                    7u8 => "7",
-                    8u8 => "8",
-                    9u8 => "9",
-                    10u8 => "10",
-                    11u8 => "11",
-                    12u8 => "12",
-                    13u8 => "13",
-                    14u8 => "14",
-                    15u8 => "15",
-                    _ => unreachable!(),
-                },
-            ),
+            Property::Inverted(self.r#inverted),
+            Property::Power(self.r#power),
         ]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -609844,29 +611579,11 @@ impl BlockProperties for DaylightDetectorLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            match *key {
-                "inverted" => block_props.r#inverted = matches!(*value, "true"),
-                "power" => {
-                    block_props.r#power = match *value {
-                        "0" => 0u8,
-                        "1" => 1u8,
-                        "2" => 2u8,
-                        "3" => 3u8,
-                        "4" => 4u8,
-                        "5" => 5u8,
-                        "6" => 6u8,
-                        "7" => 7u8,
-                        "8" => 8u8,
-                        "9" => 9u8,
-                        "10" => 10u8,
-                        "11" => 11u8,
-                        "12" => 12u8,
-                        "13" => 13u8,
-                        "14" => 14u8,
-                        "15" => 15u8,
-                        _ => 0u8,
-                    }
+        for prop in props {
+            match prop {
+                Property::Inverted(value) => block_props.r#inverted = *value,
+                Property::Power(value) => {
+                    block_props.r#power = if *value <= 15u8 { *value } else { 0 };
                 }
                 _ => {}
             }
@@ -609966,24 +611683,11 @@ impl BlockProperties for SnowLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
-        vec![(
-            "layers",
-            match self.r#layers {
-                1u8 => "1",
-                2u8 => "2",
-                3u8 => "3",
-                4u8 => "4",
-                5u8 => "5",
-                6u8 => "6",
-                7u8 => "7",
-                8u8 => "8",
-                _ => unreachable!(),
-            },
-        )]
+    fn to_props(&self) -> Vec<Property> {
+        vec![Property::Layers(self.r#layers)]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -609992,19 +611696,16 @@ impl BlockProperties for SnowLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            if *key == "layers" {
-                block_props.r#layers = match *value {
-                    "1" => 1u8,
-                    "2" => 2u8,
-                    "3" => 3u8,
-                    "4" => 4u8,
-                    "5" => 5u8,
-                    "6" => 6u8,
-                    "7" => 7u8,
-                    "8" => 8u8,
-                    _ => 1u8,
+        for prop in props {
+            match prop {
+                Property::Layers(value) => {
+                    block_props.r#layers = if *value >= 1u8 && *value <= 8u8 {
+                        *value
+                    } else {
+                        1u8
+                    };
                 }
+                _ => {}
             }
         }
         block_props
@@ -610129,17 +611830,14 @@ impl BlockProperties for LanternLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
+    fn to_props(&self) -> Vec<Property> {
         vec![
-            ("hanging", if self.r#hanging { "true" } else { "false" }),
-            (
-                "waterlogged",
-                if self.r#waterlogged { "true" } else { "false" },
-            ),
+            Property::Hanging(self.r#hanging),
+            Property::Waterlogged(self.r#waterlogged),
         ]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -610148,10 +611846,10 @@ impl BlockProperties for LanternLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            match *key {
-                "hanging" => block_props.r#hanging = matches!(*value, "true"),
-                "waterlogged" => block_props.r#waterlogged = matches!(*value, "true"),
+        for prop in props {
+            match prop {
+                Property::Hanging(value) => block_props.r#hanging = *value,
+                Property::Waterlogged(value) => block_props.r#waterlogged = *value,
                 _ => {}
             }
         }
@@ -610273,36 +611971,16 @@ impl BlockProperties for MangrovePropaguleLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
+    fn to_props(&self) -> Vec<Property> {
         vec![
-            (
-                "age",
-                match self.r#age {
-                    0u8 => "0",
-                    1u8 => "1",
-                    2u8 => "2",
-                    3u8 => "3",
-                    4u8 => "4",
-                    _ => unreachable!(),
-                },
-            ),
-            ("hanging", if self.r#hanging { "true" } else { "false" }),
-            (
-                "stage",
-                match self.r#stage {
-                    0u8 => "0",
-                    1u8 => "1",
-                    _ => unreachable!(),
-                },
-            ),
-            (
-                "waterlogged",
-                if self.r#waterlogged { "true" } else { "false" },
-            ),
+            Property::Age(self.r#age),
+            Property::Hanging(self.r#hanging),
+            Property::Stage(self.r#stage),
+            Property::Waterlogged(self.r#waterlogged),
         ]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -610311,27 +611989,16 @@ impl BlockProperties for MangrovePropaguleLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            match *key {
-                "age" => {
-                    block_props.r#age = match *value {
-                        "0" => 0u8,
-                        "1" => 1u8,
-                        "2" => 2u8,
-                        "3" => 3u8,
-                        "4" => 4u8,
-                        _ => 0u8,
-                    }
+        for prop in props {
+            match prop {
+                Property::Age(value) => {
+                    block_props.r#age = if *value <= 4u8 { *value } else { 0 };
                 }
-                "hanging" => block_props.r#hanging = matches!(*value, "true"),
-                "stage" => {
-                    block_props.r#stage = match *value {
-                        "0" => 0u8,
-                        "1" => 1u8,
-                        _ => 0u8,
-                    }
+                Property::Hanging(value) => block_props.r#hanging = *value,
+                Property::Stage(value) => {
+                    block_props.r#stage = if *value <= 1u8 { *value } else { 0 };
                 }
-                "waterlogged" => block_props.r#waterlogged = matches!(*value, "true"),
+                Property::Waterlogged(value) => block_props.r#waterlogged = *value,
                 _ => {}
             }
         }
@@ -610430,24 +612097,11 @@ impl BlockProperties for FarmlandLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
-        vec![(
-            "moisture",
-            match self.r#moisture {
-                0u8 => "0",
-                1u8 => "1",
-                2u8 => "2",
-                3u8 => "3",
-                4u8 => "4",
-                5u8 => "5",
-                6u8 => "6",
-                7u8 => "7",
-                _ => unreachable!(),
-            },
-        )]
+    fn to_props(&self) -> Vec<Property> {
+        vec![Property::Moisture(self.r#moisture)]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -610456,19 +612110,12 @@ impl BlockProperties for FarmlandLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            if *key == "moisture" {
-                block_props.r#moisture = match *value {
-                    "0" => 0u8,
-                    "1" => 1u8,
-                    "2" => 2u8,
-                    "3" => 3u8,
-                    "4" => 4u8,
-                    "5" => 5u8,
-                    "6" => 6u8,
-                    "7" => 7u8,
-                    _ => 0u8,
+        for prop in props {
+            match prop {
+                Property::Moisture(value) => {
+                    block_props.r#moisture = if *value <= 7u8 { *value } else { 0 };
                 }
+                _ => {}
             }
         }
         block_props
@@ -610570,20 +612217,11 @@ impl BlockProperties for SuspiciousSandLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
-        vec![(
-            "dusted",
-            match self.r#dusted {
-                0u8 => "0",
-                1u8 => "1",
-                2u8 => "2",
-                3u8 => "3",
-                _ => unreachable!(),
-            },
-        )]
+    fn to_props(&self) -> Vec<Property> {
+        vec![Property::Dusted(self.r#dusted)]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -610592,15 +612230,12 @@ impl BlockProperties for SuspiciousSandLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            if *key == "dusted" {
-                block_props.r#dusted = match *value {
-                    "0" => 0u8,
-                    "1" => 1u8,
-                    "2" => 2u8,
-                    "3" => 3u8,
-                    _ => 0u8,
+        for prop in props {
+            match prop {
+                Property::Dusted(value) => {
+                    block_props.r#dusted = if *value <= 3u8 { *value } else { 0 };
                 }
+                _ => {}
             }
         }
         block_props
@@ -610714,18 +612349,20 @@ impl BlockProperties for DecoratedPotLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
+    fn to_props(&self) -> Vec<Property> {
         vec![
-            ("cracked", if self.r#cracked { "true" } else { "false" }),
-            ("facing", self.r#facing.to_value()),
-            (
-                "waterlogged",
-                if self.r#waterlogged { "true" } else { "false" },
-            ),
+            Property::Cracked(self.r#cracked),
+            Property::Facing(match self.r#facing {
+                HorizontalFacing::North => Facing::North,
+                HorizontalFacing::South => Facing::South,
+                HorizontalFacing::West => Facing::West,
+                HorizontalFacing::East => Facing::East,
+            }),
+            Property::Waterlogged(self.r#waterlogged),
         ]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -610734,11 +612371,17 @@ impl BlockProperties for DecoratedPotLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            match *key {
-                "cracked" => block_props.r#cracked = matches!(*value, "true"),
-                "facing" => block_props.r#facing = HorizontalFacing::from_value(value),
-                "waterlogged" => block_props.r#waterlogged = matches!(*value, "true"),
+        for prop in props {
+            match prop {
+                Property::Cracked(value) => block_props.r#cracked = *value,
+                Property::Facing(value) => match *value {
+                    Facing::North => block_props.r#facing = HorizontalFacing::North,
+                    Facing::South => block_props.r#facing = HorizontalFacing::South,
+                    Facing::West => block_props.r#facing = HorizontalFacing::West,
+                    Facing::East => block_props.r#facing = HorizontalFacing::East,
+                    _ => {}
+                },
+                Property::Waterlogged(value) => block_props.r#waterlogged = *value,
                 _ => {}
             }
         }
@@ -610904,14 +612547,11 @@ impl BlockProperties for MangroveRootsLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
-        vec![(
-            "waterlogged",
-            if self.r#waterlogged { "true" } else { "false" },
-        )]
+    fn to_props(&self) -> Vec<Property> {
+        vec![Property::Waterlogged(self.r#waterlogged)]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -610920,9 +612560,10 @@ impl BlockProperties for MangroveRootsLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            if *key == "waterlogged" {
-                block_props.r#waterlogged = matches!(*value, "true")
+        for prop in props {
+            match prop {
+                Property::Waterlogged(value) => block_props.r#waterlogged = *value,
+                _ => {}
             }
         }
         block_props
@@ -611071,19 +612712,21 @@ impl BlockProperties for AcaciaShelfLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
+    fn to_props(&self) -> Vec<Property> {
         vec![
-            ("facing", self.r#facing.to_value()),
-            ("powered", if self.r#powered { "true" } else { "false" }),
-            ("side_chain", self.r#side_chain.to_value()),
-            (
-                "waterlogged",
-                if self.r#waterlogged { "true" } else { "false" },
-            ),
+            Property::Facing(match self.r#facing {
+                HorizontalFacing::North => Facing::North,
+                HorizontalFacing::South => Facing::South,
+                HorizontalFacing::West => Facing::West,
+                HorizontalFacing::East => Facing::East,
+            }),
+            Property::Powered(self.r#powered),
+            Property::SideChain(self.r#side_chain),
+            Property::Waterlogged(self.r#waterlogged),
         ]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -611092,12 +612735,18 @@ impl BlockProperties for AcaciaShelfLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            match *key {
-                "facing" => block_props.r#facing = HorizontalFacing::from_value(value),
-                "powered" => block_props.r#powered = matches!(*value, "true"),
-                "side_chain" => block_props.r#side_chain = SideChainPart::from_value(value),
-                "waterlogged" => block_props.r#waterlogged = matches!(*value, "true"),
+        for prop in props {
+            match prop {
+                Property::Facing(value) => match *value {
+                    Facing::North => block_props.r#facing = HorizontalFacing::North,
+                    Facing::South => block_props.r#facing = HorizontalFacing::South,
+                    Facing::West => block_props.r#facing = HorizontalFacing::West,
+                    Facing::East => block_props.r#facing = HorizontalFacing::East,
+                    _ => {}
+                },
+                Property::Powered(value) => block_props.r#powered = *value,
+                Property::SideChain(value) => block_props.r#side_chain = *value,
+                Property::Waterlogged(value) => block_props.r#waterlogged = *value,
                 _ => {}
             }
         }
@@ -611284,17 +612933,19 @@ impl BlockProperties for LadderLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
+    fn to_props(&self) -> Vec<Property> {
         vec![
-            ("facing", self.r#facing.to_value()),
-            (
-                "waterlogged",
-                if self.r#waterlogged { "true" } else { "false" },
-            ),
+            Property::Facing(match self.r#facing {
+                HorizontalFacing::North => Facing::North,
+                HorizontalFacing::South => Facing::South,
+                HorizontalFacing::West => Facing::West,
+                HorizontalFacing::East => Facing::East,
+            }),
+            Property::Waterlogged(self.r#waterlogged),
         ]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -611303,10 +612954,16 @@ impl BlockProperties for LadderLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            match *key {
-                "facing" => block_props.r#facing = HorizontalFacing::from_value(value),
-                "waterlogged" => block_props.r#waterlogged = matches!(*value, "true"),
+        for prop in props {
+            match prop {
+                Property::Facing(value) => match *value {
+                    Facing::North => block_props.r#facing = HorizontalFacing::North,
+                    Facing::South => block_props.r#facing = HorizontalFacing::South,
+                    Facing::West => block_props.r#facing = HorizontalFacing::West,
+                    Facing::East => block_props.r#facing = HorizontalFacing::East,
+                    _ => {}
+                },
+                Property::Waterlogged(value) => block_props.r#waterlogged = *value,
                 _ => {}
             }
         }
@@ -611624,19 +613281,21 @@ impl BlockProperties for WhiteWoolStairsLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
+    fn to_props(&self) -> Vec<Property> {
         vec![
-            ("facing", self.r#facing.to_value()),
-            ("half", self.r#half.to_value()),
-            ("shape", self.r#shape.to_value()),
-            (
-                "waterlogged",
-                if self.r#waterlogged { "true" } else { "false" },
-            ),
+            Property::Facing(match self.r#facing {
+                HorizontalFacing::North => Facing::North,
+                HorizontalFacing::South => Facing::South,
+                HorizontalFacing::West => Facing::West,
+                HorizontalFacing::East => Facing::East,
+            }),
+            Property::Half(self.r#half),
+            Property::StairsShape(self.r#shape),
+            Property::Waterlogged(self.r#waterlogged),
         ]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -611645,12 +613304,18 @@ impl BlockProperties for WhiteWoolStairsLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            match *key {
-                "facing" => block_props.r#facing = HorizontalFacing::from_value(value),
-                "half" => block_props.r#half = Half::from_value(value),
-                "shape" => block_props.r#shape = StairsShape::from_value(value),
-                "waterlogged" => block_props.r#waterlogged = matches!(*value, "true"),
+        for prop in props {
+            match prop {
+                Property::Facing(value) => match *value {
+                    Facing::North => block_props.r#facing = HorizontalFacing::North,
+                    Facing::South => block_props.r#facing = HorizontalFacing::South,
+                    Facing::West => block_props.r#facing = HorizontalFacing::West,
+                    Facing::East => block_props.r#facing = HorizontalFacing::East,
+                    _ => {}
+                },
+                Property::Half(value) => block_props.r#half = *value,
+                Property::StairsShape(value) => block_props.r#shape = *value,
+                Property::Waterlogged(value) => block_props.r#waterlogged = *value,
                 _ => {}
             }
         }
@@ -611785,18 +613450,20 @@ impl BlockProperties for CopperGolemStatueLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
+    fn to_props(&self) -> Vec<Property> {
         vec![
-            ("copper_golem_pose", self.r#copper_golem_pose.to_value()),
-            ("facing", self.r#facing.to_value()),
-            (
-                "waterlogged",
-                if self.r#waterlogged { "true" } else { "false" },
-            ),
+            Property::CopperGolemPose(self.r#copper_golem_pose),
+            Property::Facing(match self.r#facing {
+                HorizontalFacing::North => Facing::North,
+                HorizontalFacing::South => Facing::South,
+                HorizontalFacing::West => Facing::West,
+                HorizontalFacing::East => Facing::East,
+            }),
+            Property::Waterlogged(self.r#waterlogged),
         ]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -611805,13 +613472,17 @@ impl BlockProperties for CopperGolemStatueLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            match *key {
-                "copper_golem_pose" => {
-                    block_props.r#copper_golem_pose = CopperGolemPose::from_value(value)
-                }
-                "facing" => block_props.r#facing = HorizontalFacing::from_value(value),
-                "waterlogged" => block_props.r#waterlogged = matches!(*value, "true"),
+        for prop in props {
+            match prop {
+                Property::CopperGolemPose(value) => block_props.r#copper_golem_pose = *value,
+                Property::Facing(value) => match *value {
+                    Facing::North => block_props.r#facing = HorizontalFacing::North,
+                    Facing::South => block_props.r#facing = HorizontalFacing::South,
+                    Facing::West => block_props.r#facing = HorizontalFacing::West,
+                    Facing::East => block_props.r#facing = HorizontalFacing::East,
+                    _ => {}
+                },
+                Property::Waterlogged(value) => block_props.r#waterlogged = *value,
                 _ => {}
             }
         }
@@ -611926,18 +613597,20 @@ impl BlockProperties for SmallDripleafLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
+    fn to_props(&self) -> Vec<Property> {
         vec![
-            ("facing", self.r#facing.to_value()),
-            ("half", self.r#half.to_value()),
-            (
-                "waterlogged",
-                if self.r#waterlogged { "true" } else { "false" },
-            ),
+            Property::Facing(match self.r#facing {
+                HorizontalFacing::North => Facing::North,
+                HorizontalFacing::South => Facing::South,
+                HorizontalFacing::West => Facing::West,
+                HorizontalFacing::East => Facing::East,
+            }),
+            Property::DoubleBlockHalf(self.r#half),
+            Property::Waterlogged(self.r#waterlogged),
         ]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -611946,11 +613619,17 @@ impl BlockProperties for SmallDripleafLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            match *key {
-                "facing" => block_props.r#facing = HorizontalFacing::from_value(value),
-                "half" => block_props.r#half = DoubleBlockHalf::from_value(value),
-                "waterlogged" => block_props.r#waterlogged = matches!(*value, "true"),
+        for prop in props {
+            match prop {
+                Property::Facing(value) => match *value {
+                    Facing::North => block_props.r#facing = HorizontalFacing::North,
+                    Facing::South => block_props.r#facing = HorizontalFacing::South,
+                    Facing::West => block_props.r#facing = HorizontalFacing::West,
+                    Facing::East => block_props.r#facing = HorizontalFacing::East,
+                    _ => {}
+                },
+                Property::DoubleBlockHalf(value) => block_props.r#half = *value,
+                Property::Waterlogged(value) => block_props.r#waterlogged = *value,
                 _ => {}
             }
         }
@@ -612065,27 +613744,20 @@ impl BlockProperties for DriedGhastLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
+    fn to_props(&self) -> Vec<Property> {
         vec![
-            ("facing", self.r#facing.to_value()),
-            (
-                "hydration",
-                match self.r#hydration {
-                    0u8 => "0",
-                    1u8 => "1",
-                    2u8 => "2",
-                    3u8 => "3",
-                    _ => unreachable!(),
-                },
-            ),
-            (
-                "waterlogged",
-                if self.r#waterlogged { "true" } else { "false" },
-            ),
+            Property::Facing(match self.r#facing {
+                HorizontalFacing::North => Facing::North,
+                HorizontalFacing::South => Facing::South,
+                HorizontalFacing::West => Facing::West,
+                HorizontalFacing::East => Facing::East,
+            }),
+            Property::Hydration(self.r#hydration),
+            Property::Waterlogged(self.r#waterlogged),
         ]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -612094,19 +613766,19 @@ impl BlockProperties for DriedGhastLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            match *key {
-                "facing" => block_props.r#facing = HorizontalFacing::from_value(value),
-                "hydration" => {
-                    block_props.r#hydration = match *value {
-                        "0" => 0u8,
-                        "1" => 1u8,
-                        "2" => 2u8,
-                        "3" => 3u8,
-                        _ => 0u8,
-                    }
+        for prop in props {
+            match prop {
+                Property::Facing(value) => match *value {
+                    Facing::North => block_props.r#facing = HorizontalFacing::North,
+                    Facing::South => block_props.r#facing = HorizontalFacing::South,
+                    Facing::West => block_props.r#facing = HorizontalFacing::West,
+                    Facing::East => block_props.r#facing = HorizontalFacing::East,
+                    _ => {}
+                },
+                Property::Hydration(value) => {
+                    block_props.r#hydration = if *value <= 3u8 { *value } else { 0 };
                 }
-                "waterlogged" => block_props.r#waterlogged = matches!(*value, "true"),
+                Property::Waterlogged(value) => block_props.r#waterlogged = *value,
                 _ => {}
             }
         }
@@ -612227,18 +613899,22 @@ impl BlockProperties for PoweredRailLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
+    fn to_props(&self) -> Vec<Property> {
         vec![
-            ("powered", if self.r#powered { "true" } else { "false" }),
-            ("shape", self.r#shape.to_value()),
-            (
-                "waterlogged",
-                if self.r#waterlogged { "true" } else { "false" },
-            ),
+            Property::Powered(self.r#powered),
+            Property::RailShape(match self.r#shape {
+                RailShapeStraight::NorthSouth => RailShape::NorthSouth,
+                RailShapeStraight::EastWest => RailShape::EastWest,
+                RailShapeStraight::AscendingEast => RailShape::AscendingEast,
+                RailShapeStraight::AscendingWest => RailShape::AscendingWest,
+                RailShapeStraight::AscendingNorth => RailShape::AscendingNorth,
+                RailShapeStraight::AscendingSouth => RailShape::AscendingSouth,
+            }),
+            Property::Waterlogged(self.r#waterlogged),
         ]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -612247,11 +613923,27 @@ impl BlockProperties for PoweredRailLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            match *key {
-                "powered" => block_props.r#powered = matches!(*value, "true"),
-                "shape" => block_props.r#shape = RailShapeStraight::from_value(value),
-                "waterlogged" => block_props.r#waterlogged = matches!(*value, "true"),
+        for prop in props {
+            match prop {
+                Property::Powered(value) => block_props.r#powered = *value,
+                Property::RailShape(value) => match *value {
+                    RailShape::NorthSouth => block_props.r#shape = RailShapeStraight::NorthSouth,
+                    RailShape::EastWest => block_props.r#shape = RailShapeStraight::EastWest,
+                    RailShape::AscendingEast => {
+                        block_props.r#shape = RailShapeStraight::AscendingEast
+                    }
+                    RailShape::AscendingWest => {
+                        block_props.r#shape = RailShapeStraight::AscendingWest
+                    }
+                    RailShape::AscendingNorth => {
+                        block_props.r#shape = RailShapeStraight::AscendingNorth
+                    }
+                    RailShape::AscendingSouth => {
+                        block_props.r#shape = RailShapeStraight::AscendingSouth
+                    }
+                    _ => {}
+                },
+                Property::Waterlogged(value) => block_props.r#waterlogged = *value,
                 _ => {}
             }
         }
@@ -612563,17 +614255,14 @@ impl BlockProperties for WhiteWoolSlabLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
+    fn to_props(&self) -> Vec<Property> {
         vec![
-            ("type", self.r#type.to_value()),
-            (
-                "waterlogged",
-                if self.r#waterlogged { "true" } else { "false" },
-            ),
+            Property::SlabType(self.r#type),
+            Property::Waterlogged(self.r#waterlogged),
         ]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -612582,10 +614271,10 @@ impl BlockProperties for WhiteWoolSlabLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            match *key {
-                "type" => block_props.r#type = SlabType::from_value(value),
-                "waterlogged" => block_props.r#waterlogged = matches!(*value, "true"),
+        for prop in props {
+            match prop {
+                Property::SlabType(value) => block_props.r#type = *value,
+                Property::Waterlogged(value) => block_props.r#waterlogged = *value,
                 _ => {}
             }
         }
@@ -612693,26 +614382,14 @@ impl BlockProperties for SeaPickleLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
+    fn to_props(&self) -> Vec<Property> {
         vec![
-            (
-                "pickles",
-                match self.r#pickles {
-                    1u8 => "1",
-                    2u8 => "2",
-                    3u8 => "3",
-                    4u8 => "4",
-                    _ => unreachable!(),
-                },
-            ),
-            (
-                "waterlogged",
-                if self.r#waterlogged { "true" } else { "false" },
-            ),
+            Property::Pickles(self.r#pickles),
+            Property::Waterlogged(self.r#waterlogged),
         ]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -612721,18 +614398,16 @@ impl BlockProperties for SeaPickleLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            match *key {
-                "pickles" => {
-                    block_props.r#pickles = match *value {
-                        "1" => 1u8,
-                        "2" => 2u8,
-                        "3" => 3u8,
-                        "4" => 4u8,
-                        _ => 1u8,
-                    }
+        for prop in props {
+            match prop {
+                Property::Pickles(value) => {
+                    block_props.r#pickles = if *value >= 1u8 && *value <= 4u8 {
+                        *value
+                    } else {
+                        1u8
+                    };
                 }
-                "waterlogged" => block_props.r#waterlogged = matches!(*value, "true"),
+                Property::Waterlogged(value) => block_props.r#waterlogged = *value,
                 _ => {}
             }
         }
@@ -612839,17 +614514,14 @@ impl BlockProperties for RailLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
+    fn to_props(&self) -> Vec<Property> {
         vec![
-            ("shape", self.r#shape.to_value()),
-            (
-                "waterlogged",
-                if self.r#waterlogged { "true" } else { "false" },
-            ),
+            Property::RailShape(self.r#shape),
+            Property::Waterlogged(self.r#waterlogged),
         ]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -612858,10 +614530,10 @@ impl BlockProperties for RailLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            match *key {
-                "shape" => block_props.r#shape = RailShape::from_value(value),
-                "waterlogged" => block_props.r#waterlogged = matches!(*value, "true"),
+        for prop in props {
+            match prop {
+                Property::RailShape(value) => block_props.r#shape = *value,
+                Property::Waterlogged(value) => block_props.r#waterlogged = *value,
                 _ => {}
             }
         }
@@ -612983,18 +614655,15 @@ impl BlockProperties for PointedDripstoneLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
+    fn to_props(&self) -> Vec<Property> {
         vec![
-            ("thickness", self.r#thickness.to_value()),
-            ("vertical_direction", self.r#vertical_direction.to_value()),
-            (
-                "waterlogged",
-                if self.r#waterlogged { "true" } else { "false" },
-            ),
+            Property::Thickness(self.r#thickness),
+            Property::VerticalDirection(self.r#vertical_direction),
+            Property::Waterlogged(self.r#waterlogged),
         ]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -613003,13 +614672,11 @@ impl BlockProperties for PointedDripstoneLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            match *key {
-                "thickness" => block_props.r#thickness = SpeleothemThickness::from_value(value),
-                "vertical_direction" => {
-                    block_props.r#vertical_direction = VerticalDirection::from_value(value)
-                }
-                "waterlogged" => block_props.r#waterlogged = matches!(*value, "true"),
+        for prop in props {
+            match prop {
+                Property::Thickness(value) => block_props.r#thickness = *value,
+                Property::VerticalDirection(value) => block_props.r#vertical_direction = *value,
+                Property::Waterlogged(value) => block_props.r#waterlogged = *value,
                 _ => {}
             }
         }
@@ -613124,31 +614791,15 @@ impl BlockProperties for ScaffoldingLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
+    fn to_props(&self) -> Vec<Property> {
         vec![
-            ("bottom", if self.r#bottom { "true" } else { "false" }),
-            (
-                "distance",
-                match self.r#distance {
-                    0u8 => "0",
-                    1u8 => "1",
-                    2u8 => "2",
-                    3u8 => "3",
-                    4u8 => "4",
-                    5u8 => "5",
-                    6u8 => "6",
-                    7u8 => "7",
-                    _ => unreachable!(),
-                },
-            ),
-            (
-                "waterlogged",
-                if self.r#waterlogged { "true" } else { "false" },
-            ),
+            Property::Bottom(self.r#bottom),
+            Property::Distance(self.r#distance),
+            Property::Waterlogged(self.r#waterlogged),
         ]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -613157,23 +614808,13 @@ impl BlockProperties for ScaffoldingLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            match *key {
-                "bottom" => block_props.r#bottom = matches!(*value, "true"),
-                "distance" => {
-                    block_props.r#distance = match *value {
-                        "0" => 0u8,
-                        "1" => 1u8,
-                        "2" => 2u8,
-                        "3" => 3u8,
-                        "4" => 4u8,
-                        "5" => 5u8,
-                        "6" => 6u8,
-                        "7" => 7u8,
-                        _ => 0u8,
-                    }
+        for prop in props {
+            match prop {
+                Property::Bottom(value) => block_props.r#bottom = *value,
+                Property::Distance(value) => {
+                    block_props.r#distance = if *value <= 7u8 { *value } else { 0 };
                 }
-                "waterlogged" => block_props.r#waterlogged = matches!(*value, "true"),
+                Property::Waterlogged(value) => block_props.r#waterlogged = *value,
                 _ => {}
             }
         }
@@ -613309,38 +614950,14 @@ impl BlockProperties for OakSignLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
+    fn to_props(&self) -> Vec<Property> {
         vec![
-            (
-                "rotation",
-                match self.r#rotation {
-                    0u8 => "0",
-                    1u8 => "1",
-                    2u8 => "2",
-                    3u8 => "3",
-                    4u8 => "4",
-                    5u8 => "5",
-                    6u8 => "6",
-                    7u8 => "7",
-                    8u8 => "8",
-                    9u8 => "9",
-                    10u8 => "10",
-                    11u8 => "11",
-                    12u8 => "12",
-                    13u8 => "13",
-                    14u8 => "14",
-                    15u8 => "15",
-                    _ => unreachable!(),
-                },
-            ),
-            (
-                "waterlogged",
-                if self.r#waterlogged { "true" } else { "false" },
-            ),
+            Property::Rotation(self.r#rotation),
+            Property::Waterlogged(self.r#waterlogged),
         ]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -613349,30 +614966,12 @@ impl BlockProperties for OakSignLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            match *key {
-                "rotation" => {
-                    block_props.r#rotation = match *value {
-                        "0" => 0u8,
-                        "1" => 1u8,
-                        "2" => 2u8,
-                        "3" => 3u8,
-                        "4" => 4u8,
-                        "5" => 5u8,
-                        "6" => 6u8,
-                        "7" => 7u8,
-                        "8" => 8u8,
-                        "9" => 9u8,
-                        "10" => 10u8,
-                        "11" => 11u8,
-                        "12" => 12u8,
-                        "13" => 13u8,
-                        "14" => 14u8,
-                        "15" => 15u8,
-                        _ => 0u8,
-                    }
+        for prop in props {
+            match prop {
+                Property::Rotation(value) => {
+                    block_props.r#rotation = if *value <= 15u8 { *value } else { 0 };
                 }
-                "waterlogged" => block_props.r#waterlogged = matches!(*value, "true"),
+                Property::Waterlogged(value) => block_props.r#waterlogged = *value,
                 _ => {}
             }
         }
@@ -613480,38 +615079,14 @@ impl BlockProperties for LightLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
+    fn to_props(&self) -> Vec<Property> {
         vec![
-            (
-                "level",
-                match self.r#level {
-                    0u8 => "0",
-                    1u8 => "1",
-                    2u8 => "2",
-                    3u8 => "3",
-                    4u8 => "4",
-                    5u8 => "5",
-                    6u8 => "6",
-                    7u8 => "7",
-                    8u8 => "8",
-                    9u8 => "9",
-                    10u8 => "10",
-                    11u8 => "11",
-                    12u8 => "12",
-                    13u8 => "13",
-                    14u8 => "14",
-                    15u8 => "15",
-                    _ => unreachable!(),
-                },
-            ),
-            (
-                "waterlogged",
-                if self.r#waterlogged { "true" } else { "false" },
-            ),
+            Property::Level(self.r#level),
+            Property::Waterlogged(self.r#waterlogged),
         ]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -613520,30 +615095,12 @@ impl BlockProperties for LightLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            match *key {
-                "level" => {
-                    block_props.r#level = match *value {
-                        "0" => 0u8,
-                        "1" => 1u8,
-                        "2" => 2u8,
-                        "3" => 3u8,
-                        "4" => 4u8,
-                        "5" => 5u8,
-                        "6" => 6u8,
-                        "7" => 7u8,
-                        "8" => 8u8,
-                        "9" => 9u8,
-                        "10" => 10u8,
-                        "11" => 11u8,
-                        "12" => 12u8,
-                        "13" => 13u8,
-                        "14" => 14u8,
-                        "15" => 15u8,
-                        _ => 0u8,
-                    }
+        for prop in props {
+            match prop {
+                Property::Level(value) => {
+                    block_props.r#level = if *value <= 15u8 { *value } else { 0 };
                 }
-                "waterlogged" => block_props.r#waterlogged = matches!(*value, "true"),
+                Property::Waterlogged(value) => block_props.r#waterlogged = *value,
                 _ => {}
             }
         }
@@ -613660,17 +615217,14 @@ impl BlockProperties for AmethystClusterLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
+    fn to_props(&self) -> Vec<Property> {
         vec![
-            ("facing", self.r#facing.to_value()),
-            (
-                "waterlogged",
-                if self.r#waterlogged { "true" } else { "false" },
-            ),
+            Property::Facing(self.r#facing),
+            Property::Waterlogged(self.r#waterlogged),
         ]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -613679,10 +615233,10 @@ impl BlockProperties for AmethystClusterLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            match *key {
-                "facing" => block_props.r#facing = Facing::from_value(value),
-                "waterlogged" => block_props.r#waterlogged = matches!(*value, "true"),
+        for prop in props {
+            match prop {
+                Property::Facing(value) => block_props.r#facing = *value,
+                Property::Waterlogged(value) => block_props.r#waterlogged = *value,
                 _ => {}
             }
         }
@@ -613814,18 +615368,15 @@ impl BlockProperties for LightningRodLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
+    fn to_props(&self) -> Vec<Property> {
         vec![
-            ("facing", self.r#facing.to_value()),
-            ("powered", if self.r#powered { "true" } else { "false" }),
-            (
-                "waterlogged",
-                if self.r#waterlogged { "true" } else { "false" },
-            ),
+            Property::Facing(self.r#facing),
+            Property::Powered(self.r#powered),
+            Property::Waterlogged(self.r#waterlogged),
         ]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -613834,11 +615385,11 @@ impl BlockProperties for LightningRodLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            match *key {
-                "facing" => block_props.r#facing = Facing::from_value(value),
-                "powered" => block_props.r#powered = matches!(*value, "true"),
-                "waterlogged" => block_props.r#waterlogged = matches!(*value, "true"),
+        for prop in props {
+            match prop {
+                Property::Facing(value) => block_props.r#facing = *value,
+                Property::Powered(value) => block_props.r#powered = *value,
+                Property::Waterlogged(value) => block_props.r#waterlogged = *value,
                 _ => {}
             }
         }
@@ -613937,25 +615488,11 @@ impl BlockProperties for ComposterLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
-        vec![(
-            "level",
-            match self.r#level {
-                0u8 => "0",
-                1u8 => "1",
-                2u8 => "2",
-                3u8 => "3",
-                4u8 => "4",
-                5u8 => "5",
-                6u8 => "6",
-                7u8 => "7",
-                8u8 => "8",
-                _ => unreachable!(),
-            },
-        )]
+    fn to_props(&self) -> Vec<Property> {
+        vec![Property::Level(self.r#level)]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -613964,20 +615501,12 @@ impl BlockProperties for ComposterLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            if *key == "level" {
-                block_props.r#level = match *value {
-                    "0" => 0u8,
-                    "1" => 1u8,
-                    "2" => 2u8,
-                    "3" => 3u8,
-                    "4" => 4u8,
-                    "5" => 5u8,
-                    "6" => 6u8,
-                    "7" => 7u8,
-                    "8" => 8u8,
-                    _ => 0u8,
+        for prop in props {
+            match prop {
+                Property::Level(value) => {
+                    block_props.r#level = if *value <= 8u8 { *value } else { 0 };
                 }
+                _ => {}
             }
         }
         block_props
@@ -614091,17 +615620,14 @@ impl BlockProperties for CommandBlockLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
+    fn to_props(&self) -> Vec<Property> {
         vec![
-            (
-                "conditional",
-                if self.r#conditional { "true" } else { "false" },
-            ),
-            ("facing", self.r#facing.to_value()),
+            Property::Conditional(self.r#conditional),
+            Property::Facing(self.r#facing),
         ]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -614110,10 +615636,10 @@ impl BlockProperties for CommandBlockLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            match *key {
-                "conditional" => block_props.r#conditional = matches!(*value, "true"),
-                "facing" => block_props.r#facing = Facing::from_value(value),
+        for prop in props {
+            match prop {
+                Property::Conditional(value) => block_props.r#conditional = *value,
+                Property::Facing(value) => block_props.r#facing = *value,
                 _ => {}
             }
         }
@@ -614301,11 +615827,16 @@ impl BlockProperties for WallTorchLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
-        vec![("facing", self.r#facing.to_value())]
+    fn to_props(&self) -> Vec<Property> {
+        vec![Property::Facing(match self.r#facing {
+            HorizontalFacing::North => Facing::North,
+            HorizontalFacing::South => Facing::South,
+            HorizontalFacing::West => Facing::West,
+            HorizontalFacing::East => Facing::East,
+        })]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -614314,9 +615845,16 @@ impl BlockProperties for WallTorchLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            if *key == "facing" {
-                block_props.r#facing = HorizontalFacing::from_value(value)
+        for prop in props {
+            match prop {
+                Property::Facing(value) => match *value {
+                    Facing::North => block_props.r#facing = HorizontalFacing::North,
+                    Facing::South => block_props.r#facing = HorizontalFacing::South,
+                    Facing::West => block_props.r#facing = HorizontalFacing::West,
+                    Facing::East => block_props.r#facing = HorizontalFacing::East,
+                    _ => {}
+                },
+                _ => {}
             }
         }
         block_props
@@ -614437,25 +615975,21 @@ impl BlockProperties for RepeaterLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
+    fn to_props(&self) -> Vec<Property> {
         vec![
-            (
-                "delay",
-                match self.r#delay {
-                    1u8 => "1",
-                    2u8 => "2",
-                    3u8 => "3",
-                    4u8 => "4",
-                    _ => unreachable!(),
-                },
-            ),
-            ("facing", self.r#facing.to_value()),
-            ("locked", if self.r#locked { "true" } else { "false" }),
-            ("powered", if self.r#powered { "true" } else { "false" }),
+            Property::Delay(self.r#delay),
+            Property::Facing(match self.r#facing {
+                HorizontalFacing::North => Facing::North,
+                HorizontalFacing::South => Facing::South,
+                HorizontalFacing::West => Facing::West,
+                HorizontalFacing::East => Facing::East,
+            }),
+            Property::Locked(self.r#locked),
+            Property::Powered(self.r#powered),
         ]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -614464,20 +615998,24 @@ impl BlockProperties for RepeaterLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            match *key {
-                "delay" => {
-                    block_props.r#delay = match *value {
-                        "1" => 1u8,
-                        "2" => 2u8,
-                        "3" => 3u8,
-                        "4" => 4u8,
-                        _ => 1u8,
-                    }
+        for prop in props {
+            match prop {
+                Property::Delay(value) => {
+                    block_props.r#delay = if *value >= 1u8 && *value <= 4u8 {
+                        *value
+                    } else {
+                        1u8
+                    };
                 }
-                "facing" => block_props.r#facing = HorizontalFacing::from_value(value),
-                "locked" => block_props.r#locked = matches!(*value, "true"),
-                "powered" => block_props.r#powered = matches!(*value, "true"),
+                Property::Facing(value) => match *value {
+                    Facing::North => block_props.r#facing = HorizontalFacing::North,
+                    Facing::South => block_props.r#facing = HorizontalFacing::South,
+                    Facing::West => block_props.r#facing = HorizontalFacing::West,
+                    Facing::East => block_props.r#facing = HorizontalFacing::East,
+                    _ => {}
+                },
+                Property::Locked(value) => block_props.r#locked = *value,
+                Property::Powered(value) => block_props.r#powered = *value,
                 _ => {}
             }
         }
@@ -614586,25 +616124,19 @@ impl BlockProperties for BeeNestLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
+    fn to_props(&self) -> Vec<Property> {
         vec![
-            ("facing", self.r#facing.to_value()),
-            (
-                "honey_level",
-                match self.r#honey_level {
-                    0u8 => "0",
-                    1u8 => "1",
-                    2u8 => "2",
-                    3u8 => "3",
-                    4u8 => "4",
-                    5u8 => "5",
-                    _ => unreachable!(),
-                },
-            ),
+            Property::Facing(match self.r#facing {
+                HorizontalFacing::North => Facing::North,
+                HorizontalFacing::South => Facing::South,
+                HorizontalFacing::West => Facing::West,
+                HorizontalFacing::East => Facing::East,
+            }),
+            Property::HoneyLevel(self.r#honey_level),
         ]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -614613,19 +616145,17 @@ impl BlockProperties for BeeNestLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            match *key {
-                "facing" => block_props.r#facing = HorizontalFacing::from_value(value),
-                "honey_level" => {
-                    block_props.r#honey_level = match *value {
-                        "0" => 0u8,
-                        "1" => 1u8,
-                        "2" => 2u8,
-                        "3" => 3u8,
-                        "4" => 4u8,
-                        "5" => 5u8,
-                        _ => 0u8,
-                    }
+        for prop in props {
+            match prop {
+                Property::Facing(value) => match *value {
+                    Facing::North => block_props.r#facing = HorizontalFacing::North,
+                    Facing::South => block_props.r#facing = HorizontalFacing::South,
+                    Facing::West => block_props.r#facing = HorizontalFacing::West,
+                    Facing::East => block_props.r#facing = HorizontalFacing::East,
+                    _ => {}
+                },
+                Property::HoneyLevel(value) => {
+                    block_props.r#honey_level = if *value <= 5u8 { *value } else { 0 };
                 }
                 _ => {}
             }
@@ -614734,14 +616264,19 @@ impl BlockProperties for GrindstoneLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
+    fn to_props(&self) -> Vec<Property> {
         vec![
-            ("face", self.r#face.to_value()),
-            ("facing", self.r#facing.to_value()),
+            Property::Face(self.r#face),
+            Property::Facing(match self.r#facing {
+                HorizontalFacing::North => Facing::North,
+                HorizontalFacing::South => Facing::South,
+                HorizontalFacing::West => Facing::West,
+                HorizontalFacing::East => Facing::East,
+            }),
         ]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -614750,10 +616285,16 @@ impl BlockProperties for GrindstoneLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            match *key {
-                "face" => block_props.r#face = AttachFace::from_value(value),
-                "facing" => block_props.r#facing = HorizontalFacing::from_value(value),
+        for prop in props {
+            match prop {
+                Property::Face(value) => block_props.r#face = *value,
+                Property::Facing(value) => match *value {
+                    Facing::North => block_props.r#facing = HorizontalFacing::North,
+                    Facing::South => block_props.r#facing = HorizontalFacing::South,
+                    Facing::West => block_props.r#facing = HorizontalFacing::West,
+                    Facing::East => block_props.r#facing = HorizontalFacing::East,
+                    _ => {}
+                },
                 _ => {}
             }
         }
@@ -614901,15 +616442,20 @@ impl BlockProperties for LeverLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
+    fn to_props(&self) -> Vec<Property> {
         vec![
-            ("face", self.r#face.to_value()),
-            ("facing", self.r#facing.to_value()),
-            ("powered", if self.r#powered { "true" } else { "false" }),
+            Property::Face(self.r#face),
+            Property::Facing(match self.r#facing {
+                HorizontalFacing::North => Facing::North,
+                HorizontalFacing::South => Facing::South,
+                HorizontalFacing::West => Facing::West,
+                HorizontalFacing::East => Facing::East,
+            }),
+            Property::Powered(self.r#powered),
         ]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -614918,11 +616464,17 @@ impl BlockProperties for LeverLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            match *key {
-                "face" => block_props.r#face = AttachFace::from_value(value),
-                "facing" => block_props.r#facing = HorizontalFacing::from_value(value),
-                "powered" => block_props.r#powered = matches!(*value, "true"),
+        for prop in props {
+            match prop {
+                Property::Face(value) => block_props.r#face = *value,
+                Property::Facing(value) => match *value {
+                    Facing::North => block_props.r#facing = HorizontalFacing::North,
+                    Facing::South => block_props.r#facing = HorizontalFacing::South,
+                    Facing::West => block_props.r#facing = HorizontalFacing::West,
+                    Facing::East => block_props.r#facing = HorizontalFacing::East,
+                    _ => {}
+                },
+                Property::Powered(value) => block_props.r#powered = *value,
                 _ => {}
             }
         }
@@ -615065,61 +616617,24 @@ impl BlockProperties for ChiseledBookshelfLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
+    fn to_props(&self) -> Vec<Property> {
         vec![
-            ("facing", self.r#facing.to_value()),
-            (
-                "slot_0_occupied",
-                if self.r#slot_0_occupied {
-                    "true"
-                } else {
-                    "false"
-                },
-            ),
-            (
-                "slot_1_occupied",
-                if self.r#slot_1_occupied {
-                    "true"
-                } else {
-                    "false"
-                },
-            ),
-            (
-                "slot_2_occupied",
-                if self.r#slot_2_occupied {
-                    "true"
-                } else {
-                    "false"
-                },
-            ),
-            (
-                "slot_3_occupied",
-                if self.r#slot_3_occupied {
-                    "true"
-                } else {
-                    "false"
-                },
-            ),
-            (
-                "slot_4_occupied",
-                if self.r#slot_4_occupied {
-                    "true"
-                } else {
-                    "false"
-                },
-            ),
-            (
-                "slot_5_occupied",
-                if self.r#slot_5_occupied {
-                    "true"
-                } else {
-                    "false"
-                },
-            ),
+            Property::Facing(match self.r#facing {
+                HorizontalFacing::North => Facing::North,
+                HorizontalFacing::South => Facing::South,
+                HorizontalFacing::West => Facing::West,
+                HorizontalFacing::East => Facing::East,
+            }),
+            Property::Slot0Occupied(self.r#slot_0_occupied),
+            Property::Slot1Occupied(self.r#slot_1_occupied),
+            Property::Slot2Occupied(self.r#slot_2_occupied),
+            Property::Slot3Occupied(self.r#slot_3_occupied),
+            Property::Slot4Occupied(self.r#slot_4_occupied),
+            Property::Slot5Occupied(self.r#slot_5_occupied),
         ]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -615128,15 +616643,21 @@ impl BlockProperties for ChiseledBookshelfLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            match *key {
-                "facing" => block_props.r#facing = HorizontalFacing::from_value(value),
-                "slot_0_occupied" => block_props.r#slot_0_occupied = matches!(*value, "true"),
-                "slot_1_occupied" => block_props.r#slot_1_occupied = matches!(*value, "true"),
-                "slot_2_occupied" => block_props.r#slot_2_occupied = matches!(*value, "true"),
-                "slot_3_occupied" => block_props.r#slot_3_occupied = matches!(*value, "true"),
-                "slot_4_occupied" => block_props.r#slot_4_occupied = matches!(*value, "true"),
-                "slot_5_occupied" => block_props.r#slot_5_occupied = matches!(*value, "true"),
+        for prop in props {
+            match prop {
+                Property::Facing(value) => match *value {
+                    Facing::North => block_props.r#facing = HorizontalFacing::North,
+                    Facing::South => block_props.r#facing = HorizontalFacing::South,
+                    Facing::West => block_props.r#facing = HorizontalFacing::West,
+                    Facing::East => block_props.r#facing = HorizontalFacing::East,
+                    _ => {}
+                },
+                Property::Slot0Occupied(value) => block_props.r#slot_0_occupied = *value,
+                Property::Slot1Occupied(value) => block_props.r#slot_1_occupied = *value,
+                Property::Slot2Occupied(value) => block_props.r#slot_2_occupied = *value,
+                Property::Slot3Occupied(value) => block_props.r#slot_3_occupied = *value,
+                Property::Slot4Occupied(value) => block_props.r#slot_4_occupied = *value,
+                Property::Slot5Occupied(value) => block_props.r#slot_5_occupied = *value,
                 _ => {}
             }
         }
@@ -615254,15 +616775,20 @@ impl BlockProperties for BellLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
+    fn to_props(&self) -> Vec<Property> {
         vec![
-            ("attachment", self.r#attachment.to_value()),
-            ("facing", self.r#facing.to_value()),
-            ("powered", if self.r#powered { "true" } else { "false" }),
+            Property::Attachment(self.r#attachment),
+            Property::Facing(match self.r#facing {
+                HorizontalFacing::North => Facing::North,
+                HorizontalFacing::South => Facing::South,
+                HorizontalFacing::West => Facing::West,
+                HorizontalFacing::East => Facing::East,
+            }),
+            Property::Powered(self.r#powered),
         ]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -615271,11 +616797,17 @@ impl BlockProperties for BellLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            match *key {
-                "attachment" => block_props.r#attachment = BellAttachment::from_value(value),
-                "facing" => block_props.r#facing = HorizontalFacing::from_value(value),
-                "powered" => block_props.r#powered = matches!(*value, "true"),
+        for prop in props {
+            match prop {
+                Property::Attachment(value) => block_props.r#attachment = *value,
+                Property::Facing(value) => match *value {
+                    Facing::North => block_props.r#facing = HorizontalFacing::North,
+                    Facing::South => block_props.r#facing = HorizontalFacing::South,
+                    Facing::West => block_props.r#facing = HorizontalFacing::West,
+                    Facing::East => block_props.r#facing = HorizontalFacing::East,
+                    _ => {}
+                },
+                Property::Powered(value) => block_props.r#powered = *value,
                 _ => {}
             }
         }
@@ -615384,23 +616916,19 @@ impl BlockProperties for PinkPetalsLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
+    fn to_props(&self) -> Vec<Property> {
         vec![
-            ("facing", self.r#facing.to_value()),
-            (
-                "flower_amount",
-                match self.r#flower_amount {
-                    1u8 => "1",
-                    2u8 => "2",
-                    3u8 => "3",
-                    4u8 => "4",
-                    _ => unreachable!(),
-                },
-            ),
+            Property::Facing(match self.r#facing {
+                HorizontalFacing::North => Facing::North,
+                HorizontalFacing::South => Facing::South,
+                HorizontalFacing::West => Facing::West,
+                HorizontalFacing::East => Facing::East,
+            }),
+            Property::FlowerAmount(self.r#flower_amount),
         ]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -615409,17 +616937,21 @@ impl BlockProperties for PinkPetalsLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            match *key {
-                "facing" => block_props.r#facing = HorizontalFacing::from_value(value),
-                "flower_amount" => {
-                    block_props.r#flower_amount = match *value {
-                        "1" => 1u8,
-                        "2" => 2u8,
-                        "3" => 3u8,
-                        "4" => 4u8,
-                        _ => 1u8,
-                    }
+        for prop in props {
+            match prop {
+                Property::Facing(value) => match *value {
+                    Facing::North => block_props.r#facing = HorizontalFacing::North,
+                    Facing::South => block_props.r#facing = HorizontalFacing::South,
+                    Facing::West => block_props.r#facing = HorizontalFacing::West,
+                    Facing::East => block_props.r#facing = HorizontalFacing::East,
+                    _ => {}
+                },
+                Property::FlowerAmount(value) => {
+                    block_props.r#flower_amount = if *value >= 1u8 && *value <= 4u8 {
+                        *value
+                    } else {
+                        1u8
+                    };
                 }
                 _ => {}
             }
@@ -615528,23 +617060,19 @@ impl BlockProperties for LeafLitterLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
+    fn to_props(&self) -> Vec<Property> {
         vec![
-            ("facing", self.r#facing.to_value()),
-            (
-                "segment_amount",
-                match self.r#segment_amount {
-                    1u8 => "1",
-                    2u8 => "2",
-                    3u8 => "3",
-                    4u8 => "4",
-                    _ => unreachable!(),
-                },
-            ),
+            Property::Facing(match self.r#facing {
+                HorizontalFacing::North => Facing::North,
+                HorizontalFacing::South => Facing::South,
+                HorizontalFacing::West => Facing::West,
+                HorizontalFacing::East => Facing::East,
+            }),
+            Property::SegmentAmount(self.r#segment_amount),
         ]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -615553,17 +617081,21 @@ impl BlockProperties for LeafLitterLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            match *key {
-                "facing" => block_props.r#facing = HorizontalFacing::from_value(value),
-                "segment_amount" => {
-                    block_props.r#segment_amount = match *value {
-                        "1" => 1u8,
-                        "2" => 2u8,
-                        "3" => 3u8,
-                        "4" => 4u8,
-                        _ => 1u8,
-                    }
+        for prop in props {
+            match prop {
+                Property::Facing(value) => match *value {
+                    Facing::North => block_props.r#facing = HorizontalFacing::North,
+                    Facing::South => block_props.r#facing = HorizontalFacing::South,
+                    Facing::West => block_props.r#facing = HorizontalFacing::West,
+                    Facing::East => block_props.r#facing = HorizontalFacing::East,
+                    _ => {}
+                },
+                Property::SegmentAmount(value) => {
+                    block_props.r#segment_amount = if *value >= 1u8 && *value <= 4u8 {
+                        *value
+                    } else {
+                        1u8
+                    };
                 }
                 _ => {}
             }
@@ -615672,21 +617204,19 @@ impl BlockProperties for ShelfMushroomLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
+    fn to_props(&self) -> Vec<Property> {
         vec![
-            (
-                "age",
-                match self.r#age {
-                    0u8 => "0",
-                    1u8 => "1",
-                    _ => unreachable!(),
-                },
-            ),
-            ("facing", self.r#facing.to_value()),
+            Property::Age(self.r#age),
+            Property::Facing(match self.r#facing {
+                HorizontalFacing::North => Facing::North,
+                HorizontalFacing::South => Facing::South,
+                HorizontalFacing::West => Facing::West,
+                HorizontalFacing::East => Facing::East,
+            }),
         ]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -615695,16 +617225,18 @@ impl BlockProperties for ShelfMushroomLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            match *key {
-                "age" => {
-                    block_props.r#age = match *value {
-                        "0" => 0u8,
-                        "1" => 1u8,
-                        _ => 0u8,
-                    }
+        for prop in props {
+            match prop {
+                Property::Age(value) => {
+                    block_props.r#age = if *value <= 1u8 { *value } else { 0 };
                 }
-                "facing" => block_props.r#facing = HorizontalFacing::from_value(value),
+                Property::Facing(value) => match *value {
+                    Facing::North => block_props.r#facing = HorizontalFacing::North,
+                    Facing::South => block_props.r#facing = HorizontalFacing::South,
+                    Facing::West => block_props.r#facing = HorizontalFacing::West,
+                    Facing::East => block_props.r#facing = HorizontalFacing::East,
+                    _ => {}
+                },
                 _ => {}
             }
         }
@@ -615812,22 +617344,19 @@ impl BlockProperties for CocoaLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
+    fn to_props(&self) -> Vec<Property> {
         vec![
-            (
-                "age",
-                match self.r#age {
-                    0u8 => "0",
-                    1u8 => "1",
-                    2u8 => "2",
-                    _ => unreachable!(),
-                },
-            ),
-            ("facing", self.r#facing.to_value()),
+            Property::Age(self.r#age),
+            Property::Facing(match self.r#facing {
+                HorizontalFacing::North => Facing::North,
+                HorizontalFacing::South => Facing::South,
+                HorizontalFacing::West => Facing::West,
+                HorizontalFacing::East => Facing::East,
+            }),
         ]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -615836,17 +617365,18 @@ impl BlockProperties for CocoaLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            match *key {
-                "age" => {
-                    block_props.r#age = match *value {
-                        "0" => 0u8,
-                        "1" => 1u8,
-                        "2" => 2u8,
-                        _ => 0u8,
-                    }
+        for prop in props {
+            match prop {
+                Property::Age(value) => {
+                    block_props.r#age = if *value <= 2u8 { *value } else { 0 };
                 }
-                "facing" => block_props.r#facing = HorizontalFacing::from_value(value),
+                Property::Facing(value) => match *value {
+                    Facing::North => block_props.r#facing = HorizontalFacing::North,
+                    Facing::South => block_props.r#facing = HorizontalFacing::South,
+                    Facing::West => block_props.r#facing = HorizontalFacing::West,
+                    Facing::East => block_props.r#facing = HorizontalFacing::East,
+                    _ => {}
+                },
                 _ => {}
             }
         }
@@ -615961,15 +617491,20 @@ impl BlockProperties for ComparatorLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
+    fn to_props(&self) -> Vec<Property> {
         vec![
-            ("facing", self.r#facing.to_value()),
-            ("mode", self.r#mode.to_value()),
-            ("powered", if self.r#powered { "true" } else { "false" }),
+            Property::Facing(match self.r#facing {
+                HorizontalFacing::North => Facing::North,
+                HorizontalFacing::South => Facing::South,
+                HorizontalFacing::West => Facing::West,
+                HorizontalFacing::East => Facing::East,
+            }),
+            Property::ModeComparator(self.r#mode),
+            Property::Powered(self.r#powered),
         ]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -615978,11 +617513,17 @@ impl BlockProperties for ComparatorLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            match *key {
-                "facing" => block_props.r#facing = HorizontalFacing::from_value(value),
-                "mode" => block_props.r#mode = ModeComparator::from_value(value),
-                "powered" => block_props.r#powered = matches!(*value, "true"),
+        for prop in props {
+            match prop {
+                Property::Facing(value) => match *value {
+                    Facing::North => block_props.r#facing = HorizontalFacing::North,
+                    Facing::South => block_props.r#facing = HorizontalFacing::South,
+                    Facing::West => block_props.r#facing = HorizontalFacing::West,
+                    Facing::East => block_props.r#facing = HorizontalFacing::East,
+                    _ => {}
+                },
+                Property::ModeComparator(value) => block_props.r#mode = *value,
+                Property::Powered(value) => block_props.r#powered = *value,
                 _ => {}
             }
         }
@@ -616105,14 +617646,19 @@ impl BlockProperties for SkeletonWallSkullLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
+    fn to_props(&self) -> Vec<Property> {
         vec![
-            ("facing", self.r#facing.to_value()),
-            ("powered", if self.r#powered { "true" } else { "false" }),
+            Property::Facing(match self.r#facing {
+                HorizontalFacing::North => Facing::North,
+                HorizontalFacing::South => Facing::South,
+                HorizontalFacing::West => Facing::West,
+                HorizontalFacing::East => Facing::East,
+            }),
+            Property::Powered(self.r#powered),
         ]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -616121,10 +617667,16 @@ impl BlockProperties for SkeletonWallSkullLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            match *key {
-                "facing" => block_props.r#facing = HorizontalFacing::from_value(value),
-                "powered" => block_props.r#powered = matches!(*value, "true"),
+        for prop in props {
+            match prop {
+                Property::Facing(value) => match *value {
+                    Facing::North => block_props.r#facing = HorizontalFacing::North,
+                    Facing::South => block_props.r#facing = HorizontalFacing::South,
+                    Facing::West => block_props.r#facing = HorizontalFacing::West,
+                    Facing::East => block_props.r#facing = HorizontalFacing::East,
+                    _ => {}
+                },
+                Property::Powered(value) => block_props.r#powered = *value,
                 _ => {}
             }
         }
@@ -616239,29 +617791,15 @@ impl BlockProperties for BambooLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
+    fn to_props(&self) -> Vec<Property> {
         vec![
-            (
-                "age",
-                match self.r#age {
-                    0u8 => "0",
-                    1u8 => "1",
-                    _ => unreachable!(),
-                },
-            ),
-            ("leaves", self.r#leaves.to_value()),
-            (
-                "stage",
-                match self.r#stage {
-                    0u8 => "0",
-                    1u8 => "1",
-                    _ => unreachable!(),
-                },
-            ),
+            Property::Age(self.r#age),
+            Property::Leaves(self.r#leaves),
+            Property::Stage(self.r#stage),
         ]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -616270,22 +617808,14 @@ impl BlockProperties for BambooLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            match *key {
-                "age" => {
-                    block_props.r#age = match *value {
-                        "0" => 0u8,
-                        "1" => 1u8,
-                        _ => 0u8,
-                    }
+        for prop in props {
+            match prop {
+                Property::Age(value) => {
+                    block_props.r#age = if *value <= 1u8 { *value } else { 0 };
                 }
-                "leaves" => block_props.r#leaves = BambooLeaves::from_value(value),
-                "stage" => {
-                    block_props.r#stage = match *value {
-                        "0" => 0u8,
-                        "1" => 1u8,
-                        _ => 0u8,
-                    }
+                Property::Leaves(value) => block_props.r#leaves = *value,
+                Property::Stage(value) => {
+                    block_props.r#stage = if *value <= 1u8 { *value } else { 0 };
                 }
                 _ => {}
             }
@@ -616401,15 +617931,15 @@ impl BlockProperties for CrafterLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
+    fn to_props(&self) -> Vec<Property> {
         vec![
-            ("crafting", if self.r#crafting { "true" } else { "false" }),
-            ("orientation", self.r#orientation.to_value()),
-            ("triggered", if self.r#triggered { "true" } else { "false" }),
+            Property::Crafting(self.r#crafting),
+            Property::Orientation(self.r#orientation),
+            Property::Triggered(self.r#triggered),
         ]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -616418,11 +617948,11 @@ impl BlockProperties for CrafterLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            match *key {
-                "crafting" => block_props.r#crafting = matches!(*value, "true"),
-                "orientation" => block_props.r#orientation = Orientation::from_value(value),
-                "triggered" => block_props.r#triggered = matches!(*value, "true"),
+        for prop in props {
+            match prop {
+                Property::Crafting(value) => block_props.r#crafting = *value,
+                Property::Orientation(value) => block_props.r#orientation = *value,
+                Property::Triggered(value) => block_props.r#triggered = *value,
                 _ => {}
             }
         }
@@ -616521,11 +618051,11 @@ impl BlockProperties for JigsawLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
-        vec![("orientation", self.r#orientation.to_value())]
+    fn to_props(&self) -> Vec<Property> {
+        vec![Property::Orientation(self.r#orientation)]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -616534,9 +618064,10 @@ impl BlockProperties for JigsawLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            if *key == "orientation" {
-                block_props.r#orientation = Orientation::from_value(value)
+        for prop in props {
+            match prop {
+                Property::Orientation(value) => block_props.r#orientation = *value,
+                _ => {}
             }
         }
         block_props
@@ -616664,38 +618195,17 @@ impl BlockProperties for RedstoneWireLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
+    fn to_props(&self) -> Vec<Property> {
         vec![
-            ("east", self.r#east.to_value()),
-            ("north", self.r#north.to_value()),
-            (
-                "power",
-                match self.r#power {
-                    0u8 => "0",
-                    1u8 => "1",
-                    2u8 => "2",
-                    3u8 => "3",
-                    4u8 => "4",
-                    5u8 => "5",
-                    6u8 => "6",
-                    7u8 => "7",
-                    8u8 => "8",
-                    9u8 => "9",
-                    10u8 => "10",
-                    11u8 => "11",
-                    12u8 => "12",
-                    13u8 => "13",
-                    14u8 => "14",
-                    15u8 => "15",
-                    _ => unreachable!(),
-                },
-            ),
-            ("south", self.r#south.to_value()),
-            ("west", self.r#west.to_value()),
+            Property::EastRedstone(self.r#east),
+            Property::NorthRedstone(self.r#north),
+            Property::Power(self.r#power),
+            Property::SouthRedstone(self.r#south),
+            Property::WestRedstone(self.r#west),
         ]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -616704,33 +618214,27 @@ impl BlockProperties for RedstoneWireLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            match *key {
-                "east" => block_props.r#east = EastRedstone::from_value(value),
-                "north" => block_props.r#north = NorthRedstone::from_value(value),
-                "power" => {
-                    block_props.r#power = match *value {
-                        "0" => 0u8,
-                        "1" => 1u8,
-                        "2" => 2u8,
-                        "3" => 3u8,
-                        "4" => 4u8,
-                        "5" => 5u8,
-                        "6" => 6u8,
-                        "7" => 7u8,
-                        "8" => 8u8,
-                        "9" => 9u8,
-                        "10" => 10u8,
-                        "11" => 11u8,
-                        "12" => 12u8,
-                        "13" => 13u8,
-                        "14" => 14u8,
-                        "15" => 15u8,
-                        _ => 0u8,
-                    }
+        for prop in props {
+            match prop {
+                Property::EastRedstone(value) => block_props.r#east = *value,
+                Property::EastWall(EastWall::None) => {
+                    block_props.r#east = EastRedstone::None;
                 }
-                "south" => block_props.r#south = SouthRedstone::from_value(value),
-                "west" => block_props.r#west = WestRedstone::from_value(value),
+                Property::NorthRedstone(value) => block_props.r#north = *value,
+                Property::NorthWall(NorthWall::None) => {
+                    block_props.r#north = NorthRedstone::None;
+                }
+                Property::Power(value) => {
+                    block_props.r#power = if *value <= 15u8 { *value } else { 0 };
+                }
+                Property::SouthRedstone(value) => block_props.r#south = *value,
+                Property::SouthWall(SouthWall::None) => {
+                    block_props.r#south = SouthRedstone::None;
+                }
+                Property::WestRedstone(value) => block_props.r#west = *value,
+                Property::WestWall(WestWall::None) => {
+                    block_props.r#west = WestRedstone::None;
+                }
                 _ => {}
             }
         }
@@ -616841,14 +618345,14 @@ impl BlockProperties for TrialSpawnerLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
+    fn to_props(&self) -> Vec<Property> {
         vec![
-            ("ominous", if self.r#ominous { "true" } else { "false" }),
-            ("trial_spawner_state", self.r#trial_spawner_state.to_value()),
+            Property::Ominous(self.r#ominous),
+            Property::TrialSpawnerState(self.r#trial_spawner_state),
         ]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -616857,12 +618361,10 @@ impl BlockProperties for TrialSpawnerLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            match *key {
-                "ominous" => block_props.r#ominous = matches!(*value, "true"),
-                "trial_spawner_state" => {
-                    block_props.r#trial_spawner_state = TrialSpawnerState::from_value(value)
-                }
+        for prop in props {
+            match prop {
+                Property::Ominous(value) => block_props.r#ominous = *value,
+                Property::TrialSpawnerState(value) => block_props.r#trial_spawner_state = *value,
                 _ => {}
             }
         }
@@ -616961,19 +618463,11 @@ impl BlockProperties for SnifferEggLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
-        vec![(
-            "hatch",
-            match self.r#hatch {
-                0u8 => "0",
-                1u8 => "1",
-                2u8 => "2",
-                _ => unreachable!(),
-            },
-        )]
+    fn to_props(&self) -> Vec<Property> {
+        vec![Property::Hatch(self.r#hatch)]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -616982,14 +618476,12 @@ impl BlockProperties for SnifferEggLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            if *key == "hatch" {
-                block_props.r#hatch = match *value {
-                    "0" => 0u8,
-                    "1" => 1u8,
-                    "2" => 2u8,
-                    _ => 0u8,
+        for prop in props {
+            match prop {
+                Property::Hatch(value) => {
+                    block_props.r#hatch = if *value <= 2u8 { *value } else { 0 };
                 }
+                _ => {}
             }
         }
         block_props
@@ -617096,31 +618588,11 @@ impl BlockProperties for TurtleEggLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
-        vec![
-            (
-                "eggs",
-                match self.r#eggs {
-                    1u8 => "1",
-                    2u8 => "2",
-                    3u8 => "3",
-                    4u8 => "4",
-                    _ => unreachable!(),
-                },
-            ),
-            (
-                "hatch",
-                match self.r#hatch {
-                    0u8 => "0",
-                    1u8 => "1",
-                    2u8 => "2",
-                    _ => unreachable!(),
-                },
-            ),
-        ]
+    fn to_props(&self) -> Vec<Property> {
+        vec![Property::Eggs(self.r#eggs), Property::Hatch(self.r#hatch)]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -617129,24 +618601,17 @@ impl BlockProperties for TurtleEggLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            match *key {
-                "eggs" => {
-                    block_props.r#eggs = match *value {
-                        "1" => 1u8,
-                        "2" => 2u8,
-                        "3" => 3u8,
-                        "4" => 4u8,
-                        _ => 1u8,
-                    }
+        for prop in props {
+            match prop {
+                Property::Eggs(value) => {
+                    block_props.r#eggs = if *value >= 1u8 && *value <= 4u8 {
+                        *value
+                    } else {
+                        1u8
+                    };
                 }
-                "hatch" => {
-                    block_props.r#hatch = match *value {
-                        "0" => 0u8,
-                        "1" => 1u8,
-                        "2" => 2u8,
-                        _ => 0u8,
-                    }
+                Property::Hatch(value) => {
+                    block_props.r#hatch = if *value <= 2u8 { *value } else { 0 };
                 }
                 _ => {}
             }
@@ -617251,19 +618716,11 @@ impl BlockProperties for WaterCauldronLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
-        vec![(
-            "level",
-            match self.r#level {
-                1u8 => "1",
-                2u8 => "2",
-                3u8 => "3",
-                _ => unreachable!(),
-            },
-        )]
+    fn to_props(&self) -> Vec<Property> {
+        vec![Property::Level(self.r#level)]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -617272,14 +618729,16 @@ impl BlockProperties for WaterCauldronLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            if *key == "level" {
-                block_props.r#level = match *value {
-                    "1" => 1u8,
-                    "2" => 2u8,
-                    "3" => 3u8,
-                    _ => 1u8,
+        for prop in props {
+            match prop {
+                Property::Level(value) => {
+                    block_props.r#level = if *value >= 1u8 && *value <= 3u8 {
+                        *value
+                    } else {
+                        1u8
+                    };
                 }
+                _ => {}
             }
         }
         block_props
@@ -617377,14 +618836,11 @@ impl BlockProperties for JukeboxLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
-        vec![(
-            "has_record",
-            if self.r#has_record { "true" } else { "false" },
-        )]
+    fn to_props(&self) -> Vec<Property> {
+        vec![Property::HasRecord(self.r#has_record)]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -617393,9 +618849,10 @@ impl BlockProperties for JukeboxLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            if *key == "has_record" {
-                block_props.r#has_record = matches!(*value, "true")
+        for prop in props {
+            match prop {
+                Property::HasRecord(value) => block_props.r#has_record = *value,
+                _ => {}
             }
         }
         block_props
@@ -617523,17 +618980,17 @@ impl BlockProperties for PaleMossCarpetLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
+    fn to_props(&self) -> Vec<Property> {
         vec![
-            ("bottom", if self.r#bottom { "true" } else { "false" }),
-            ("east", self.r#east.to_value()),
-            ("north", self.r#north.to_value()),
-            ("south", self.r#south.to_value()),
-            ("west", self.r#west.to_value()),
+            Property::Bottom(self.r#bottom),
+            Property::EastWall(self.r#east),
+            Property::NorthWall(self.r#north),
+            Property::SouthWall(self.r#south),
+            Property::WestWall(self.r#west),
         ]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -617542,13 +618999,25 @@ impl BlockProperties for PaleMossCarpetLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            match *key {
-                "bottom" => block_props.r#bottom = matches!(*value, "true"),
-                "east" => block_props.r#east = EastWall::from_value(value),
-                "north" => block_props.r#north = NorthWall::from_value(value),
-                "south" => block_props.r#south = SouthWall::from_value(value),
-                "west" => block_props.r#west = WestWall::from_value(value),
+        for prop in props {
+            match prop {
+                Property::Bottom(value) => block_props.r#bottom = *value,
+                Property::EastWall(value) => block_props.r#east = *value,
+                Property::EastRedstone(EastRedstone::None) => {
+                    block_props.r#east = EastWall::None;
+                }
+                Property::NorthWall(value) => block_props.r#north = *value,
+                Property::NorthRedstone(NorthRedstone::None) => {
+                    block_props.r#north = NorthWall::None;
+                }
+                Property::SouthWall(value) => block_props.r#south = *value,
+                Property::SouthRedstone(SouthRedstone::None) => {
+                    block_props.r#south = SouthWall::None;
+                }
+                Property::WestWall(value) => block_props.r#west = *value,
+                Property::WestRedstone(WestRedstone::None) => {
+                    block_props.r#west = WestWall::None;
+                }
                 _ => {}
             }
         }
@@ -617667,18 +619136,11 @@ impl BlockProperties for OakSaplingLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
-        vec![(
-            "stage",
-            match self.r#stage {
-                0u8 => "0",
-                1u8 => "1",
-                _ => unreachable!(),
-            },
-        )]
+    fn to_props(&self) -> Vec<Property> {
+        vec![Property::Stage(self.r#stage)]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -617687,13 +619149,12 @@ impl BlockProperties for OakSaplingLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            if *key == "stage" {
-                block_props.r#stage = match *value {
-                    "0" => 0u8,
-                    "1" => 1u8,
-                    _ => 0u8,
+        for prop in props {
+            match prop {
+                Property::Stage(value) => {
+                    block_props.r#stage = if *value <= 1u8 { *value } else { 0 };
                 }
+                _ => {}
             }
         }
         block_props
@@ -617802,24 +619263,11 @@ impl BlockProperties for WheatLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
-        vec![(
-            "age",
-            match self.r#age {
-                0u8 => "0",
-                1u8 => "1",
-                2u8 => "2",
-                3u8 => "3",
-                4u8 => "4",
-                5u8 => "5",
-                6u8 => "6",
-                7u8 => "7",
-                _ => unreachable!(),
-            },
-        )]
+    fn to_props(&self) -> Vec<Property> {
+        vec![Property::Age(self.r#age)]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -617828,19 +619276,12 @@ impl BlockProperties for WheatLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            if *key == "age" {
-                block_props.r#age = match *value {
-                    "0" => 0u8,
-                    "1" => 1u8,
-                    "2" => 2u8,
-                    "3" => 3u8,
-                    "4" => 4u8,
-                    "5" => 5u8,
-                    "6" => 6u8,
-                    "7" => 7u8,
-                    _ => 0u8,
+        for prop in props {
+            match prop {
+                Property::Age(value) => {
+                    block_props.r#age = if *value <= 7u8 { *value } else { 0 };
                 }
+                _ => {}
             }
         }
         block_props
@@ -617948,14 +619389,14 @@ impl BlockProperties for StickyPistonLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
+    fn to_props(&self) -> Vec<Property> {
         vec![
-            ("extended", if self.r#extended { "true" } else { "false" }),
-            ("facing", self.r#facing.to_value()),
+            Property::Extended(self.r#extended),
+            Property::Facing(self.r#facing),
         ]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -617964,10 +619405,10 @@ impl BlockProperties for StickyPistonLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            match *key {
-                "extended" => block_props.r#extended = matches!(*value, "true"),
-                "facing" => block_props.r#facing = Facing::from_value(value),
+        for prop in props {
+            match prop {
+                Property::Extended(value) => block_props.r#extended = *value,
+                Property::Facing(value) => block_props.r#facing = *value,
                 _ => {}
             }
         }
@@ -618075,14 +619516,14 @@ impl BlockProperties for MovingPistonLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
+    fn to_props(&self) -> Vec<Property> {
         vec![
-            ("facing", self.r#facing.to_value()),
-            ("type", self.r#type.to_value()),
+            Property::Facing(self.r#facing),
+            Property::PistonType(self.r#type),
         ]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -618091,10 +619532,10 @@ impl BlockProperties for MovingPistonLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            match *key {
-                "facing" => block_props.r#facing = Facing::from_value(value),
-                "type" => block_props.r#type = PistonType::from_value(value),
+        for prop in props {
+            match prop {
+                Property::Facing(value) => block_props.r#facing = *value,
+                Property::PistonType(value) => block_props.r#type = *value,
                 _ => {}
             }
         }
@@ -618202,14 +619643,20 @@ impl BlockProperties for HopperLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
+    fn to_props(&self) -> Vec<Property> {
         vec![
-            ("enabled", if self.r#enabled { "true" } else { "false" }),
-            ("facing", self.r#facing.to_value()),
+            Property::Enabled(self.r#enabled),
+            Property::Facing(match self.r#facing {
+                FacingHopper::Down => Facing::Down,
+                FacingHopper::North => Facing::North,
+                FacingHopper::South => Facing::South,
+                FacingHopper::West => Facing::West,
+                FacingHopper::East => Facing::East,
+            }),
         ]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -618218,10 +619665,17 @@ impl BlockProperties for HopperLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            match *key {
-                "enabled" => block_props.r#enabled = matches!(*value, "true"),
-                "facing" => block_props.r#facing = FacingHopper::from_value(value),
+        for prop in props {
+            match prop {
+                Property::Enabled(value) => block_props.r#enabled = *value,
+                Property::Facing(value) => match *value {
+                    Facing::Down => block_props.r#facing = FacingHopper::Down,
+                    Facing::North => block_props.r#facing = FacingHopper::North,
+                    Facing::South => block_props.r#facing = FacingHopper::South,
+                    Facing::West => block_props.r#facing = FacingHopper::West,
+                    Facing::East => block_props.r#facing = FacingHopper::East,
+                    _ => {}
+                },
                 _ => {}
             }
         }
@@ -618323,11 +619777,11 @@ impl BlockProperties for PotentSulfurLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
-        vec![("potent_sulfur_state", self.r#potent_sulfur_state.to_value())]
+    fn to_props(&self) -> Vec<Property> {
+        vec![Property::PotentSulfurState(self.r#potent_sulfur_state)]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -618336,9 +619790,10 @@ impl BlockProperties for PotentSulfurLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            if *key == "potent_sulfur_state" {
-                block_props.r#potent_sulfur_state = PotentSulfurState::from_value(value)
+        for prop in props {
+            match prop {
+                Property::PotentSulfurState(value) => block_props.r#potent_sulfur_state = *value,
+                _ => {}
             }
         }
         block_props
@@ -618453,11 +619908,11 @@ impl BlockProperties for TallSeagrassLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
-        vec![("half", self.r#half.to_value())]
+    fn to_props(&self) -> Vec<Property> {
+        vec![Property::DoubleBlockHalf(self.r#half)]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -618466,9 +619921,10 @@ impl BlockProperties for TallSeagrassLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            if *key == "half" {
-                block_props.r#half = DoubleBlockHalf::from_value(value)
+        for prop in props {
+            match prop {
+                Property::DoubleBlockHalf(value) => block_props.r#half = *value,
+                _ => {}
             }
         }
         block_props
@@ -618575,24 +620031,14 @@ impl BlockProperties for PitcherCropLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
+    fn to_props(&self) -> Vec<Property> {
         vec![
-            (
-                "age",
-                match self.r#age {
-                    0u8 => "0",
-                    1u8 => "1",
-                    2u8 => "2",
-                    3u8 => "3",
-                    4u8 => "4",
-                    _ => unreachable!(),
-                },
-            ),
-            ("half", self.r#half.to_value()),
+            Property::Age(self.r#age),
+            Property::DoubleBlockHalf(self.r#half),
         ]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -618601,19 +620047,12 @@ impl BlockProperties for PitcherCropLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            match *key {
-                "age" => {
-                    block_props.r#age = match *value {
-                        "0" => 0u8,
-                        "1" => 1u8,
-                        "2" => 2u8,
-                        "3" => 3u8,
-                        "4" => 4u8,
-                        _ => 0u8,
-                    }
+        for prop in props {
+            match prop {
+                Property::Age(value) => {
+                    block_props.r#age = if *value <= 4u8 { *value } else { 0 };
                 }
-                "half" => block_props.r#half = DoubleBlockHalf::from_value(value),
+                Property::DoubleBlockHalf(value) => block_props.r#half = *value,
                 _ => {}
             }
         }
@@ -618746,32 +620185,11 @@ impl BlockProperties for WhiteBannerLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
-        vec![(
-            "rotation",
-            match self.r#rotation {
-                0u8 => "0",
-                1u8 => "1",
-                2u8 => "2",
-                3u8 => "3",
-                4u8 => "4",
-                5u8 => "5",
-                6u8 => "6",
-                7u8 => "7",
-                8u8 => "8",
-                9u8 => "9",
-                10u8 => "10",
-                11u8 => "11",
-                12u8 => "12",
-                13u8 => "13",
-                14u8 => "14",
-                15u8 => "15",
-                _ => unreachable!(),
-            },
-        )]
+    fn to_props(&self) -> Vec<Property> {
+        vec![Property::Rotation(self.r#rotation)]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -618780,27 +620198,12 @@ impl BlockProperties for WhiteBannerLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            if *key == "rotation" {
-                block_props.r#rotation = match *value {
-                    "0" => 0u8,
-                    "1" => 1u8,
-                    "2" => 2u8,
-                    "3" => 3u8,
-                    "4" => 4u8,
-                    "5" => 5u8,
-                    "6" => 6u8,
-                    "7" => 7u8,
-                    "8" => 8u8,
-                    "9" => 9u8,
-                    "10" => 10u8,
-                    "11" => 11u8,
-                    "12" => 12u8,
-                    "13" => 13u8,
-                    "14" => 14u8,
-                    "15" => 15u8,
-                    _ => 0u8,
+        for prop in props {
+            match prop {
+                Property::Rotation(value) => {
+                    block_props.r#rotation = if *value <= 15u8 { *value } else { 0 };
                 }
+                _ => {}
             }
         }
         block_props
@@ -618919,35 +620322,14 @@ impl BlockProperties for SkeletonSkullLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
+    fn to_props(&self) -> Vec<Property> {
         vec![
-            ("powered", if self.r#powered { "true" } else { "false" }),
-            (
-                "rotation",
-                match self.r#rotation {
-                    0u8 => "0",
-                    1u8 => "1",
-                    2u8 => "2",
-                    3u8 => "3",
-                    4u8 => "4",
-                    5u8 => "5",
-                    6u8 => "6",
-                    7u8 => "7",
-                    8u8 => "8",
-                    9u8 => "9",
-                    10u8 => "10",
-                    11u8 => "11",
-                    12u8 => "12",
-                    13u8 => "13",
-                    14u8 => "14",
-                    15u8 => "15",
-                    _ => unreachable!(),
-                },
-            ),
+            Property::Powered(self.r#powered),
+            Property::Rotation(self.r#rotation),
         ]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -618956,29 +620338,11 @@ impl BlockProperties for SkeletonSkullLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            match *key {
-                "powered" => block_props.r#powered = matches!(*value, "true"),
-                "rotation" => {
-                    block_props.r#rotation = match *value {
-                        "0" => 0u8,
-                        "1" => 1u8,
-                        "2" => 2u8,
-                        "3" => 3u8,
-                        "4" => 4u8,
-                        "5" => 5u8,
-                        "6" => 6u8,
-                        "7" => 7u8,
-                        "8" => 8u8,
-                        "9" => 9u8,
-                        "10" => 10u8,
-                        "11" => 11u8,
-                        "12" => 12u8,
-                        "13" => 13u8,
-                        "14" => 14u8,
-                        "15" => 15u8,
-                        _ => 0u8,
-                    }
+        for prop in props {
+            match prop {
+                Property::Powered(value) => block_props.r#powered = *value,
+                Property::Rotation(value) => {
+                    block_props.r#rotation = if *value <= 15u8 { *value } else { 0 };
                 }
                 _ => {}
             }
@@ -619079,32 +620443,11 @@ impl BlockProperties for WaterLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
-        vec![(
-            "level",
-            match self.r#level {
-                0u8 => "0",
-                1u8 => "1",
-                2u8 => "2",
-                3u8 => "3",
-                4u8 => "4",
-                5u8 => "5",
-                6u8 => "6",
-                7u8 => "7",
-                8u8 => "8",
-                9u8 => "9",
-                10u8 => "10",
-                11u8 => "11",
-                12u8 => "12",
-                13u8 => "13",
-                14u8 => "14",
-                15u8 => "15",
-                _ => unreachable!(),
-            },
-        )]
+    fn to_props(&self) -> Vec<Property> {
+        vec![Property::Level(self.r#level)]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -619113,27 +620456,12 @@ impl BlockProperties for WaterLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            if *key == "level" {
-                block_props.r#level = match *value {
-                    "0" => 0u8,
-                    "1" => 1u8,
-                    "2" => 2u8,
-                    "3" => 3u8,
-                    "4" => 4u8,
-                    "5" => 5u8,
-                    "6" => 6u8,
-                    "7" => 7u8,
-                    "8" => 8u8,
-                    "9" => 9u8,
-                    "10" => 10u8,
-                    "11" => 11u8,
-                    "12" => 12u8,
-                    "13" => 13u8,
-                    "14" => 14u8,
-                    "15" => 15u8,
-                    _ => 0u8,
+        for prop in props {
+            match prop {
+                Property::Level(value) => {
+                    block_props.r#level = if *value <= 15u8 { *value } else { 0 };
                 }
+                _ => {}
             }
         }
         block_props
@@ -619236,42 +620564,11 @@ impl BlockProperties for KelpLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
-        vec![(
-            "age",
-            match self.r#age {
-                0u8 => "0",
-                1u8 => "1",
-                2u8 => "2",
-                3u8 => "3",
-                4u8 => "4",
-                5u8 => "5",
-                6u8 => "6",
-                7u8 => "7",
-                8u8 => "8",
-                9u8 => "9",
-                10u8 => "10",
-                11u8 => "11",
-                12u8 => "12",
-                13u8 => "13",
-                14u8 => "14",
-                15u8 => "15",
-                16u8 => "16",
-                17u8 => "17",
-                18u8 => "18",
-                19u8 => "19",
-                20u8 => "20",
-                21u8 => "21",
-                22u8 => "22",
-                23u8 => "23",
-                24u8 => "24",
-                25u8 => "25",
-                _ => unreachable!(),
-            },
-        )]
+    fn to_props(&self) -> Vec<Property> {
+        vec![Property::Age(self.r#age)]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -619280,37 +620577,12 @@ impl BlockProperties for KelpLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            if *key == "age" {
-                block_props.r#age = match *value {
-                    "0" => 0u8,
-                    "1" => 1u8,
-                    "2" => 2u8,
-                    "3" => 3u8,
-                    "4" => 4u8,
-                    "5" => 5u8,
-                    "6" => 6u8,
-                    "7" => 7u8,
-                    "8" => 8u8,
-                    "9" => 9u8,
-                    "10" => 10u8,
-                    "11" => 11u8,
-                    "12" => 12u8,
-                    "13" => 13u8,
-                    "14" => 14u8,
-                    "15" => 15u8,
-                    "16" => 16u8,
-                    "17" => 17u8,
-                    "18" => 18u8,
-                    "19" => 19u8,
-                    "20" => 20u8,
-                    "21" => 21u8,
-                    "22" => 22u8,
-                    "23" => 23u8,
-                    "24" => 24u8,
-                    "25" => 25u8,
-                    _ => 0u8,
+        for prop in props {
+            match prop {
+                Property::Age(value) => {
+                    block_props.r#age = if *value <= 25u8 { *value } else { 0 };
                 }
+                _ => {}
             }
         }
         block_props
@@ -619414,45 +620686,11 @@ impl BlockProperties for CaveVinesLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
-        vec![
-            (
-                "age",
-                match self.r#age {
-                    0u8 => "0",
-                    1u8 => "1",
-                    2u8 => "2",
-                    3u8 => "3",
-                    4u8 => "4",
-                    5u8 => "5",
-                    6u8 => "6",
-                    7u8 => "7",
-                    8u8 => "8",
-                    9u8 => "9",
-                    10u8 => "10",
-                    11u8 => "11",
-                    12u8 => "12",
-                    13u8 => "13",
-                    14u8 => "14",
-                    15u8 => "15",
-                    16u8 => "16",
-                    17u8 => "17",
-                    18u8 => "18",
-                    19u8 => "19",
-                    20u8 => "20",
-                    21u8 => "21",
-                    22u8 => "22",
-                    23u8 => "23",
-                    24u8 => "24",
-                    25u8 => "25",
-                    _ => unreachable!(),
-                },
-            ),
-            ("berries", if self.r#berries { "true" } else { "false" }),
-        ]
+    fn to_props(&self) -> Vec<Property> {
+        vec![Property::Age(self.r#age), Property::Berries(self.r#berries)]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -619461,40 +620699,12 @@ impl BlockProperties for CaveVinesLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            match *key {
-                "age" => {
-                    block_props.r#age = match *value {
-                        "0" => 0u8,
-                        "1" => 1u8,
-                        "2" => 2u8,
-                        "3" => 3u8,
-                        "4" => 4u8,
-                        "5" => 5u8,
-                        "6" => 6u8,
-                        "7" => 7u8,
-                        "8" => 8u8,
-                        "9" => 9u8,
-                        "10" => 10u8,
-                        "11" => 11u8,
-                        "12" => 12u8,
-                        "13" => 13u8,
-                        "14" => 14u8,
-                        "15" => 15u8,
-                        "16" => 16u8,
-                        "17" => 17u8,
-                        "18" => 18u8,
-                        "19" => 19u8,
-                        "20" => 20u8,
-                        "21" => 21u8,
-                        "22" => 22u8,
-                        "23" => 23u8,
-                        "24" => 24u8,
-                        "25" => 25u8,
-                        _ => 0u8,
-                    }
+        for prop in props {
+            match prop {
+                Property::Age(value) => {
+                    block_props.r#age = if *value <= 25u8 { *value } else { 0 };
                 }
-                "berries" => block_props.r#berries = matches!(*value, "true"),
+                Property::Berries(value) => block_props.r#berries = *value,
                 _ => {}
             }
         }
@@ -619600,32 +620810,11 @@ impl BlockProperties for LightWeightedPressurePlateLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
-        vec![(
-            "power",
-            match self.r#power {
-                0u8 => "0",
-                1u8 => "1",
-                2u8 => "2",
-                3u8 => "3",
-                4u8 => "4",
-                5u8 => "5",
-                6u8 => "6",
-                7u8 => "7",
-                8u8 => "8",
-                9u8 => "9",
-                10u8 => "10",
-                11u8 => "11",
-                12u8 => "12",
-                13u8 => "13",
-                14u8 => "14",
-                15u8 => "15",
-                _ => unreachable!(),
-            },
-        )]
+    fn to_props(&self) -> Vec<Property> {
+        vec![Property::Power(self.r#power)]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -619634,27 +620823,12 @@ impl BlockProperties for LightWeightedPressurePlateLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            if *key == "power" {
-                block_props.r#power = match *value {
-                    "0" => 0u8,
-                    "1" => 1u8,
-                    "2" => 2u8,
-                    "3" => 3u8,
-                    "4" => 4u8,
-                    "5" => 5u8,
-                    "6" => 6u8,
-                    "7" => 7u8,
-                    "8" => 8u8,
-                    "9" => 9u8,
-                    "10" => 10u8,
-                    "11" => 11u8,
-                    "12" => 12u8,
-                    "13" => 13u8,
-                    "14" => 14u8,
-                    "15" => 15u8,
-                    _ => 0u8,
+        for prop in props {
+            match prop {
+                Property::Power(value) => {
+                    block_props.r#power = if *value <= 15u8 { *value } else { 0 };
                 }
+                _ => {}
             }
         }
         block_props
@@ -619752,18 +620926,11 @@ impl BlockProperties for TorchflowerCropLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
-        vec![(
-            "age",
-            match self.r#age {
-                0u8 => "0",
-                1u8 => "1",
-                _ => unreachable!(),
-            },
-        )]
+    fn to_props(&self) -> Vec<Property> {
+        vec![Property::Age(self.r#age)]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -619772,13 +620939,12 @@ impl BlockProperties for TorchflowerCropLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            if *key == "age" {
-                block_props.r#age = match *value {
-                    "0" => 0u8,
-                    "1" => 1u8,
-                    _ => 0u8,
+        for prop in props {
+            match prop {
+                Property::Age(value) => {
+                    block_props.r#age = if *value <= 1u8 { *value } else { 0 };
                 }
+                _ => {}
             }
         }
         block_props
@@ -619885,20 +621051,11 @@ impl BlockProperties for NetherWartLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
-        vec![(
-            "age",
-            match self.r#age {
-                0u8 => "0",
-                1u8 => "1",
-                2u8 => "2",
-                3u8 => "3",
-                _ => unreachable!(),
-            },
-        )]
+    fn to_props(&self) -> Vec<Property> {
+        vec![Property::Age(self.r#age)]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -619907,15 +621064,12 @@ impl BlockProperties for NetherWartLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            if *key == "age" {
-                block_props.r#age = match *value {
-                    "0" => 0u8,
-                    "1" => 1u8,
-                    "2" => 2u8,
-                    "3" => 3u8,
-                    _ => 0u8,
+        for prop in props {
+            match prop {
+                Property::Age(value) => {
+                    block_props.r#age = if *value <= 3u8 { *value } else { 0 };
                 }
+                _ => {}
             }
         }
         block_props
@@ -620013,11 +621167,11 @@ impl BlockProperties for TestBlockLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
-        vec![("mode", self.r#mode.to_value())]
+    fn to_props(&self) -> Vec<Property> {
+        vec![Property::TestBlockMode(self.r#mode)]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -620026,9 +621180,10 @@ impl BlockProperties for TestBlockLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            if *key == "mode" {
-                block_props.r#mode = TestBlockMode::from_value(value)
+        for prop in props {
+            match prop {
+                Property::TestBlockMode(value) => block_props.r#mode = *value,
+                _ => {}
             }
         }
         block_props
@@ -620142,24 +621297,15 @@ impl BlockProperties for BrewingStandLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
+    fn to_props(&self) -> Vec<Property> {
         vec![
-            (
-                "has_bottle_0",
-                if self.r#has_bottle_0 { "true" } else { "false" },
-            ),
-            (
-                "has_bottle_1",
-                if self.r#has_bottle_1 { "true" } else { "false" },
-            ),
-            (
-                "has_bottle_2",
-                if self.r#has_bottle_2 { "true" } else { "false" },
-            ),
+            Property::HasBottle0(self.r#has_bottle_0),
+            Property::HasBottle1(self.r#has_bottle_1),
+            Property::HasBottle2(self.r#has_bottle_2),
         ]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -620168,11 +621314,11 @@ impl BlockProperties for BrewingStandLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            match *key {
-                "has_bottle_0" => block_props.r#has_bottle_0 = matches!(*value, "true"),
-                "has_bottle_1" => block_props.r#has_bottle_1 = matches!(*value, "true"),
-                "has_bottle_2" => block_props.r#has_bottle_2 = matches!(*value, "true"),
+        for prop in props {
+            match prop {
+                Property::HasBottle0(value) => block_props.r#has_bottle_0 = *value,
+                Property::HasBottle1(value) => block_props.r#has_bottle_1 = *value,
+                Property::HasBottle2(value) => block_props.r#has_bottle_2 = *value,
                 _ => {}
             }
         }
@@ -620271,23 +621417,11 @@ impl BlockProperties for CakeLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
-        vec![(
-            "bites",
-            match self.r#bites {
-                0u8 => "0",
-                1u8 => "1",
-                2u8 => "2",
-                3u8 => "3",
-                4u8 => "4",
-                5u8 => "5",
-                6u8 => "6",
-                _ => unreachable!(),
-            },
-        )]
+    fn to_props(&self) -> Vec<Property> {
+        vec![Property::Bites(self.r#bites)]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -620296,18 +621430,12 @@ impl BlockProperties for CakeLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            if *key == "bites" {
-                block_props.r#bites = match *value {
-                    "0" => 0u8,
-                    "1" => 1u8,
-                    "2" => 2u8,
-                    "3" => 3u8,
-                    "4" => 4u8,
-                    "5" => 5u8,
-                    "6" => 6u8,
-                    _ => 0u8,
+        for prop in props {
+            match prop {
+                Property::Bites(value) => {
+                    block_props.r#bites = if *value <= 6u8 { *value } else { 0 };
                 }
+                _ => {}
             }
         }
         block_props
@@ -620415,14 +621543,14 @@ impl BlockProperties for DispenserLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
+    fn to_props(&self) -> Vec<Property> {
         vec![
-            ("facing", self.r#facing.to_value()),
-            ("triggered", if self.r#triggered { "true" } else { "false" }),
+            Property::Facing(self.r#facing),
+            Property::Triggered(self.r#triggered),
         ]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -620431,10 +621559,10 @@ impl BlockProperties for DispenserLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            match *key {
-                "facing" => block_props.r#facing = Facing::from_value(value),
-                "triggered" => block_props.r#triggered = matches!(*value, "true"),
+        for prop in props {
+            match prop {
+                Property::Facing(value) => block_props.r#facing = *value,
+                Property::Triggered(value) => block_props.r#triggered = *value,
                 _ => {}
             }
         }
@@ -620570,11 +621698,11 @@ impl BlockProperties for EndRodLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
-        vec![("facing", self.r#facing.to_value())]
+    fn to_props(&self) -> Vec<Property> {
+        vec![Property::Facing(self.r#facing)]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -620583,9 +621711,10 @@ impl BlockProperties for EndRodLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            if *key == "facing" {
-                block_props.r#facing = Facing::from_value(value)
+        for prop in props {
+            match prop {
+                Property::Facing(value) => block_props.r#facing = *value,
+                _ => {}
             }
         }
         block_props
@@ -620692,14 +621821,14 @@ impl BlockProperties for ObserverLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
+    fn to_props(&self) -> Vec<Property> {
         vec![
-            ("facing", self.r#facing.to_value()),
-            ("powered", if self.r#powered { "true" } else { "false" }),
+            Property::Facing(self.r#facing),
+            Property::Powered(self.r#powered),
         ]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -620708,10 +621837,10 @@ impl BlockProperties for ObserverLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            match *key {
-                "facing" => block_props.r#facing = Facing::from_value(value),
-                "powered" => block_props.r#powered = matches!(*value, "true"),
+        for prop in props {
+            match prop {
+                Property::Facing(value) => block_props.r#facing = *value,
+                Property::Powered(value) => block_props.r#powered = *value,
                 _ => {}
             }
         }
@@ -620842,11 +621971,11 @@ impl BlockProperties for StonePressurePlateLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
-        vec![("powered", if self.r#powered { "true" } else { "false" })]
+    fn to_props(&self) -> Vec<Property> {
+        vec![Property::Powered(self.r#powered)]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -620855,9 +621984,10 @@ impl BlockProperties for StonePressurePlateLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            if *key == "powered" {
-                block_props.r#powered = matches!(*value, "true")
+        for prop in props {
+            match prop {
+                Property::Powered(value) => block_props.r#powered = *value,
+                _ => {}
             }
         }
         block_props
@@ -620955,11 +622085,11 @@ impl BlockProperties for CaveVinesPlantLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
-        vec![("berries", if self.r#berries { "true" } else { "false" })]
+    fn to_props(&self) -> Vec<Property> {
+        vec![Property::Berries(self.r#berries)]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -620968,9 +622098,10 @@ impl BlockProperties for CaveVinesPlantLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            if *key == "berries" {
-                block_props.r#berries = matches!(*value, "true")
+        for prop in props {
+            match prop {
+                Property::Berries(value) => block_props.r#berries = *value,
+                _ => {}
             }
         }
         block_props
@@ -621068,22 +622199,11 @@ impl BlockProperties for ChorusFlowerLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
-        vec![(
-            "age",
-            match self.r#age {
-                0u8 => "0",
-                1u8 => "1",
-                2u8 => "2",
-                3u8 => "3",
-                4u8 => "4",
-                5u8 => "5",
-                _ => unreachable!(),
-            },
-        )]
+    fn to_props(&self) -> Vec<Property> {
+        vec![Property::Age(self.r#age)]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -621092,17 +622212,12 @@ impl BlockProperties for ChorusFlowerLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            if *key == "age" {
-                block_props.r#age = match *value {
-                    "0" => 0u8,
-                    "1" => 1u8,
-                    "2" => 2u8,
-                    "3" => 3u8,
-                    "4" => 4u8,
-                    "5" => 5u8,
-                    _ => 0u8,
+        for prop in props {
+            match prop {
+                Property::Age(value) => {
+                    block_props.r#age = if *value <= 5u8 { *value } else { 0 };
                 }
+                _ => {}
             }
         }
         block_props
@@ -621201,32 +622316,11 @@ impl BlockProperties for CactusLikeProperties {
         }
         Self::from_state_id(block.default_state.id)
     }
-    fn to_props(&self) -> Vec<(&'static str, &'static str)> {
-        vec![(
-            "age",
-            match self.r#age {
-                0u8 => "0",
-                1u8 => "1",
-                2u8 => "2",
-                3u8 => "3",
-                4u8 => "4",
-                5u8 => "5",
-                6u8 => "6",
-                7u8 => "7",
-                8u8 => "8",
-                9u8 => "9",
-                10u8 => "10",
-                11u8 => "11",
-                12u8 => "12",
-                13u8 => "13",
-                14u8 => "14",
-                15u8 => "15",
-                _ => unreachable!(),
-            },
-        )]
+    fn to_props(&self) -> Vec<Property> {
+        vec![Property::Age(self.r#age)]
     }
-    #[allow(clippy::manual_range_patterns)]
-    fn from_props(props: &[(&str, &str)], block: &Block) -> Self {
+    #[allow(clippy::manual_range_patterns, clippy::single_match)]
+    fn from_props(props: &[Property], block: &Block) -> Self {
         #[cfg(debug_assertions)]
         if !Self::handles_block_id(block.id) {
             panic!(
@@ -621235,27 +622329,12 @@ impl BlockProperties for CactusLikeProperties {
             );
         }
         let mut block_props = Self::default(block);
-        for (key, value) in props {
-            if *key == "age" {
-                block_props.r#age = match *value {
-                    "0" => 0u8,
-                    "1" => 1u8,
-                    "2" => 2u8,
-                    "3" => 3u8,
-                    "4" => 4u8,
-                    "5" => 5u8,
-                    "6" => 6u8,
-                    "7" => 7u8,
-                    "8" => 8u8,
-                    "9" => 9u8,
-                    "10" => 10u8,
-                    "11" => 11u8,
-                    "12" => 12u8,
-                    "13" => 13u8,
-                    "14" => 14u8,
-                    "15" => 15u8,
-                    _ => 0u8,
+        for prop in props {
+            match prop {
+                Property::Age(value) => {
+                    block_props.r#age = if *value <= 15u8 { *value } else { 0 };
                 }
+                _ => {}
             }
         }
         block_props

@@ -8,6 +8,7 @@ use crate::{
 };
 use pumpkin_data::{Block, BlockState, translation};
 use pumpkin_util::text::TextComponent;
+use std::borrow::Cow;
 
 pub const INVALID_BLOCK_ERROR_TYPE: CommandErrorType<1> = CommandErrorType::new(
     translation::java::ARGUMENT_BLOCK_ID_INVALID,
@@ -119,19 +120,28 @@ fn with_property(
     name: &str,
     value: &str,
 ) -> Option<&'static BlockState> {
-    let mut props = block.properties(state.id)?.to_props();
+    let mut props: Vec<(&'static str, Cow<'_, str>)> = block
+        .properties(state.id)?
+        .to_props()
+        .into_iter()
+        .map(|prop| (prop.key_str(), Cow::Borrowed(prop.value_str())))
+        .collect();
     let slot = props.iter_mut().find(|(prop, _)| *prop == name)?;
-    slot.1 = value;
+    slot.1 = Cow::Borrowed(value);
     block.states.iter().find(|candidate| {
         let Some(candidate_props) = block.properties(candidate.id) else {
             return false;
         };
-        let candidate_props = candidate_props.to_props();
+        let candidate_props: Vec<(&'static str, &'static str)> = candidate_props
+            .to_props()
+            .into_iter()
+            .map(|prop| (prop.key_str(), prop.value_str()))
+            .collect();
         candidate_props.len() == props.len()
             && props.iter().all(|(prop, want)| {
                 candidate_props
                     .iter()
-                    .any(|(other, have)| other == prop && have == want)
+                    .any(|(other, have)| other == prop && *have == want.as_ref())
             })
     })
 }
@@ -148,8 +158,7 @@ impl BlockStateArgumentType {
 #[cfg(test)]
 mod test {
     use crate::{
-        argument_types::argument_type::ArgumentType,
-        argument_types::block::BlockStateArgumentType,
+        argument_types::argument_type::ArgumentType, argument_types::block::BlockStateArgumentType,
         string_reader::StringReader,
     };
 
@@ -160,7 +169,7 @@ mod test {
             &BlockStateArgumentType,
             &mut reader,
         )
-            .expect("stone parses");
+        .expect("stone parses");
         assert_eq!(state.id, pumpkin_data::Block::STONE.default_state.id);
     }
 
@@ -172,7 +181,7 @@ mod test {
             &BlockStateArgumentType,
             &mut reader,
         )
-            .expect("oak stairs with a facing parse");
+        .expect("oak stairs with a facing parse");
         assert_ne!(state.id, pumpkin_data::Block::OAK_STAIRS.default_state.id);
         assert_eq!(
             pumpkin_data::Block::OAK_STAIRS
@@ -180,8 +189,8 @@ mod test {
                 .expect("a state has properties")
                 .to_props()
                 .into_iter()
-                .find(|(name, _)| *name == "facing")
-                .map(|(_, value)| value),
+                .find(|prop| prop.key_str() == "facing")
+                .map(|prop| prop.value_str()),
             Some("east"),
         );
     }
@@ -193,13 +202,21 @@ mod test {
             &BlockStateArgumentType,
             &mut reader,
         )
-            .expect("two properties parse");
+        .expect("two properties parse");
         let props = pumpkin_data::Block::OAK_STAIRS
             .properties(state.id)
             .expect("a state has properties")
             .to_props();
-        assert!(props.contains(&("facing", "west")));
-        assert!(props.contains(&("half", "top")));
+        assert!(
+            props
+                .iter()
+                .any(|prop| prop.key_str() == "facing" && prop.value_str() == "west")
+        );
+        assert!(
+            props
+                .iter()
+                .any(|prop| prop.key_str() == "half" && prop.value_str() == "top")
+        );
     }
 
     #[test]

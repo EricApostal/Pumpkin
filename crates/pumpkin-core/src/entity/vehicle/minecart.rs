@@ -56,7 +56,10 @@ const fn get_exits(
 }
 
 /// The [`RailShape`] of a rail block, including custom rails in the `minecraft:rails` tag.
-fn shape_of(block: &Block, state_id: pumpkin_data::BlockStateId) -> pumpkin_data::block_properties::RailShape {
+fn shape_of(
+    block: &Block,
+    state_id: pumpkin_data::BlockStateId,
+) -> pumpkin_data::block_properties::RailShape {
     use pumpkin_data::block_properties::{RailLikeProperties, RailShape, RailShapeStraight};
 
     if block.id == Block::RAIL.id {
@@ -121,10 +124,7 @@ fn rail_snap_position(
 /// applied to the *other* entity. The cart itself receives `(-xa, -za)`.
 ///
 /// Returns `None` when the horizontal squared distance is below vanilla's `1.0E-4` threshold.
-fn minecart_push_impulse(
-    self_pos: Vector3<f64>,
-    other_pos: Vector3<f64>,
-) -> Option<(f64, f64)> {
+fn minecart_push_impulse(self_pos: Vector3<f64>, other_pos: Vector3<f64>) -> Option<(f64, f64)> {
     let mut xa = other_pos.x - self_pos.x;
     let mut za = other_pos.z - self_pos.z;
     let mut dd = xa * xa + za * za;
@@ -192,8 +192,8 @@ pub(crate) fn rail_shape(
         .properties(state_id)?
         .to_props()
         .into_iter()
-        .find(|(name, _)| *name == "shape")?
-        .1;
+        .find(|prop| prop.key_str() == "shape")?
+        .value_str();
     Some(match shape {
         "north_south" => RailShape::NorthSouth,
         "east_west" => RailShape::EastWest,
@@ -585,12 +585,12 @@ impl EntityBase for MinecartEntity {
                     }
                 }
                 if is_rail(rail_block, rail_state) {
-                    let snapped = rail_snap_position(rail_pos, shape_of(rail_block, rail_state), new_pos);
-                    self.vehicle.entity.pos.store(Vector3::new(
-                        new_pos.x,
-                        snapped.y,
-                        new_pos.z,
-                    ));
+                    let snapped =
+                        rail_snap_position(rail_pos, shape_of(rail_block, rail_state), new_pos);
+                    self.vehicle
+                        .entity
+                        .pos
+                        .store(Vector3::new(new_pos.x, snapped.y, new_pos.z));
                 }
             }
 
@@ -793,10 +793,9 @@ impl EntityBase for MinecartEntity {
             }
         }
 
-        if let Some((xa, za)) = minecart_push_impulse(
-            self_entity.pos.load(),
-            other_entity.pos.load(),
-        ) {
+        if let Some((xa, za)) =
+            minecart_push_impulse(self_entity.pos.load(), other_entity.pos.load())
+        {
             let is_other_minecart = other_entity.entity_type.id == EntityType::MINECART.id
                 || other_entity.entity_type.id == EntityType::CHEST_MINECART.id
                 || other_entity.entity_type.id == EntityType::COMMAND_BLOCK_MINECART.id
@@ -1070,11 +1069,8 @@ mod tests {
         assert_eq!(snapped.z, -6.4);
         assert_eq!(snapped.y, 64.0625);
 
-        let snapped = rail_snap_position(
-            block,
-            RailShape::EastWest,
-            Vector3::new(3.9, 64.0625, -6.4),
-        );
+        let snapped =
+            rail_snap_position(block, RailShape::EastWest, Vector3::new(3.9, 64.0625, -6.4));
         assert_eq!(snapped.x, 3.9);
         assert_eq!(snapped.z, -6.5);
         assert_eq!(snapped.y, 64.0625);

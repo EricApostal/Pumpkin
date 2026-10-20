@@ -78,7 +78,16 @@ impl HostStructureTemplate for PluginHostState {
             .into_iter()
             .map(|entry| WitPaletteEntry {
                 name: entry.name,
-                properties: entry.properties,
+                properties: entry
+                    .properties
+                    .iter()
+                    .map(|property| {
+                        (
+                            property.key_str().to_string(),
+                            property.value_str().to_string(),
+                        )
+                    })
+                    .collect(),
             })
             .collect())
     }

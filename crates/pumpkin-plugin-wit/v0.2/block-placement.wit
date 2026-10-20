@@ -13,11 +13,16 @@ interface block-placement {
     /// How the property of a neighbour says where its shaft points, see `shaft-neighbour`.
     enum shaft-kind {
         /// The property lists a direction (`facing`): the shaft points into the placed block when
-        /// the value is the opposite of the direction from the neighbour to the placed block.
+        /// the value is the direction from the placed block to the neighbour, which is
+        /// `IRotate.hasShaftTowards` of a directional block (`face == facing.getOpposite()`).
         facing,
         /// The property lists an axis (`axis`): the shaft points into the placed block when the
         /// direction from the neighbour to the placed block runs along that axis.
         axis,
+        /// The property lists a direction (`facing`): the shaft points into the placed block when
+        /// the value is the opposite of the direction from the placed block to the neighbour, like
+        /// Create's creative motor (`face == facing`).
+        facing-opposite,
     }
 
     /// A neighbour that has a shaft pointing into the placed block, like Create's

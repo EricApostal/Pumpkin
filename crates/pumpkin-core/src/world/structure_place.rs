@@ -101,13 +101,7 @@ fn palette_entry_of(state_id: BlockStateId) -> PaletteEntry {
     let block = Block::from_state_id(state_id);
     let properties = block
         .properties(state_id)
-        .map(|props| {
-            props
-                .to_props()
-                .into_iter()
-                .map(|(key, value)| (key.to_string(), value.to_string()))
-                .collect()
-        })
+        .map(|props| props.to_props())
         .unwrap_or_default();
     PaletteEntry::with_properties(full_name(block), properties)
 }
