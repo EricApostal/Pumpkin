@@ -343,6 +343,8 @@ struct ReentryState<T> {
     next_scope_id: AtomicU64,
     scopes: StdMutex<ReentryScopes<T>>,
     active_contexts: StdMutex<Vec<(u64, ReentryContext)>>,
+    /// Guest calls served by an active host frame instead of the driver.
+    routed_jobs: AtomicU64,
 }
 
 impl<T> ReentryState<T> {
@@ -351,6 +353,7 @@ impl<T> ReentryState<T> {
             next_scope_id: AtomicU64::new(0),
             scopes: StdMutex::new(HashMap::new()),
             active_contexts: StdMutex::new(Vec::new()),
+            routed_jobs: AtomicU64::new(0),
         }
     }
 
@@ -535,6 +538,13 @@ where
         self.shared.lifecycle.subscribe()
     }
 
+    /// Number of guest calls this Store served from an active host frame rather
+    /// than by queueing them on the driver.
+    #[cfg(test)]
+    pub(crate) fn routed_jobs(&self) -> u64 {
+        self.shared.reentry.routed_jobs.load(Ordering::Relaxed)
+    }
+
     /// Queues an owned Store operation. Once accepted, the operation runs even
     /// if the caller stops waiting for its result.
     pub async fn call<R, F>(&self, call: F) -> wasmtime::Result<R>
@@ -650,6 +660,7 @@ where
         {
             match sender.send(job).await {
                 Ok(()) => {
+                    self.shared.reentry.routed_jobs.fetch_add(1, Ordering::Relaxed);
                     return self
                         .receive_result(receiver, "Wasm plugin guest call did not complete")
                         .await;
@@ -727,6 +738,62 @@ where
         .map_err(|error| {
             wasmtime::Error::msg(format!(
                 "Synchronous Wasm plugin host operation failed: {error}"
+            ))
+        })
+    }
+
+    /// Runs synchronous host work on the injected blocking spawner while servicing
+    /// callbacks routed back into this Store from the active chain.
+    ///
+    /// Unlike [`Self::spawn_blocking_in_active_context`], the blocking operation is
+    /// registered as the active reentry target before it starts. Callbacks it fires
+    /// synchronously into the same Store are run on the active host frame, so a host
+    /// call that triggers a callback into its own plugin instance completes instead of
+    /// waiting for the suspended outer guest call.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the reentry depth limit is reached, the blocking task fails,
+    /// or a reentrant callback fails. The operation is not spawned when the depth check
+    /// fails.
+    pub async fn pump_blocking_accessor<R, F>(
+        &self,
+        accessor: &Accessor<T>,
+        operation: F,
+    ) -> wasmtime::Result<R>
+    where
+        R: Send + 'static,
+        F: FnOnce() -> R + Send + 'static,
+    {
+        let Some(context) = self.shared.reentry.current_context() else {
+            return self.spawn_blocking_in_active_context(operation).await;
+        };
+        let context = context.child()?;
+        let (result, receiver) = oneshot::channel();
+        self.shared
+            .spawner
+            .spawn_blocking(Box::new(move || {
+                let output = catch_unwind(AssertUnwindSafe(|| sync_scope(context, operation)))
+                    .map_err(|payload| panic_message(payload.as_ref()));
+                let _ = result.send(output);
+            }))
+            .map_err(|error| {
+                wasmtime::Error::msg(format!(
+                    "Failed to spawn synchronous Wasm plugin host operation: {error}"
+                ))
+            })?;
+
+        let (mut registration, mut reentry) = self.shared.reentry.register(context);
+        let output = pump_reentrant_jobs(accessor, &mut reentry, receiver).await;
+        registration.close();
+        reentry.close();
+        while let Ok(job) = reentry.try_recv() {
+            job.run_concurrent(accessor).await?;
+        }
+
+        output?.map_err(|message| {
+            wasmtime::Error::msg(format!(
+                "Synchronous Wasm plugin host operation panicked: {message}"
             ))
         })
     }
@@ -817,6 +884,41 @@ where
                     "Synchronous Wasm plugin host operation panicked: {message}"
                 ))
             })
+    }
+}
+
+/// Services guest calls routed back into the active host frame until the
+/// outbound operation completes.
+async fn pump_reentrant_jobs<T, R>(
+    accessor: &Accessor<T>,
+    jobs: &mut mpsc::Receiver<Box<dyn GuestStoreJob<T>>>,
+    result: oneshot::Receiver<Result<R, String>>,
+) -> wasmtime::Result<Result<R, String>>
+where
+    T: Send + 'static,
+{
+    let mut result = std::pin::pin!(result);
+    let mut jobs_open = true;
+    loop {
+        if jobs_open {
+            tokio::select! {
+                job = jobs.recv() => match job {
+                    Some(job) => job.run_concurrent(accessor).await?,
+                    None => jobs_open = false,
+                },
+                output = &mut result => {
+                    return output.map_err(|_| {
+                        wasmtime::Error::msg(
+                            "Synchronous Wasm plugin host operation did not complete",
+                        )
+                    });
+                }
+            }
+        } else {
+            return (&mut result).await.map_err(|_| {
+                wasmtime::Error::msg("Synchronous Wasm plugin host operation did not complete")
+            });
+        }
     }
 }
 

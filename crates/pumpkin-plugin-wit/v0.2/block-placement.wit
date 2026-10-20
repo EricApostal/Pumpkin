@@ -10,6 +10,27 @@
 /// `server-load-event`) and need the `registry.blocks` permission. Setting the same rules again is
 /// fine, other rules for a block that has some fail.
 interface block-placement {
+    /// How the property of a neighbour says where its shaft points, see `shaft-neighbour`.
+    enum shaft-kind {
+        /// The property lists a direction (`facing`): the shaft points into the placed block when
+        /// the value is the opposite of the direction from the neighbour to the placed block.
+        facing,
+        /// The property lists an axis (`axis`): the shaft points into the placed block when the
+        /// direction from the neighbour to the placed block runs along that axis.
+        axis,
+    }
+
+    /// A neighbour that has a shaft pointing into the placed block, like Create's
+    /// `IRotate.hasShaftTowards`. Only the blocks a plugin registered are read, from their
+    /// registration properties; a vanilla neighbour never has a shaft.
+    record shaft-neighbour {
+        /// Blocks that count, by tag (`create:shafts`).
+        tag: string,
+        /// The property that says where the shaft points (`axis`, `facing`).
+        property: string,
+        kind: shaft-kind,
+    }
+
     /// Where a rule takes the value of its property from. The property must list the value names
     /// given for each source.
     variant placement-source {
@@ -39,6 +60,12 @@ interface block-placement {
         in-water,
         /// `true` when the player sneaks, `false` otherwise.
         sneaking,
+        /// The direction of the neighbour that has a shaft pointing into the placed block: `down`,
+        /// `up`, `north`, `south`, `west`, `east`. None when no neighbour has one, or when two
+        /// neighbours on different axes both have one (the give-up of
+        /// `DirectionalKineticBlock.getPreferredFacing`). For a bearing, `opposite` makes the
+        /// bearing face away from the shaft.
+        neighbour-shaft(list<shaft-neighbour>),
         /// Always this value, useful as the last rule of a fallback.
         constant(string),
     }
@@ -50,10 +77,14 @@ interface block-placement {
         /// Use the opposite of the source's value (`north` for `south`, `top` for `bottom`, `false`
         /// for `true`). Not allowed for `clicked-axis` and `constant`.
         opposite: bool,
+        /// Only apply the rule when the player sneaks (`true`) or does not sneak (`false`). A rule
+        /// that does not apply leaves the property to the next rule. None always applies.
+        when-sneaking: option<bool>,
     }
 
     /// Sets the placement rules of a block registered with `register-block`, at most 64. Fails for
     /// an unknown block or property, a value the property does not list, `opposite` where it is not
-    /// allowed, a pitch out of range, other rules than before, or when registration is closed.
+    /// allowed, a pitch out of range, an empty tag or property in a `neighbour-shaft`, other rules
+    /// than before, or when registration is closed.
     set-block-placement-rules: func(block-key: string, rules: list<placement-rule>) -> result<_, string>;
 }

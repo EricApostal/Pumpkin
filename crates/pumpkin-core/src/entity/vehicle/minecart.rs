@@ -16,7 +16,7 @@ use crate::{
     server::Server,
 };
 use pumpkin_data::Block;
-use pumpkin_data::block_properties::PoweredRailLikeProperties;
+use pumpkin_data::block_properties::{BlockProperties, PoweredRailLikeProperties, RailShape};
 use pumpkin_data::damage::DamageType;
 use pumpkin_data::entity::EntityType;
 use pumpkin_data::item::Item;
@@ -39,19 +39,131 @@ use tnt::TntMinecart;
 const fn get_exits(
     shape: pumpkin_data::block_properties::RailShape,
 ) -> (Vector3<f64>, Vector3<f64>) {
-    use pumpkin_data::block_properties::RailShape;
     match shape {
         RailShape::NorthSouth => (Vector3::new(0.0, 0.0, -1.0), Vector3::new(0.0, 0.0, 1.0)),
         RailShape::EastWest => (Vector3::new(-1.0, 0.0, 0.0), Vector3::new(1.0, 0.0, 0.0)),
-        RailShape::AscendingEast => (Vector3::new(-1.0, 0.0, 0.0), Vector3::new(1.0, 1.0, 0.0)),
-        RailShape::AscendingWest => (Vector3::new(1.0, 0.0, 0.0), Vector3::new(-1.0, 1.0, 0.0)),
-        RailShape::AscendingNorth => (Vector3::new(0.0, 0.0, 1.0), Vector3::new(0.0, 1.0, -1.0)),
-        RailShape::AscendingSouth => (Vector3::new(0.0, 0.0, -1.0), Vector3::new(0.0, 1.0, 1.0)),
+        // Vanilla `AbstractMinecart.EXITS` uses the *lower* exit below the rail block for
+        // ascending shapes (`AbstractMinecart.java:80-87`); the y component is -1, not +1.
+        RailShape::AscendingEast => (Vector3::new(-1.0, -1.0, 0.0), Vector3::new(1.0, 0.0, 0.0)),
+        RailShape::AscendingWest => (Vector3::new(-1.0, 0.0, 0.0), Vector3::new(1.0, -1.0, 0.0)),
+        RailShape::AscendingNorth => (Vector3::new(0.0, 0.0, -1.0), Vector3::new(0.0, -1.0, 1.0)),
+        RailShape::AscendingSouth => (Vector3::new(0.0, -1.0, -1.0), Vector3::new(0.0, 0.0, 1.0)),
         RailShape::SouthEast => (Vector3::new(0.0, 0.0, 1.0), Vector3::new(1.0, 0.0, 0.0)),
         RailShape::SouthWest => (Vector3::new(0.0, 0.0, 1.0), Vector3::new(-1.0, 0.0, 0.0)),
         RailShape::NorthWest => (Vector3::new(0.0, 0.0, -1.0), Vector3::new(-1.0, 0.0, 0.0)),
         RailShape::NorthEast => (Vector3::new(0.0, 0.0, -1.0), Vector3::new(1.0, 0.0, 0.0)),
     }
+}
+
+/// The [`RailShape`] of a rail block, including custom rails in the `minecraft:rails` tag.
+fn shape_of(block: &Block, state_id: pumpkin_data::BlockStateId) -> pumpkin_data::block_properties::RailShape {
+    use pumpkin_data::block_properties::{RailLikeProperties, RailShape, RailShapeStraight};
+
+    if block.id == Block::RAIL.id {
+        RailLikeProperties::from_state_id(state_id).shape
+    } else if PoweredRailLikeProperties::handles_block_id(block.id) {
+        match PoweredRailLikeProperties::from_state_id(state_id).shape {
+            RailShapeStraight::NorthSouth => RailShape::NorthSouth,
+            RailShapeStraight::EastWest => RailShape::EastWest,
+            RailShapeStraight::AscendingEast => RailShape::AscendingEast,
+            RailShapeStraight::AscendingWest => RailShape::AscendingWest,
+            RailShapeStraight::AscendingNorth => RailShape::AscendingNorth,
+            RailShapeStraight::AscendingSouth => RailShape::AscendingSouth,
+        }
+    } else {
+        // A custom rail from the `minecraft:rails` tag, like Create's cart assembler.
+        rail_shape(block, state_id).unwrap_or(RailShape::NorthSouth)
+    }
+}
+
+/// The position of a cart snapped onto the centre line of `rail_pos`'s rail, exactly as
+/// vanilla `OldMinecartBehavior.getPos` computes it (`OldMinecartBehavior.java:305-353`).
+///
+/// The cart is projected onto the line between the rail's two exits; `y` follows the
+/// slope of the rail, including vanilla's `+0.5`/`+1.0` slope adjustment.
+fn rail_snap_position(
+    rail_pos: BlockPos,
+    shape: pumpkin_data::block_properties::RailShape,
+    pos: Vector3<f64>,
+) -> Vector3<f64> {
+    let (exit0, exit1) = get_exits(shape);
+
+    let x0 = f64::from(rail_pos.0.x) + 0.5 + exit0.x * 0.5;
+    let y0 = f64::from(rail_pos.0.y) + RAIL_HEIGHT_OFFSET + exit0.y * 0.5;
+    let z0 = f64::from(rail_pos.0.z) + 0.5 + exit0.z * 0.5;
+    let x1 = f64::from(rail_pos.0.x) + 0.5 + exit1.x * 0.5;
+    let y1 = f64::from(rail_pos.0.y) + RAIL_HEIGHT_OFFSET + exit1.y * 0.5;
+    let z1 = f64::from(rail_pos.0.z) + 0.5 + exit1.z * 0.5;
+
+    let xd = x1 - x0;
+    let yd = (y1 - y0) * 2.0;
+    let zd = z1 - z0;
+
+    let progress = if xd == 0.0 {
+        pos.z - f64::from(rail_pos.0.z)
+    } else if zd == 0.0 {
+        pos.x - f64::from(rail_pos.0.x)
+    } else {
+        ((pos.x - x0) * xd + (pos.z - z0) * zd) * 2.0
+    };
+
+    let mut y = y0 + yd * progress;
+    if yd < 0.0 {
+        y += 1.0;
+    } else if yd > 0.0 {
+        y += 0.5;
+    }
+
+    Vector3::new(x0 + xd * progress, y, z0 + zd * progress)
+}
+
+/// Vanilla `AbstractMinecart.push` (`AbstractMinecart.java:498-530`): the `(xa, za)` impulse
+/// applied to the *other* entity. The cart itself receives `(-xa, -za)`.
+///
+/// Returns `None` when the horizontal squared distance is below vanilla's `1.0E-4` threshold.
+fn minecart_push_impulse(
+    self_pos: Vector3<f64>,
+    other_pos: Vector3<f64>,
+) -> Option<(f64, f64)> {
+    let mut xa = other_pos.x - self_pos.x;
+    let mut za = other_pos.z - self_pos.z;
+    let mut dd = xa * xa + za * za;
+    if dd < 1.0E-4 {
+        return None;
+    }
+    dd = dd.sqrt();
+    xa /= dd;
+    za /= dd;
+    let mut pow = 1.0 / dd;
+    if pow > 1.0 {
+        pow = 1.0;
+    }
+    xa *= pow;
+    za *= pow;
+    xa *= 0.1;
+    za *= 0.1;
+    xa *= 0.5;
+    za *= 0.5;
+    Some((xa, za))
+}
+
+/// Vanilla `Entity.getInputVector` (`Entity.java:1791-1801`).
+fn get_input_vector(input: Vector3<f64>, speed: f64, yaw: f32) -> Vector3<f64> {
+    let length = input.length_squared();
+    if length < 1.0E-7 {
+        return Vector3::new(0.0, 0.0, 0.0);
+    }
+    let movement = if length > 1.0 {
+        input.normalize().multiply(speed, speed, speed)
+    } else {
+        input.multiply(speed, speed, speed)
+    };
+    let (sin, cos) = f64::from(yaw).to_radians().sin_cos();
+    Vector3::new(
+        movement.x.mul_add(cos, -(movement.z * sin)),
+        movement.y,
+        movement.z.mul_add(cos, movement.x * sin),
+    )
 }
 
 const GRAVITY: f64 = 0.04;
@@ -72,11 +184,10 @@ fn is_rail(block: &Block, state_id: pumpkin_data::BlockStateId) -> bool {
 
 /// The shape of a custom rail from its `shape` property. `None` when the block has no such
 /// property or the value is not a rail shape.
-fn rail_shape(
+pub(crate) fn rail_shape(
     block: &Block,
     state_id: pumpkin_data::BlockStateId,
 ) -> Option<pumpkin_data::block_properties::RailShape> {
-    use pumpkin_data::block_properties::RailShape;
     let shape = block
         .properties(state_id)?
         .to_props()
@@ -179,6 +290,10 @@ impl EntityBase for MinecartEntity {
             minecart.tick(&self.vehicle.entity);
         }
 
+        // Vanilla `Entity.baseTick` records `xo`/`yo`/`zo` before the cart moves; the old
+        // behavior derives its yaw from that delta (`OldMinecartBehavior.java:68-71`).
+        self.vehicle.entity.update_last_pos();
+
         let world = self.vehicle.entity.world.load();
         let pos = self.vehicle.entity.pos.load();
         let mut block_pos = BlockPos(Vector3::new(
@@ -211,6 +326,8 @@ impl EntityBase for MinecartEntity {
             }
         }
 
+        let shape = shape_of(block, state_id);
+
         if is_powered_rail || is_activator_rail {
             let props = PoweredRailLikeProperties::from_state_id(state_id);
             let powered = props.powered;
@@ -236,29 +353,7 @@ impl EntityBase for MinecartEntity {
             let powered = props.powered;
 
             if powered {
-                if is_powered_rail {
-                    let mut velocity = self.vehicle.entity.velocity.load();
-                    let speed = velocity.length();
-                    if speed > 0.01 {
-                        let new_speed = (speed + 0.06).min(0.4);
-                        velocity = velocity
-                            .normalize()
-                            .multiply(new_speed, new_speed, new_speed);
-                        self.vehicle.entity.velocity.store(velocity);
-                    } else {
-                        let yaw = self.vehicle.entity.yaw.load();
-                        let push_dir = Vector3::new(
-                            -f64::from((yaw.to_radians()).sin()),
-                            0.0,
-                            f64::from((yaw.to_radians()).cos()),
-                        );
-                        self.vehicle
-                            .entity
-                            .velocity
-                            .store(push_dir.multiply(0.1, 0.1, 0.1));
-                    }
-                    self.vehicle.entity.send_velocity();
-                } else if is_activator_rail {
+                if is_activator_rail {
                     match &self.kind {
                         MinecartKind::Tnt(minecart) => {
                             minecart.prime(&self.vehicle.entity, 80);
@@ -290,10 +385,12 @@ impl EntityBase for MinecartEntity {
                     }
                 }
             } else if is_powered_rail {
+                // `OldMinecartBehavior.moveAlongTrack` (`OldMinecartBehavior.java:170-177`).
                 let mut velocity = self.vehicle.entity.velocity.load();
-                velocity = velocity.multiply(0.5, 0.5, 0.5);
-                if velocity.length() < 0.01 {
+                if velocity.x.hypot(velocity.z) < 0.03 {
                     velocity = Vector3::new(0.0, 0.0, 0.0);
+                } else {
+                    velocity = velocity.multiply(0.5, 0.0, 0.5);
                 }
                 self.vehicle.entity.velocity.store(velocity);
                 self.vehicle.entity.send_velocity();
@@ -322,41 +419,38 @@ impl EntityBase for MinecartEntity {
         }
 
         if has_driver && is_on_rails {
+            let left = driver_input & SPlayerInput::LEFT != 0;
+            let right = driver_input & SPlayerInput::RIGHT != 0;
             let forward = driver_input & SPlayerInput::FORWARD != 0;
             let backward = driver_input & SPlayerInput::BACKWARD != 0;
 
-            let mut force_dir = Vector3::new(0.0, 0.0, 0.0);
-            if forward {
-                let yaw_rad = f64::from(driver_yaw).to_radians();
-                force_dir.x = -yaw_rad.sin();
-                force_dir.z = yaw_rad.cos();
-            } else if backward {
-                let yaw_rad = f64::from(driver_yaw).to_radians();
-                force_dir.x = yaw_rad.sin();
-                force_dir.z = -yaw_rad.cos();
-            }
+            // Vanilla `ServerPlayer.getLastClientMoveIntent` (`ServerPlayer.java:2439-2443`).
+            let left_intent = if left == right {
+                0.0
+            } else if left {
+                1.0
+            } else {
+                -1.0
+            };
+            let forward_intent = if forward == backward {
+                0.0
+            } else if forward {
+                1.0
+            } else {
+                -1.0
+            };
+            let intent = get_input_vector(
+                Vector3::new(left_intent, 0.0, forward_intent),
+                1.0,
+                driver_yaw,
+            );
 
-            if forward || backward {
-                velocity.x += force_dir.x * 0.02;
-                velocity.z += force_dir.z * 0.02;
-
-                let speed = velocity.x.hypot(velocity.z);
-                if speed > 0.15 {
-                    #[allow(clippy::suboptimal_flops)]
-                    let old_speed = self
-                        .vehicle
-                        .entity
-                        .velocity
-                        .load()
-                        .x
-                        .hypot(self.vehicle.entity.velocity.load().z);
-
-                    let max_speed = old_speed.clamp(0.15, 0.4);
-                    if speed > max_speed {
-                        velocity.x = (velocity.x / speed) * max_speed;
-                        velocity.z = (velocity.z / speed) * max_speed;
-                    }
-                }
+            // Vanilla `OldMinecartBehavior.moveAlongTrack` (`OldMinecartBehavior.java:161-168`):
+            // a rider only nudges a nearly stopped cart, by `0.001` per tick.
+            let own_dist = velocity.x.mul_add(velocity.x, velocity.z * velocity.z);
+            if intent.length_squared() > 0.0 && own_dist < 0.01 {
+                velocity.x += intent.x * 0.001;
+                velocity.z += intent.z * 0.001;
                 self.vehicle.entity.velocity.store(velocity);
                 self.vehicle.entity.send_velocity();
             }
@@ -365,27 +459,6 @@ impl EntityBase for MinecartEntity {
         let mut velocity = self.vehicle.entity.velocity.load();
 
         if is_on_rails {
-            use pumpkin_data::block_properties::RailLikeProperties;
-            use pumpkin_data::block_properties::{RailShape, RailShapeStraight};
-
-            let shape = if block.id == Block::RAIL.id {
-                let props = RailLikeProperties::from_state_id(state_id);
-                props.shape
-            } else if is_powered_rail || is_activator_rail || block.id == Block::DETECTOR_RAIL.id {
-                let props = PoweredRailLikeProperties::from_state_id(state_id);
-                match props.shape {
-                    RailShapeStraight::NorthSouth => RailShape::NorthSouth,
-                    RailShapeStraight::EastWest => RailShape::EastWest,
-                    RailShapeStraight::AscendingEast => RailShape::AscendingEast,
-                    RailShapeStraight::AscendingWest => RailShape::AscendingWest,
-                    RailShapeStraight::AscendingNorth => RailShape::AscendingNorth,
-                    RailShapeStraight::AscendingSouth => RailShape::AscendingSouth,
-                }
-            } else {
-                // A custom rail from the `minecraft:rails` tag, like Create's cart assembler.
-                rail_shape(block, state_id).unwrap_or(RailShape::NorthSouth)
-            };
-
             let pos = self.vehicle.entity.pos.load();
             let block_center_bottom = Vector3::new(
                 f64::from(block_pos.0.x) + 0.5,
@@ -393,42 +466,14 @@ impl EntityBase for MinecartEntity {
                 f64::from(block_pos.0.z) + 0.5,
             );
 
+            // Snap onto the rail centre line, including the slope height, exactly like
+            // vanilla `OldMinecartBehavior.getPos`.
+            let target_position = rail_snap_position(block_pos, shape, pos);
+            self.vehicle.entity.pos.store(target_position);
+
             let (exit0, exit1) = get_exits(shape);
             let exit0 = exit0.multiply(0.5, 0.5, 0.5);
             let exit1 = exit1.multiply(0.5, 0.5, 0.5);
-
-            let in_corner = exit0.x != exit1.x && exit0.z != exit1.z;
-            let mut target_position = pos;
-
-            if in_corner {
-                let from0to1 = exit1 - exit0;
-                let from0topos = pos - block_center_bottom - exit0;
-                let dot_num = from0to1.dot(&from0topos);
-                let dot_den = from0to1.dot(&from0to1);
-                if dot_den != 0.0 {
-                    let travel_vector_from0 =
-                        from0to1.multiply(dot_num / dot_den, dot_num / dot_den, dot_num / dot_den);
-                    target_position = block_center_bottom.add(&exit0).add(&travel_vector_from0);
-                }
-            } else {
-                let z_snap = (exit0.x - exit1.x).abs() > 1e-5;
-                let x_snap = (exit0.z - exit1.z).abs() > 1e-5;
-                if x_snap {
-                    target_position.x = block_center_bottom.x;
-                }
-                if z_snap {
-                    target_position.z = block_center_bottom.z;
-                }
-            }
-
-            target_position.y = match shape {
-                RailShape::AscendingEast
-                | RailShape::AscendingWest
-                | RailShape::AscendingNorth
-                | RailShape::AscendingSouth => pos.y,
-                _ => f64::from(block_pos.0.y) + RAIL_HEIGHT_OFFSET,
-            };
-            self.vehicle.entity.pos.store(target_position);
 
             let horizontal_in_direction = Vector3::new(exit1.x, 0.0, exit1.z);
             let mut horizontal_out_direction = Vector3::new(exit0.x, 0.0, exit0.z);
@@ -455,11 +500,47 @@ impl EntityBase for MinecartEntity {
             velocity.y = 0.0;
             self.vehicle.entity.velocity.store(velocity);
         } else if !self.vehicle.entity.on_ground.load(Ordering::Relaxed) {
-            velocity.y -= GRAVITY;
+            // `AbstractMinecart.getDefaultGravity` (`AbstractMinecart.java:260-263`).
+            let gravity = if self.vehicle.entity.touching_water.load(Ordering::Relaxed) {
+                0.005
+            } else {
+                GRAVITY
+            };
+            velocity.y -= gravity;
             self.vehicle.entity.velocity.store(velocity);
         }
 
-        if velocity.length() > 0.001 {
+        if velocity.length_squared() > 0.0 {
+            // Vanilla `OldMinecartBehavior.moveAlongTrack` moves with the horizontal velocity
+            // clamped to `getMaxSpeed` and scaled by 0.75 for a ridden cart
+            // (`OldMinecartBehavior.java:199-203`).
+            if is_on_rails {
+                let scale = if self.vehicle.entity.has_passengers() {
+                    0.75
+                } else {
+                    1.0
+                };
+                let max_speed = if self.vehicle.entity.touching_water.load(Ordering::Relaxed) {
+                    0.2
+                } else {
+                    0.4
+                };
+                velocity.x = (scale * velocity.x).clamp(-max_speed, max_speed);
+                velocity.z = (scale * velocity.z).clamp(-max_speed, max_speed);
+                velocity.y = 0.0;
+                self.vehicle.entity.velocity.store(velocity);
+            } else {
+                // `AbstractMinecart.comeOffTrack` clamps the horizontal movement to
+                // `getMaxSpeed` too (`AbstractMinecart.java:366-378`).
+                let max_speed = if self.vehicle.entity.touching_water.load(Ordering::Relaxed) {
+                    0.2
+                } else {
+                    0.4
+                };
+                velocity.x = velocity.x.clamp(-max_speed, max_speed);
+                velocity.z = velocity.z.clamp(-max_speed, max_speed);
+                self.vehicle.entity.velocity.store(velocity);
+            }
             self.move_entity(caller, velocity);
 
             if let MinecartKind::Tnt(minecart) = &self.kind
@@ -479,11 +560,50 @@ impl EntityBase for MinecartEntity {
 
             let new_pos = self.vehicle.entity.pos.load();
 
-            if let Ok(passengers) = self.vehicle.entity.passengers.try_lock() {
-                for passenger in passengers.iter() {
-                    passenger.get_entity().set_pos(new_pos);
+            if is_on_rails {
+                // `OldMinecartBehavior.moveAlongTrack` re-derives the cart's y from the rail
+                // it now occupies after moving (`OldMinecartBehavior.java:213-223`).
+                let rail_block_pos = BlockPos(Vector3::new(
+                    new_pos.x.floor() as i32,
+                    new_pos.y.floor() as i32,
+                    new_pos.z.floor() as i32,
+                ));
+                let (mut rail_block, mut rail_state) =
+                    world.get_block_and_state_id(&rail_block_pos);
+                let mut rail_pos = rail_block_pos;
+                if !is_rail(rail_block, rail_state) {
+                    let below = BlockPos(Vector3::new(
+                        rail_block_pos.0.x,
+                        rail_block_pos.0.y - 1,
+                        rail_block_pos.0.z,
+                    ));
+                    let (below_block, below_state) = world.get_block_and_state_id(&below);
+                    if is_rail(below_block, below_state) {
+                        rail_pos = below;
+                        rail_block = below_block;
+                        rail_state = below_state;
+                    }
+                }
+                if is_rail(rail_block, rail_state) {
+                    let snapped = rail_snap_position(rail_pos, shape_of(rail_block, rail_state), new_pos);
+                    self.vehicle.entity.pos.store(Vector3::new(
+                        new_pos.x,
+                        snapped.y,
+                        new_pos.z,
+                    ));
                 }
             }
+
+            if let Ok(passengers) = self.vehicle.entity.passengers.try_lock() {
+                let passenger_pos = self.vehicle.entity.pos.load();
+                for passenger in passengers.iter() {
+                    passenger.get_entity().set_pos(passenger_pos);
+                }
+            }
+
+            // Vanilla applies the slowdown to the delta movement left after `move()`, so use
+            // the velocity the movement produced rather than the pre-move one.
+            let velocity = self.vehicle.entity.velocity.load();
 
             #[allow(clippy::useless_let_if_seq)]
             let mut friction = 0.95; // Vanilla minecart air drag
@@ -495,7 +615,13 @@ impl EntityBase for MinecartEntity {
                     .passengers
                     .try_lock()
                     .is_ok_and(|p| !p.is_empty());
-                friction = if has_passengers { 0.99 } else { 0.96 };
+                // Vanilla `OldMinecartBehavior.getSlowdownFactor` (`OldMinecartBehavior.java:406-409`).
+                friction = if has_passengers { 0.997 } else { 0.96 };
+                // `AbstractMinecart.applyNaturalSlowdown` scales by 0.95 in water
+                // (`AbstractMinecart.java:467-475`).
+                if self.vehicle.entity.touching_water.load(Ordering::Relaxed) {
+                    friction *= 0.95;
+                }
             } else {
                 let below_block_pos = BlockPos(Vector3::new(
                     block_pos.0.x,
@@ -518,25 +644,88 @@ impl EntityBase for MinecartEntity {
                 }
             }
 
-            let mut next_vel = if is_on_rails && let MinecartKind::Furnace(minecart) = &self.kind {
+            let next_vel = if is_on_rails && let MinecartKind::Furnace(minecart) = &self.kind {
                 minecart.velocity(&self.vehicle.entity, velocity)
             } else if is_on_rails && let Some(inventory) = self.container() {
                 container::velocity(&self.vehicle.entity, inventory, velocity)
+            } else if is_on_rails {
+                // `AbstractMinecart.applyNaturalSlowdown` multiplies by
+                // `(slowdown, 0.0, slowdown)` (`AbstractMinecart.java:467-475`).
+                velocity.multiply(friction, 0.0, friction)
             } else {
                 velocity.multiply(friction, friction, friction)
             };
-            if next_vel.length() < 0.005 {
-                next_vel = Vector3::new(0.0, 0.0, 0.0);
-            }
             self.vehicle.entity.velocity.store(next_vel);
             if next_vel.length_squared() == 0.0 {
                 self.vehicle.entity.send_velocity();
             }
         }
 
+        // `OldMinecartBehavior.moveAlongTrack` (`OldMinecartBehavior.java:233-263`): the boost
+        // is applied after the move and slowdown, so it survives into the next tick.
+        if is_powered_rail && PoweredRailLikeProperties::from_state_id(state_id).powered {
+            let mut velocity = self.vehicle.entity.velocity.load();
+            let speed = velocity.x.hypot(velocity.z);
+            if speed > 0.01 {
+                velocity.x += velocity.x / speed * 0.06;
+                velocity.z += velocity.z / speed * 0.06;
+                self.vehicle.entity.velocity.store(velocity);
+            } else {
+                // A stopped cart is launched away from the adjacent redstone conductor.
+                let mut dx = velocity.x;
+                let mut dz = velocity.z;
+                if shape == RailShape::EastWest {
+                    if world
+                        .get_block_state(&block_pos.offset(Vector3::new(-1, 0, 0)))
+                        .is_solid_block()
+                    {
+                        dx = 0.02;
+                    } else if world
+                        .get_block_state(&block_pos.offset(Vector3::new(1, 0, 0)))
+                        .is_solid_block()
+                    {
+                        dx = -0.02;
+                    }
+                } else if shape == RailShape::NorthSouth {
+                    if world
+                        .get_block_state(&block_pos.offset(Vector3::new(0, 0, -1)))
+                        .is_solid_block()
+                    {
+                        dz = 0.02;
+                    } else if world
+                        .get_block_state(&block_pos.offset(Vector3::new(0, 0, 1)))
+                        .is_solid_block()
+                    {
+                        dz = -0.02;
+                    }
+                }
+                self.vehicle
+                    .entity
+                    .velocity
+                    .store(Vector3::new(dx, velocity.y, dz));
+            }
+            self.vehicle.entity.send_velocity();
+        }
+
         // Vanilla `AbstractMinecart.move` applies the effects of the blocks the cart is inside
         // after moving, which is what fires `entityInside` (the cart assembler needs it).
         self.vehicle.entity.tick_block_collisions(caller);
+
+        // `OldMinecartBehavior.tick` (`OldMinecartBehavior.java:67-84`): xRot is always 0 and
+        // yRot follows the direction the cart travelled this tick.
+        let old_pos = self.vehicle.entity.last_pos.load();
+        let new_pos = self.vehicle.entity.pos.load();
+        let x_diff = old_pos.x - new_pos.x;
+        let z_diff = old_pos.z - new_pos.z;
+        let mut yaw = self.vehicle.entity.yaw.load();
+        if x_diff.mul_add(x_diff, z_diff * z_diff) > 0.001 {
+            yaw = (z_diff.atan2(x_diff).to_degrees() as f32) % 360.0;
+        }
+        self.vehicle.entity.set_rotation(yaw, 0.0);
+
+        // `OldMinecartBehavior.tick` pushes and picks up entities at the end of the tick
+        // (`OldMinecartBehavior.java:85`).
+        caller.push_entities(caller);
 
         if let MinecartKind::Hopper(minecart) = &self.kind {
             minecart.tick(&self.vehicle.entity);
@@ -553,6 +742,19 @@ impl EntityBase for MinecartEntity {
 
     fn is_pushable(&self) -> bool {
         true
+    }
+
+    fn get_block_speed_factor(&self) -> f32 {
+        // Vanilla `AbstractMinecart.getBlockSpeedFactor` (`AbstractMinecart.java:233-237`):
+        // a cart standing on a rail always uses 1.0, ignoring the block below it.
+        let world = self.vehicle.entity.world.load();
+        let block_pos = self.vehicle.entity.block_pos.load();
+        let (block, _) = world.get_block_and_state(&block_pos);
+        if block.has_tag(&tag::Block::MINECRAFT_RAILS) {
+            1.0
+        } else {
+            self.vehicle.entity.get_block_speed_factor()
+        }
     }
 
     #[allow(clippy::too_many_lines)]
@@ -591,24 +793,10 @@ impl EntityBase for MinecartEntity {
             }
         }
 
-        let mut xa = other_entity.pos.load().x - self_entity.pos.load().x;
-        let mut za = other_entity.pos.load().z - self_entity.pos.load().z;
-        let mut dd = xa * xa + za * za;
-        if dd >= 1.0E-4 {
-            dd = dd.sqrt();
-            xa /= dd;
-            za /= dd;
-            let mut pow = 1.0 / dd;
-            if pow > 1.0 {
-                pow = 1.0;
-            }
-            xa *= pow;
-            za *= pow;
-            xa *= 0.1;
-            za *= 0.1;
-            xa *= 0.5;
-            za *= 0.5;
-
+        if let Some((xa, za)) = minecart_push_impulse(
+            self_entity.pos.load(),
+            other_entity.pos.load(),
+        ) {
             let is_other_minecart = other_entity.entity_type.id == EntityType::MINECART.id
                 || other_entity.entity_type.id == EntityType::CHEST_MINECART.id
                 || other_entity.entity_type.id == EntityType::COMMAND_BLOCK_MINECART.id
@@ -618,8 +806,11 @@ impl EntityBase for MinecartEntity {
                 || other_entity.entity_type.id == EntityType::TNT_MINECART.id;
 
             if is_other_minecart {
-                let xo = self_entity.velocity.load().x;
-                let zo = self_entity.velocity.load().z;
+                // `AbstractMinecart.pushOtherMinecart` (`AbstractMinecart.java:532-545`):
+                // without the experimental movement flag the direction comes from the other
+                // cart's position, not from the cart's velocity.
+                let xo = other_entity.pos.load().x - self_entity.pos.load().x;
+                let zo = other_entity.pos.load().z - self_entity.pos.load().z;
 
                 let dir = Vector3::new(xo, 0.0, zo).normalize();
                 let facing = Vector3::new(
@@ -816,56 +1007,10 @@ impl EntityBase for MinecartEntity {
         }
     }
 
-    fn on_player_collision(&self, player: &Arc<Player>) {
-        if self.vehicle.entity.has_passenger(player.entity_id()) {
-            return;
-        }
-
-        if player.is_spectator() {
-            return;
-        }
-
-        let player_pos = player.get_entity().pos.load();
-        let minecart_pos = self.vehicle.entity.pos.load();
-
-        let mut diff_x = minecart_pos.x - player_pos.x;
-        let mut diff_z = minecart_pos.z - player_pos.z;
-
-        let dist_sq = diff_x * diff_x + diff_z * diff_z;
-        if dist_sq > 0.0001 {
-            let dist = dist_sq.sqrt();
-            diff_x /= dist;
-            diff_z /= dist;
-
-            let push_force = 0.1;
-            let mut vel = self.vehicle.entity.velocity.load();
-            vel.x += diff_x * push_force;
-            vel.z += diff_z * push_force;
-
-            let horizontal_speed = vel.x.hypot(vel.z);
-            if horizontal_speed > 0.4 {
-                vel.x = (vel.x / horizontal_speed) * 0.4;
-                vel.z = (vel.z / horizontal_speed) * 0.4;
-            }
-
-            self.vehicle.entity.velocity.store(vel);
-            self.vehicle.entity.send_velocity();
-        }
-    }
-
     fn move_entity(&self, caller: &dyn EntityBase, motion: Vector3<f64>) {
-        let to_position = self.vehicle.entity.pos.load().add(&motion);
+        // `AbstractMinecart.move` for the old behavior is a plain move; entity
+        // push/pickup happens at the end of the tick (`OldMinecartBehavior.java:85`).
         self.vehicle.entity.move_entity(caller, motion);
-        let entity_id = self.vehicle.entity.entity_id;
-        let world = self.vehicle.entity.world.load().clone();
-        if let Some(dyn_self) = world.get_entity_by_id(entity_id) {
-            let should_continue = dyn_self.push_entities(caller);
-            if should_continue {
-                let current_pos = dyn_self.get_entity().pos.load();
-                let back_motion = to_position.sub(&current_pos);
-                dyn_self.get_entity().move_entity(caller, back_motion);
-            }
-        }
     }
 
     fn cast_any(&self) -> &dyn std::any::Any {
@@ -876,7 +1021,6 @@ impl EntityBase for MinecartEntity {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use pumpkin_data::block_properties::RailShape;
 
     #[test]
     fn vanilla_rails_count_as_rails() {
@@ -909,5 +1053,83 @@ mod tests {
         ));
         // A block without a `shape` property is not a rail shape.
         assert!(rail_shape(&Block::STONE, Block::STONE.default_state.id).is_none());
+    }
+
+    /// Vanilla `OldMinecartBehavior.getPos`: straight rails put the cart exactly on the
+    /// block centre line, preserving the coordinate along the rail.
+    #[test]
+    fn rail_snap_centres_straight_rails() {
+        let block = BlockPos::new(3, 64, -7);
+
+        let snapped = rail_snap_position(
+            block,
+            RailShape::NorthSouth,
+            Vector3::new(3.9, 64.0625, -6.4),
+        );
+        assert_eq!(snapped.x, 3.5);
+        assert_eq!(snapped.z, -6.4);
+        assert_eq!(snapped.y, 64.0625);
+
+        let snapped = rail_snap_position(
+            block,
+            RailShape::EastWest,
+            Vector3::new(3.9, 64.0625, -6.4),
+        );
+        assert_eq!(snapped.x, 3.9);
+        assert_eq!(snapped.z, -6.5);
+        assert_eq!(snapped.y, 64.0625);
+    }
+
+    /// A curve snaps onto the diagonal between its two exits.
+    #[test]
+    fn rail_snap_projects_onto_curves() {
+        let block = BlockPos::new(0, 0, 0);
+        let snapped = rail_snap_position(
+            block,
+            RailShape::SouthEast,
+            Vector3::new(0.75, 0.0625, 0.75),
+        );
+        assert!((snapped.x - 0.75).abs() < 1e-9);
+        assert!((snapped.z - 0.75).abs() < 1e-9);
+        assert_eq!(snapped.y, 0.0625);
+    }
+
+    /// Vanilla's slope adjustment (`getPos`): the low end of an ascending east rail sits at
+    /// `blockY + 0.0625`, the high end at `blockY + 1.0625`.
+    #[test]
+    fn rail_snap_follows_slopes() {
+        let block = BlockPos::new(0, 0, 0);
+
+        let low = rail_snap_position(
+            block,
+            RailShape::AscendingEast,
+            Vector3::new(0.0, 0.0625, 0.5),
+        );
+        assert!((low.y - 0.0625).abs() < 1e-9);
+
+        let high = rail_snap_position(
+            block,
+            RailShape::AscendingEast,
+            Vector3::new(1.0, 0.5625, 0.5),
+        );
+        assert!((high.y - 1.0625).abs() < 1e-9);
+    }
+
+    /// Vanilla `AbstractMinecart.push` caps the impulse at `0.05` per axis
+    /// (`0.1 * 0.5` after normalisation), independent of how close the entities are.
+    #[test]
+    fn push_impulse_matches_vanilla() {
+        let origin = Vector3::new(0.0, 0.0, 0.0);
+
+        let (xa, za) = minecart_push_impulse(origin, Vector3::new(1.0, 0.0, 0.0)).unwrap();
+        assert!((xa - 0.05).abs() < 1e-12);
+        assert_eq!(za, 0.0);
+
+        let (xa, za) = minecart_push_impulse(origin, Vector3::new(0.1, 0.0, 0.0)).unwrap();
+        assert!((xa - 0.05).abs() < 1e-12);
+        assert_eq!(za, 0.0);
+
+        // Below vanilla's 1.0E-4 squared-distance threshold there is no push.
+        assert!(minecart_push_impulse(origin, Vector3::new(0.005, 0.0, 0.0)).is_none());
     }
 }

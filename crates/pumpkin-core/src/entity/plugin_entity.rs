@@ -304,10 +304,17 @@ impl PluginEntity {
     }
 
     /// The payload of the type's `spawn_data_channel`: the entity id and the spawn data.
+    ///
+    /// NeoForge's `AdvancedAddEntityPayload` is `(VAR_INT entityId, UNBOUNDED_BYTE_ARRAY data)`,
+    /// and `UNBOUNDED_BYTE_ARRAY` is `FriendlyByteBuf.readByteArray`/`writeByteArray`, which
+    /// length-prefixes the bytes with a VarInt. Without that prefix the client reads the first
+    /// spawn-data byte as the length and the packet overruns ("was larger than I expected").
     fn spawn_payload(&self) -> Vec<u8> {
         let mut payload = Vec::new();
         let _ = payload.write_var_int(&VarInt(self.entity.entity_id));
-        payload.extend_from_slice(&lock(&self.spawn_data));
+        let data = lock(&self.spawn_data);
+        let _ = payload.write_var_int(&VarInt(data.len() as i32));
+        payload.extend_from_slice(&data);
         payload
     }
 }

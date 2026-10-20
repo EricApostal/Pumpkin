@@ -14,7 +14,7 @@ use std::sync::{LazyLock, OnceLock, PoisonError, RwLock, RwLockReadGuard, RwLock
 use pumpkin_util::math::boundingbox::BoundingBox;
 use pumpkin_util::math::vector3::Vector3;
 
-use crate::block_properties::{BlockProperties, COLLISION_SHAPES, NoteblockInstrument};
+use crate::block_properties::{BlockProperties, COLLISION_SHAPES, EnumVariants, NoteblockInstrument};
 use crate::block_state::{self as flags, PistonBehavior};
 use crate::tag::{RegistryKey, Taggable};
 use crate::{Block, BlockDirection, BlockId, BlockState, BlockStateId};
@@ -187,6 +187,28 @@ pub struct ConnectRule {
     pub target: ConnectTarget,
 }
 
+/// How the property of a neighbour says where its shaft points, see [`ShaftNeighbour`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ShaftKind {
+    /// The property lists a direction (`facing`): the shaft points into the placed block when the
+    /// value is the opposite of the direction from the neighbour to the placed block.
+    Facing,
+    /// The property lists an axis (`axis`): the shaft points into the placed block when the
+    /// direction from the neighbour to the placed block runs along that axis.
+    Axis,
+}
+
+/// A neighbour that has a shaft pointing into the placed block, like Create's
+/// `IRotate.hasShaftTowards`. Only plugin blocks are read, from their registration properties.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ShaftNeighbour {
+    /// Blocks that count, by tag (`create:shafts`).
+    pub tag: String,
+    /// The property that says where the shaft points (`axis`, `facing`).
+    pub property: String,
+    pub kind: ShaftKind,
+}
+
 /// Where a placement rule gets the value of its property from. The property has to list the value
 /// names the source can give.
 #[derive(Debug, Clone, PartialEq)]
@@ -216,6 +238,11 @@ pub enum PlacementSource {
     InWater,
     /// `true` when the player sneaks, `false` otherwise.
     Sneaking,
+    /// The direction of the neighbour that has a shaft pointing into the placed block, see
+    /// [`ShaftNeighbour`]: `down`, `up`, `north`, `south`, `west`, `east`. `None` when no neighbour
+    /// has one, or when two neighbours on different axes both have one, which is where
+    /// `DirectionalKineticBlock.getPreferredFacing` gives up.
+    NeighbourShaft(Vec<ShaftNeighbour>),
     /// Always this value.
     Constant(String),
 }
@@ -253,7 +280,9 @@ impl PlacementSource {
     fn required_values(&self) -> Vec<&str> {
         match self {
             Self::HorizontalFacing => HORIZONTAL_NAMES.to_vec(),
-            Self::LookingDirection | Self::ClickedFace => DIRECTION_NAMES.to_vec(),
+            Self::LookingDirection | Self::ClickedFace | Self::NeighbourShaft(_) => {
+                DIRECTION_NAMES.to_vec()
+            }
             Self::ClickedFaceDown => HOPPER_DIRECTION_NAMES.to_vec(),
             Self::ClickedAxis => vec!["x", "y", "z"],
             Self::HorizontalAxis => vec!["x", "z"],
@@ -306,6 +335,10 @@ impl PlacementSource {
             }
             Self::InWater => bool_name(context.in_water != opposite),
             Self::Sneaking => bool_name(context.sneaking != opposite),
+            Self::NeighbourShaft(rules) => {
+                let direction = context.shaft_neighbour_direction(rules)?;
+                picked_direction(direction, opposite)
+            }
             Self::Constant(value) => value.as_str(),
         })
     }
@@ -320,9 +353,28 @@ pub struct PlacementRule {
     /// Use the opposite of the source's value (see [`PlacementSource`]). Not allowed for
     /// `ClickedAxis` and `Constant`.
     pub opposite: bool,
+    /// Only apply the rule when the player sneaks (`Some(true)`) or does not sneak (`Some(false)`).
+    /// A rule that does not apply leaves the property to the next rule.
+    pub when_sneaking: Option<bool>,
 }
 
-/// What is known about a placement. The server fills it from the player and the clicked block.
+/// A neighbour of the block that is being placed, for the sources that look at one.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PlacementNeighbour {
+    pub block: &'static Block,
+    pub state_id: BlockStateId,
+}
+
+impl PlacementNeighbour {
+    /// Nothing there, so no property to read.
+    pub const NONE: Self = Self {
+        block: &Block::AIR,
+        state_id: Block::AIR.default_state.id,
+    };
+}
+
+/// What is known about a placement. The server fills it from the player, the clicked block and the
+/// neighbours.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct PlacementContext {
     /// The face of the clicked block, from the clicked block to the placed one.
@@ -338,6 +390,66 @@ pub struct PlacementContext {
     /// The placed block replaces a water source.
     pub in_water: bool,
     pub sneaking: bool,
+    /// The six neighbours, by [`BlockDirection::to_index`].
+    pub neighbours: [PlacementNeighbour; 6],
+}
+
+impl PlacementContext {
+    /// The block next to the placed one in `direction`.
+    #[must_use]
+    pub const fn neighbour(&self, direction: BlockDirection) -> PlacementNeighbour {
+        self.neighbours[direction.to_index() as usize]
+    }
+
+    /// The direction of the neighbour whose shaft points into the placed block, see
+    /// [`ShaftNeighbour`]. `None` when there is none, or when two of them lie on different axes:
+    /// `DirectionalKineticBlock.getPreferredFacing` then gives up and returns `null`.
+    #[must_use]
+    pub fn shaft_neighbour_direction(
+        &self,
+        rules: &[ShaftNeighbour],
+    ) -> Option<BlockDirection> {
+        let mut preferred: Option<BlockDirection> = None;
+        for direction in BlockDirection::all() {
+            if !self.has_shaft_towards(direction, rules) {
+                continue;
+            }
+            if let Some(existing) = preferred
+                && existing.to_axis() != direction.to_axis()
+            {
+                return None;
+            }
+            preferred = Some(direction);
+        }
+        preferred
+    }
+
+    /// Whether the neighbour in `direction` has a shaft pointing back at the placed block.
+    fn has_shaft_towards(&self, direction: BlockDirection, rules: &[ShaftNeighbour]) -> bool {
+        let neighbour = self.neighbour(direction);
+        let Some(info) = neighbour.block.dynamic_info() else {
+            return false;
+        };
+        let Some(index) = info.state_index(neighbour.state_id) else {
+            return false;
+        };
+        let props = info.to_props(index);
+        rules.iter().any(|rule| {
+            if !neighbour.block.is_tagged_with(&rule.tag).unwrap_or(false) {
+                return false;
+            }
+            let Some((_, value)) = props
+                .iter()
+                .find(|(name, _)| *name == rule.property.as_str())
+            else {
+                return false;
+            };
+            match rule.kind {
+                ShaftKind::Facing => *value == direction_name(direction.opposite()),
+                ShaftKind::Axis => *value == direction.to_axis().to_value(),
+            }
+        })
+    }
 }
 
 #[derive(Debug)]
@@ -1135,6 +1247,22 @@ impl DynamicBlockInfo {
                         ));
                     }
                 }
+                PlacementSource::NeighbourShaft(shafts) => {
+                    if shafts.is_empty() {
+                        return Err(invalid(
+                            "a neighbour shaft rule needs at least one tag and property",
+                        ));
+                    }
+                    if let Some(empty) = shafts
+                        .iter()
+                        .find(|shaft| shaft.tag.is_empty() || shaft.property.is_empty())
+                    {
+                        return Err(invalid(format!(
+                            "the neighbour shaft rule '{}'/'{}' needs a tag and a property",
+                            empty.tag, empty.property
+                        )));
+                    }
+                }
                 PlacementSource::ClickedAxis
                 | PlacementSource::HorizontalAxis
                 | PlacementSource::Constant(_)
@@ -1177,6 +1305,13 @@ impl DynamicBlockInfo {
         for rule in &placement.resolved {
             let bit = 1u32 << rule.position;
             if set & bit != 0 {
+                continue;
+            }
+            if rule
+                .rule
+                .when_sneaking
+                .is_some_and(|sneaking| sneaking != context.sneaking)
+            {
                 continue;
             }
             let Some(name) = rule.rule.source.value(context, rule.rule.opposite) else {
@@ -2636,6 +2771,7 @@ mod tests {
             property: property.to_string(),
             source,
             opposite,
+            when_sneaking: None,
         }
     }
 
@@ -2648,6 +2784,7 @@ mod tests {
             cursor_y: 0.75,
             in_water: true,
             sneaking: false,
+            neighbours: [PlacementNeighbour::NONE; 6],
         }
     }
 

@@ -25,7 +25,9 @@ use crate::plugin::block::{
 use crate::server::Server;
 use crate::world::World;
 use crate::world::plugin_shapes::CACHED_CALLBACKS;
-use pumpkin_data::block_registry::{BlockCallbacks, DynamicBlockInfo, PlacementContext, ShapeKind};
+use pumpkin_data::block_registry::{
+    BlockCallbacks, DynamicBlockInfo, PlacementContext, PlacementNeighbour, ShapeKind,
+};
 use pumpkin_data::data_component_impl::EquipmentSlot;
 use pumpkin_data::entity::EntityType;
 use pumpkin_data::item_stack::ItemStack;
@@ -100,6 +102,13 @@ impl BlockBehaviour for DynamicBlock {
             return args.block.default_state.id;
         };
         let entity = args.player.get_entity();
+        // The placement rules that look at a neighbour (`neighbour-shaft`) read these.
+        let neighbour = |direction: BlockDirection| {
+            let (block, state_id) =
+                args.world
+                    .get_block_and_state_id(&args.position.offset(direction.to_offset()));
+            PlacementNeighbour { block, state_id }
+        };
         let context = PlacementContext {
             // `direction` points from the placed block to the clicked one.
             clicked_face: args.direction.opposite(),
@@ -109,6 +118,14 @@ impl BlockBehaviour for DynamicBlock {
             cursor_y: args.use_item_on.cursor_pos.y,
             in_water: args.replacing.water_source(),
             sneaking: entity.is_sneaking(),
+            neighbours: [
+                neighbour(BlockDirection::Down),
+                neighbour(BlockDirection::Up),
+                neighbour(BlockDirection::North),
+                neighbour(BlockDirection::South),
+                neighbour(BlockDirection::West),
+                neighbour(BlockDirection::East),
+            ],
         };
         // Placement rules first, then connect rules from the neighbours.
         let placed = info.state_for_placement(info.default_state_index(), &context);

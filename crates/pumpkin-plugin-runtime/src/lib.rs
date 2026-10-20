@@ -31,7 +31,8 @@ mod tests {
     };
     use wasm_encoder::{
         CodeSection, ComponentBuilder, ComponentExportKind, ComponentTypeRef, ComponentValType,
-        ConstExpr, EntityType, ExportKind, ExportSection, Function, FunctionSection, GlobalSection,
+        CanonicalOption, ConstExpr, EntityType, ExportKind, ExportSection, Function,
+        FunctionSection, GlobalSection,
         GlobalType, ImportSection, Instruction, Module, ModuleArg, PrimitiveValType, TypeBounds,
         TypeSection, ValType,
     };
@@ -367,6 +368,71 @@ mod tests {
         let run_core =
             component.core_alias_export(Some("run-core"), guest_instance, "run", ExportKind::Func);
         let run = component.lift_func(Some("run"), run_core, function_type, []);
+        component.export("run", ComponentExportKind::Func, run, None);
+        component.finish()
+    }
+
+    /// Variant of [`sync_reentry_component`] shaped like the plugin world: the
+    /// `host` import is an `async func`, so only a concurrent host
+    /// implementation can satisfy it, and `run` is an async-lifted export that
+    /// reports its result through `task.return`.
+    fn concurrent_reentry_component() -> Vec<u8> {
+        let mut module = Module::new();
+        let mut types = TypeSection::new();
+        types.ty().function([], []);
+        module.section(&types);
+
+        let mut imports = ImportSection::new();
+        imports.import("", "task-return", EntityType::Function(0));
+        imports.import("", "host", EntityType::Function(0));
+        module.section(&imports);
+
+        let mut functions = FunctionSection::new();
+        functions.function(0);
+        module.section(&functions);
+
+        let mut exports = ExportSection::new();
+        exports.export("run", ExportKind::Func, 2);
+        module.section(&exports);
+
+        let mut body = Function::new([]);
+        body.instruction(&Instruction::Call(1));
+        body.instruction(&Instruction::Call(0));
+        body.instruction(&Instruction::End);
+        let mut code = CodeSection::new();
+        code.function(&body);
+        module.section(&code);
+
+        let mut component = ComponentBuilder::default();
+        let (function_type, mut function) = component.type_function(Some("run-type"));
+        function
+            .async_(true)
+            .params([] as [(&str, PrimitiveValType); 0])
+            .result(None);
+        let imported = component.import("host", ComponentTypeRef::Func(function_type));
+        let lowered = component.lower_func(Some("host-lowered"), imported, []);
+        let task_return = component.task_return(None, []);
+        let module = component.core_module(Some("guest"), &module);
+        let host_instance = component.core_instantiate_exports(
+            Some("host-instance"),
+            [
+                ("task-return", ExportKind::Func, task_return),
+                ("host", ExportKind::Func, lowered),
+            ],
+        );
+        let guest_instance = component.core_instantiate(
+            Some("guest-instance"),
+            module,
+            [("", ModuleArg::Instance(host_instance))],
+        );
+        let run_core =
+            component.core_alias_export(Some("run-core"), guest_instance, "run", ExportKind::Func);
+        let run = component.lift_func(
+            Some("run"),
+            run_core,
+            function_type,
+            [CanonicalOption::Async],
+        );
         component.export("run", ComponentExportKind::Func, run, None);
         component.finish()
     }
@@ -871,6 +937,102 @@ mod tests {
             .expect("shut down test store");
     }
 
+    /// Reproduces the host call that writes a block from inside an event
+    /// handler: the host import spawns blocking server work which fires a
+    /// callback straight back into the same plugin instance.
+    ///
+    /// The callback must be serviced by the outer guest call's reentry pump.
+    /// Queueing it on the driver cannot make progress while the outer guest
+    /// call is suspended inside the host import waiting for it.
+    async fn blocking_host_callback_into_the_same_instance_completes() {
+        let mut config = Config::new();
+        config.wasm_component_model(true);
+        config.wasm_component_model_async(true);
+        config.wasm_component_model_async_stackful(true);
+        config.concurrency_support(true);
+        let engine = Engine::new(&config).expect("test engine");
+        let component =
+            Component::new(&engine, concurrent_reentry_component()).expect("test component");
+
+        let run_slot = Arc::new(OnceLock::<TypedFunc<(), ()>>::new());
+        let driver_slot = Arc::new(OnceLock::<ConcurrentStore>::new());
+        let host_calls = Arc::new(AtomicUsize::new(0));
+
+        let mut linker = Linker::<TestHostState>::new(&engine);
+        let run_for_host = Arc::clone(&run_slot);
+        let driver_for_host = Arc::clone(&driver_slot);
+        let calls_for_host = Arc::clone(&host_calls);
+        linker
+            .root()
+            .func_wrap_concurrent("host", move |accessor, ()| {
+                let run = *run_for_host.get().expect("run initialized");
+                let driver = driver_for_host
+                    .get()
+                    .expect("store driver initialized")
+                    .clone();
+                let host_calls = Arc::clone(&calls_for_host);
+                Box::pin(async move {
+                    if host_calls.fetch_add(1, Ordering::SeqCst) == 0 {
+                        let runtime = tokio::runtime::Handle::current();
+                        let nested_driver = driver.clone();
+                        // Mirrors `run_blocking`: the blocking operation fires a
+                        // callback straight back into the same plugin instance.
+                        driver
+                            .pump_blocking_accessor(accessor, move || {
+                                tokio::task::block_in_place(|| {
+                                    runtime.block_on(nested_driver.call_guest(
+                                        move |mut context| {
+                                            Box::pin(async move { context.call(run, ()).await })
+                                        },
+                                    ))
+                                })
+                            })
+                            .await??;
+                    }
+                    Ok(())
+                })
+            })
+            .expect("link concurrent host function");
+
+        let mut store = Store::new(&engine, TestHostState);
+        let instance = linker
+            .instantiate_async(&mut store, &component)
+            .await
+            .expect("instantiate test component");
+        let run = instance
+            .get_typed_func::<(), ()>(&mut store, "run")
+            .expect("run export");
+        assert!(run_slot.set(run).is_ok());
+
+        let driver = ConcurrentStore::new(store).await;
+        assert!(driver_slot.set(driver.clone()).is_ok());
+
+        timeout(
+            Duration::from_secs(2),
+            driver.call_guest(move |mut context| {
+                Box::pin(async move { context.call(run, ()).await })
+            }),
+        )
+        .await
+        .expect("blocking same-instance callback deadlocked")
+        .expect("blocking same-instance callback failed");
+
+        assert_eq!(host_calls.load(Ordering::SeqCst), 2);
+        // The callback has to be serviced by the host frame that is already on
+        // the chain. Queueing it on the driver leaves it waiting behind the
+        // outer guest call that the host frame is blocking.
+        assert_eq!(
+            driver.routed_jobs(),
+            1,
+            "same-instance callback was queued on the driver instead of the active frame"
+        );
+
+        driver
+            .shutdown(|_| Box::pin(async move { Ok(()) }))
+            .await
+            .expect("shut down test store");
+    }
+
     async fn unrelated_guest_call_waits_for_the_active_chain() {
         let mut config = Config::new();
         config.wasm_component_model(true);
@@ -1321,6 +1483,7 @@ mod tests {
         timeout(Duration::from_secs(10), async {
             sync_lifted_same_instance_reentry_completes().await;
             blocking_host_operation_propagates_the_reentry_chain().await;
+            blocking_host_callback_into_the_same_instance_completes().await;
             unrelated_guest_call_waits_for_the_active_chain().await;
             opposing_plugin_roots_scenario().await;
         })

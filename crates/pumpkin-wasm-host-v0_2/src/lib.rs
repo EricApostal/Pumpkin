@@ -89,13 +89,17 @@ fn active_plugin(
 ///
 /// Callbacks from `operation` inherit the active guest call's chain and root admission
 /// The reentry depth is checked before the operation is spawned
+///
+/// The operation is registered as the active reentry target before it starts, so a
+/// callback it fires synchronously into the same plugin instance runs on this host
+/// frame instead of waiting for the suspended outer guest call to finish.
 pub(crate) async fn run_blocking<R: Send + 'static>(
     accessor: &Accessor<PluginHostState, HasSelf<PluginHostState>>,
     operation: impl FnOnce() -> R + Send + 'static,
 ) -> wasmtime::Result<R> {
     active_plugin(accessor)?
         .store
-        .spawn_blocking_in_active_context(operation)
+        .pump_blocking_accessor(accessor, operation)
         .await
 }
 

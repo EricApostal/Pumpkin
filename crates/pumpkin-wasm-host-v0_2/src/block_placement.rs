@@ -1,11 +1,25 @@
 use crate::pumpkin::plugin::block_placement::{
     Host, PlacementRule as WitPlacementRule, PlacementSource as WitPlacementSource,
+    ShaftKind as WitShaftKind, ShaftNeighbour as WitShaftNeighbour,
 };
 use pumpkin_core::plugin::permissions;
 use pumpkin_data::Block;
-use pumpkin_data::block_registry::{PlacementRule, PlacementSource};
+use pumpkin_data::block_registry::{
+    PlacementRule, PlacementSource, ShaftKind, ShaftNeighbour,
+};
 use pumpkin_wasm_host_common::state::PluginHostState;
 use tracing::info;
+
+fn from_wit_shaft(shaft: WitShaftNeighbour) -> ShaftNeighbour {
+    ShaftNeighbour {
+        tag: shaft.tag,
+        property: shaft.property,
+        kind: match shaft.kind {
+            WitShaftKind::Facing => ShaftKind::Facing,
+            WitShaftKind::Axis => ShaftKind::Axis,
+        },
+    }
+}
 
 fn from_wit_source(source: WitPlacementSource) -> PlacementSource {
     match source {
@@ -19,6 +33,9 @@ fn from_wit_source(source: WitPlacementSource) -> PlacementSource {
         WitPlacementSource::VerticalLook(degrees) => PlacementSource::VerticalLook(degrees),
         WitPlacementSource::InWater => PlacementSource::InWater,
         WitPlacementSource::Sneaking => PlacementSource::Sneaking,
+        WitPlacementSource::NeighbourShaft(shafts) => {
+            PlacementSource::NeighbourShaft(shafts.into_iter().map(from_wit_shaft).collect())
+        }
         WitPlacementSource::Constant(value) => PlacementSource::Constant(value),
     }
 }
@@ -28,6 +45,7 @@ fn from_wit_rule(rule: WitPlacementRule) -> PlacementRule {
         property: rule.property,
         source: from_wit_source(rule.source),
         opposite: rule.opposite,
+        when_sneaking: rule.when_sneaking,
     }
 }
 
