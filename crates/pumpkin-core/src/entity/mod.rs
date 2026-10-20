@@ -1438,10 +1438,17 @@ impl Entity {
 
         let bounding_box = self.bounding_box.load();
 
-        let (collisions, block_positions) = self
-            .world
-            .load()
-            .get_block_collisions(bounding_box.stretch(movement), caller);
+        let world = self.world.load();
+        let (mut collisions, block_positions) =
+            world.get_block_collisions(bounding_box.stretch(movement), caller);
+        // Plugin collision boxes (a plugin's hull, platform or moving structure) collide like
+        // blocks, but they are not blocks: no supporting block and no block callbacks come from
+        // them.
+        let block_collision_count = collisions.len();
+        collisions.extend(crate::plugin_collision::collision_boxes(
+            &world,
+            bounding_box.stretch(movement),
+        ));
 
         if collisions.is_empty() {
             return movement;
@@ -1453,42 +1460,57 @@ impl Entity {
         if movement.get_axis(Axis::Y) != 0.0 {
             let mut max_time = 1.0;
             let mut positions = block_positions.into_iter();
-            if let Some((mut collisions_len, mut position)) = positions.next() {
-                let mut supporting_block_pos = None;
+            let mut next_block = positions.next();
+            let mut collisions_len = next_block.as_ref().map_or(usize::MAX, |(len, _)| *len);
+            let mut position = next_block.take().map(|(_, pos)| pos);
+            let mut supporting_block_pos = None;
+            // A plugin box under the entity is ground, but it is not a block to notify.
+            let mut resting_on_plugin_box = false;
 
-                for (i, inert_box) in collisions.iter().enumerate() {
-                    if i == collisions_len {
+            for (i, inert_box) in collisions.iter().enumerate() {
+                if i < block_collision_count {
+                    while i == collisions_len {
                         let Some((next_len, next_pos)) = positions.next() else {
+                            collisions_len = usize::MAX;
+                            position = None;
                             break;
                         };
                         collisions_len = next_len;
-                        position = next_pos;
+                        position = Some(next_pos);
                     }
+                }
 
-                    if let Some(collision_time) = bounding_box.calculate_collision_time(
-                        inert_box,
-                        adjusted_movement,
-                        Axis::Y,
-                        max_time,
-                    ) {
-                        max_time = collision_time;
+                if let Some(collision_time) = bounding_box.calculate_collision_time(
+                    inert_box,
+                    adjusted_movement,
+                    Axis::Y,
+                    max_time,
+                ) {
+                    max_time = collision_time;
 
-                        // If the entity is moving downwards and collides, set the supporting block position
-                        if movement.get_axis(Axis::Y) < 0.0 {
-                            supporting_block_pos = Some(position);
+                    // If the entity is moving downwards and collides, set the supporting block position
+                    if movement.get_axis(Axis::Y) < 0.0 {
+                        if i < block_collision_count {
+                            supporting_block_pos = position;
+                            resting_on_plugin_box = false;
+                        } else {
+                            supporting_block_pos = None;
+                            resting_on_plugin_box = true;
                         }
                     }
                 }
-
-                if max_time != 1.0 {
-                    let changed_component = adjusted_movement.get_axis(Axis::Y) * max_time;
-                    adjusted_movement.set_axis(Axis::Y, changed_component);
-                }
-
-                self.on_ground
-                    .store(supporting_block_pos.is_some(), Ordering::SeqCst);
-                self.supporting_block_pos.store(supporting_block_pos);
             }
+
+            if max_time != 1.0 {
+                let changed_component = adjusted_movement.get_axis(Axis::Y) * max_time;
+                adjusted_movement.set_axis(Axis::Y, changed_component);
+            }
+
+            self.on_ground.store(
+                supporting_block_pos.is_some() || resting_on_plugin_box,
+                Ordering::SeqCst,
+            );
+            self.supporting_block_pos.store(supporting_block_pos);
         }
 
         let mut horizontal_collision = false;

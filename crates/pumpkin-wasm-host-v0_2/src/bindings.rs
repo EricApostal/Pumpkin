@@ -4,6 +4,8 @@ bindgen!({
     path: "../pumpkin-plugin-wit/v0.2",
     world: "plugin",
     imports: {
+        "pumpkin:plugin/chunk-streaming@0.2.0.send-chunk-at": async | store | trappable,
+        "pumpkin:plugin/chunk-tickets@0.2.0.force-load-chunk": async | store | trappable,
         "pumpkin:plugin/command@0.2.0.[method]command-sender.has-permission": async | store | trappable,
         "pumpkin:plugin/datapack@0.2.0.[method]datapack-manager.disable-pack": async | store | trappable,
         "pumpkin:plugin/datapack@0.2.0.[method]datapack-manager.enable-pack": async | store | trappable,

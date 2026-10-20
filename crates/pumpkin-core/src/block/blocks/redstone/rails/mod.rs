@@ -169,19 +169,29 @@ enum RailProperties {
 }
 
 impl RailProperties {
+    /// Whether [block] has the straight-rail property set. Vanilla has exactly three of them
+    /// (powered, detector and activator rail); every other block in the `minecraft:rails` tag —
+    /// like Create's `create:cart_assembler` — only has `shape`/`waterlogged`, so reading it as a
+    /// `PoweredRailLikeProperties` panics in the generated property accessor.
+    fn is_straight_rail(block: &Block) -> bool {
+        // `handles_block_id` is a `BlockProperties` trait method, not an inherent one.
+        use pumpkin_data::block_properties::BlockProperties;
+        PoweredRailLikeProperties::handles_block_id(block.id)
+    }
+
     pub fn default(block: &Block) -> Self {
-        if block == &Block::RAIL {
-            Self::Rail(RailLikeProperties::default(block))
-        } else {
+        if Self::is_straight_rail(block) {
             Self::StraightRail(PoweredRailLikeProperties::default(block))
+        } else {
+            Self::Rail(RailLikeProperties::default(block))
         }
     }
 
     pub fn new(state_id: BlockStateId, block: &Block) -> Self {
-        if block == &Block::RAIL {
-            Self::Rail(RailLikeProperties::from_state_id(state_id))
-        } else {
+        if Self::is_straight_rail(block) {
             Self::StraightRail(PoweredRailLikeProperties::from_state_id(state_id))
+        } else {
+            Self::Rail(RailLikeProperties::from_state_id(state_id))
         }
     }
 

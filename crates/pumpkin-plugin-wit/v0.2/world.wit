@@ -450,7 +450,10 @@ interface %world {
     resource entity {
         get-id: func() -> u32;
         get-uuid: func() -> uuid;
-        get-type: func() -> entity-type;
+        /// Returns the vanilla type of this entity, or none for an entity of a plugin type:
+        /// plugin types are registered at runtime, so they have no `entity-type` variant. Use
+        /// `get-plugin-type-key` for the registry key of such an entity.
+        get-type: func() -> option<entity-type>;
 
         get-position: func() -> position;
         get-world: func() -> %world;
@@ -920,7 +923,10 @@ interface %world {
     record entity-snapshot {
         id: u32,
         uuid: uuid,
-        entity-type: entity-type,
+        /// The registry key of the type: `minecraft:cow` for a vanilla type, `namespace:path`
+        /// for a plugin type. A plugin type has no `entity-type` variant, so the key is what
+        /// identifies the type here.
+        entity-type-key: string,
         position: position,
         bounding-box: bounding-box,
         velocity: position,

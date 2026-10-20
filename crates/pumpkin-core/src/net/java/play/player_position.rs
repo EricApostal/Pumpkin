@@ -47,6 +47,26 @@ impl JavaClient {
         true
     }
 
+    /// Pushes a player position out of the collision boxes that plugins added to the world.
+    ///
+    /// The client owns player movement, so the host cannot clip the movement like it does for its
+    /// own entities: a position that ends inside a plugin box is corrected and the player is
+    /// teleported to the correction, which makes the client accept it. Returns `pos` unchanged when
+    /// no plugin box is in the way.
+    fn push_out_of_plugin_boxes(&self, player: &Arc<Player>, pos: Vector3<f64>) -> Vector3<f64> {
+        let world = player.world();
+        if crate::plugin_collision::is_empty_in(&world) {
+            return pos;
+        }
+        let corrected =
+            crate::plugin_collision::correct_player_position(&world, player.get_entity(), pos);
+        if corrected != pos {
+            player.get_entity().set_pos(corrected);
+            self.force_tp(player, corrected);
+        }
+        corrected
+    }
+
     #[expect(clippy::too_many_lines)]
     pub fn handle_position(
         &self,
@@ -102,10 +122,11 @@ impl JavaClient {
             };
 
             'after: {
-                let pos = event.to;
+                let mut pos = event.to;
                 let entity = &player.get_entity();
                 let last_pos = entity.pos.load();
                 player.get_entity().set_pos(pos);
+                pos = self.push_out_of_plugin_boxes(player, pos);
 
                 let distance = last_pos.squared_distance_to_vec(&pos).sqrt();
                 let cm = (distance * 100.0) as i32;
@@ -243,10 +264,11 @@ impl JavaClient {
             );
 
             'after: {
-                let pos = event.to;
+                let mut pos = event.to;
                 let entity = &player.get_entity();
                 let last_pos = entity.pos.load();
                 player.get_entity().set_pos(pos);
+                pos = self.push_out_of_plugin_boxes(player, pos);
 
                 let distance = last_pos.squared_distance_to_vec(&pos).sqrt();
                 let cm = (distance * 100.0) as i32;

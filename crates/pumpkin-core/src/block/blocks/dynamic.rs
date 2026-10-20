@@ -109,12 +109,24 @@ impl BlockBehaviour for DynamicBlock {
                     .get_block_and_state_id(&args.position.offset(direction.to_offset()));
             PlacementNeighbour { block, state_id }
         };
+        // `TrackBlock.getStateForPlacement`: the neighbour along the axis has a solid top and the
+        // block above it has no solid bottom.
+        let ascend = |direction: BlockDirection| {
+            let beside = args.position.offset(direction.to_offset());
+            let (_, beside_state) = args.world.get_block_and_state_id(&beside);
+            if !beside_state.is_side_solid(BlockDirection::Up) {
+                return false;
+            }
+            let (_, above_state) = args.world.get_block_and_state_id(&beside.up());
+            !above_state.is_side_solid(BlockDirection::Down)
+        };
         let context = PlacementContext {
             // `direction` points from the placed block to the clicked one.
             clicked_face: args.direction.opposite(),
             horizontal_facing: entity.get_horizontal_facing().to_block_direction(),
             looking_direction: entity.get_facing().to_block_direction(),
             pitch: entity.pitch.load(),
+            yaw: entity.yaw.load(),
             cursor_y: args.use_item_on.cursor_pos.y,
             in_water: args.replacing.water_source(),
             sneaking: entity.is_sneaking(),
@@ -125,6 +137,14 @@ impl BlockBehaviour for DynamicBlock {
                 neighbour(BlockDirection::South),
                 neighbour(BlockDirection::West),
                 neighbour(BlockDirection::East),
+            ],
+            ascend: [
+                ascend(BlockDirection::Down),
+                ascend(BlockDirection::Up),
+                ascend(BlockDirection::North),
+                ascend(BlockDirection::South),
+                ascend(BlockDirection::West),
+                ascend(BlockDirection::East),
             ],
         };
         // Placement rules first, then connect rules from the neighbours.

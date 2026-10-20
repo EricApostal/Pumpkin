@@ -71,6 +71,12 @@ interface block-placement {
         /// `DirectionalKineticBlock.getPreferredFacing`). For a bearing, `opposite` makes the
         /// bearing face away from the shaft.
         neighbour-shaft(list<shaft-neighbour>),
+        /// The shape a track gets from the player's look, like `TrackBlock.getStateForPlacement`:
+        /// `zo`, `xo`, `pd`, `nd`, `an`, `as`, `ae` or `aw`. The axis of the look nearest to one of
+        /// the eight track axes gives the straight shape (`zo`, `xo`, `pd`, `nd`); when the
+        /// neighbour along that axis has a solid top and the block above it has no solid bottom,
+        /// the track ascends (`an`, `as`, `ae`, `aw`). `opposite` is not allowed.
+        track-shape,
         /// Always this value, useful as the last rule of a fallback.
         constant(string),
     }

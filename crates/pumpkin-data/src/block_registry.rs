@@ -250,6 +250,9 @@ pub enum PlacementSource {
     /// has one, or when two neighbours on different axes both have one, which is where
     /// `DirectionalKineticBlock.getPreferredFacing` gives up.
     NeighbourShaft(Vec<ShaftNeighbour>),
+    /// The shape a track gets from the player's look, like Create's
+    /// `TrackBlock.getStateForPlacement`: `zo`, `xo`, `pd`, `nd`, `an`, `as`, `ae`, `aw`.
+    TrackShape,
     /// Always this value.
     Constant(String),
 }
@@ -258,6 +261,90 @@ const HORIZONTAL_NAMES: [&str; 4] = ["north", "south", "east", "west"];
 const DIRECTION_NAMES: [&str; 6] = ["down", "up", "north", "south", "west", "east"];
 /// The directions of a hopper-like facing property: no `up`.
 const HOPPER_DIRECTION_NAMES: [&str; 5] = ["down", "north", "south", "west", "east"];
+/// The track shapes a look can give, see [`PlacementSource::TrackShape`].
+const TRACK_SHAPE_NAMES: [&str; 8] = ["zo", "xo", "pd", "nd", "an", "as", "ae", "aw"];
+
+/// The axis of every track shape of [`TRACK_SHAPE_NAMES`], in Create's `TrackShape` order and with
+/// the first axis of each shape. The junction and portal shapes are left out: they never win.
+const TRACK_SHAPE_AXES: [[f32; 3]; 8] = [
+    [0.0, 0.0, 1.0],
+    [1.0, 0.0, 0.0],
+    [1.0, 0.0, 1.0],
+    [-1.0, 0.0, 1.0],
+    [0.0, 1.0, -1.0],
+    [0.0, 1.0, 1.0],
+    [1.0, 1.0, 0.0],
+    [-1.0, 1.0, 0.0],
+];
+
+/// The horizontal direction the player looks at, from the yaw: `Vec3(0, 0, 1).yRot(-yaw)` of the
+/// game, which is what `TrackBlock.getStateForPlacement` uses when the look has no horizontal part.
+fn look_from_yaw(yaw: f32) -> [f32; 3] {
+    let (sin, cos) = yaw.to_radians().sin_cos();
+    [-sin, 0.0, cos]
+}
+
+/// `a.distanceToSqr(b)` of two vectors.
+fn distance_squared(a: [f32; 3], b: [f32; 3]) -> f32 {
+    (a[0] - b[0]).powi(2) + (a[1] - b[1]).powi(2) + (a[2] - b[2]).powi(2)
+}
+
+/// `Vec3.normalize()`: the vector scaled to length one, zero for a vector shorter than 1e-5.
+fn normalized(a: [f32; 3]) -> [f32; 3] {
+    let length = (a[0] * a[0] + a[1] * a[1] + a[2] * a[2]).sqrt();
+    if length < 1.0E-5 {
+        [0.0; 3]
+    } else {
+        [a[0] / length, a[1] / length, a[2] / length]
+    }
+}
+
+/// The track shape for the player's look, like `TrackBlock.getStateForPlacement`: the shape whose
+/// axis is nearest to the look (the later one of two equally near, as the game's `>` comparison
+/// leaves a tie to the later shape), ascending when the neighbour on the winning side has a solid
+/// top and the block above it has no solid bottom.
+fn track_shape(context: &PlacementContext) -> &'static str {
+    let look = look_from_yaw(context.yaw);
+    let mut best = 0;
+    let mut best_distance = f32::MAX;
+    for (index, axis) in TRACK_SHAPE_AXES.iter().enumerate() {
+        let unit = normalized(*axis);
+        let negative = [-unit[0], -unit[1], -unit[2]];
+        let distance = distance_squared(*axis, look).min(distance_squared(negative, look));
+        if distance > best_distance {
+            continue;
+        }
+        best_distance = distance;
+        best = index;
+    }
+    // Only the two straight shapes (`zo`, `xo`) have an axis of length one, and only they ascend.
+    let Some(direction) = (match best {
+        0 => Some(BlockDirection::South),
+        1 => Some(BlockDirection::East),
+        _ => None,
+    }) else {
+        return TRACK_SHAPE_NAMES[best];
+    };
+    // The game walks the negative side first and keeps the last side that ascends.
+    let mut shape = best;
+    for negative in [true, false] {
+        let side = if negative {
+            direction.opposite()
+        } else {
+            direction
+        };
+        if !context.ascend[side.to_index() as usize] {
+            continue;
+        }
+        shape = match (best, negative) {
+            (0, true) => 4,
+            (0, false) => 5,
+            (_, true) => 7,
+            (_, false) => 6,
+        };
+    }
+    TRACK_SHAPE_NAMES[shape]
+}
 
 const fn direction_name(direction: BlockDirection) -> &'static str {
     match direction {
@@ -296,6 +383,7 @@ impl PlacementSource {
             Self::ClickedHalf => vec!["bottom", "top"],
             Self::VerticalLook(_) => vec!["up", "down"],
             Self::InWater | Self::Sneaking => vec!["true", "false"],
+            Self::TrackShape => TRACK_SHAPE_NAMES.to_vec(),
             Self::Constant(value) => vec![value.as_str()],
         }
     }
@@ -346,6 +434,7 @@ impl PlacementSource {
                 let direction = context.shaft_neighbour_direction(rules)?;
                 picked_direction(direction, opposite)
             }
+            Self::TrackShape => track_shape(context),
             Self::Constant(value) => value.as_str(),
         })
     }
@@ -358,7 +447,7 @@ pub struct PlacementRule {
     pub property: String,
     pub source: PlacementSource,
     /// Use the opposite of the source's value (see [`PlacementSource`]). Not allowed for
-    /// `ClickedAxis` and `Constant`.
+    /// `ClickedAxis`, `HorizontalAxis`, `TrackShape` and `Constant`.
     pub opposite: bool,
     /// Only apply the rule when the player sneaks (`Some(true)`) or does not sneak (`Some(false)`).
     /// A rule that does not apply leaves the property to the next rule.
@@ -392,6 +481,8 @@ pub struct PlacementContext {
     pub looking_direction: BlockDirection,
     /// Pitch of the player in degrees, negative looks up.
     pub pitch: f32,
+    /// Yaw of the player in degrees, the horizontal part of the look (0 looks south, 90 west).
+    pub yaw: f32,
     /// Height of the click on the clicked block, `0..=1`.
     pub cursor_y: f32,
     /// The placed block replaces a water source.
@@ -399,6 +490,9 @@ pub struct PlacementContext {
     pub sneaking: bool,
     /// The six neighbours, by [`BlockDirection::to_index`].
     pub neighbours: [PlacementNeighbour; 6],
+    /// By [`BlockDirection::to_index`]: the neighbour there has a solid top and the block above it
+    /// has no solid bottom, so a track can ascend into it (`TrackBlock.getStateForPlacement`).
+    pub ascend: [bool; 6],
 }
 
 impl PlacementContext {
@@ -1275,6 +1369,7 @@ impl DynamicBlockInfo {
                 }
                 PlacementSource::ClickedAxis
                 | PlacementSource::HorizontalAxis
+                | PlacementSource::TrackShape
                 | PlacementSource::Constant(_)
                     if rule.opposite =>
                 {
@@ -2802,10 +2897,12 @@ mod tests {
             horizontal_facing: BlockDirection::East,
             looking_direction: BlockDirection::Down,
             pitch: 70.0,
+            yaw: 0.0,
             cursor_y: 0.75,
             in_water: true,
             sneaking: false,
             neighbours: [PlacementNeighbour::NONE; 6],
+            ascend: [false; 6],
         }
     }
 
@@ -2920,6 +3017,72 @@ mod tests {
         let top_face = info.state_for_placement(default, &placement(BlockDirection::Up));
         assert_eq!(info.value(top_face, "half"), Some("bottom"));
         assert_eq!(info.value(top_face, "axis"), Some("y"));
+    }
+
+    #[test]
+    fn track_shape_follows_the_look_and_ascends() {
+        let mut registry = DynamicBlockRegistry::new();
+        let mut reg = registration("test_place:track");
+        // The `shape` values of Create's `TrackShape`.
+        reg.properties = vec![enum_property(
+            "shape",
+            &[
+                "none", "zo", "xo", "pd", "nd", "an", "as", "ae", "aw", "tn", "ts", "te", "tw",
+                "cr_o", "cr_d", "cr_pdx", "cr_pdz", "cr_ndx", "cr_ndz",
+            ],
+        )];
+        reg.default_state = vec![("shape".to_string(), "zo".to_string())];
+        let block = registry.register(reg).unwrap();
+        let info = registry.get_info(block.id.as_u16()).unwrap();
+        registry
+            .set_placement_rules(
+                "test_place:track",
+                vec![rule("shape", PlacementSource::TrackShape, false)],
+            )
+            .unwrap();
+        // `opposite` makes no sense for a shape.
+        assert!(matches!(
+            registry.set_placement_rules(
+                "test_place:track",
+                vec![rule("shape", PlacementSource::TrackShape, true)],
+            ),
+            Err(BlockRegistrationError::Invalid(message)) if message.contains("no opposite")
+        ));
+        let default = info.default_state_index();
+        let shape_at = |context: &mut PlacementContext, yaw: f32| {
+            context.yaw = yaw;
+            let state = info.state_for_placement(default, context);
+            info.value(state, "shape").unwrap()
+        };
+        let mut context = placement(BlockDirection::North);
+
+        // The yaw of the game: 0 looks south (`+z`), 90 west, 180 north, 270 east.
+        assert_eq!(shape_at(&mut context, 0.0), "zo");
+        assert_eq!(shape_at(&mut context, 180.0), "zo");
+        assert_eq!(shape_at(&mut context, 90.0), "xo");
+        assert_eq!(shape_at(&mut context, 270.0), "xo");
+        assert_eq!(shape_at(&mut context, 135.0), "pd");
+        assert_eq!(shape_at(&mut context, 45.0), "nd");
+
+        // A neighbour that can be ascended into: looking south, the south neighbour.
+        context.ascend[BlockDirection::South.to_index() as usize] = true;
+        assert_eq!(shape_at(&mut context, 0.0), "as");
+        context.ascend[BlockDirection::South.to_index() as usize] = false;
+        context.ascend[BlockDirection::North.to_index() as usize] = true;
+        assert_eq!(shape_at(&mut context, 0.0), "an");
+        // Both sides: the game keeps the last side it looked at, the positive one.
+        context.ascend[BlockDirection::South.to_index() as usize] = true;
+        assert_eq!(shape_at(&mut context, 0.0), "as");
+        // An `xo` shape ascends towards the east (`ae`) and the west (`aw`).
+        context.ascend = [false; 6];
+        context.ascend[BlockDirection::East.to_index() as usize] = true;
+        assert_eq!(shape_at(&mut context, 270.0), "ae");
+        context.ascend = [false; 6];
+        context.ascend[BlockDirection::West.to_index() as usize] = true;
+        assert_eq!(shape_at(&mut context, 270.0), "aw");
+        // The diagonal shapes never ascend.
+        context.ascend[BlockDirection::East.to_index() as usize] = true;
+        assert_eq!(shape_at(&mut context, 135.0), "pd");
     }
 
     #[test]

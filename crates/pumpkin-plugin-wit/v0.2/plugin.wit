@@ -34,6 +34,12 @@ world plugin {
     import scheduler;
     /// Provides world information and block manipulation.
     import %world;
+    /// Provides chunks that a plugin keeps loaded.
+    import chunk-tickets;
+    /// Sends and removes single chunks of a player at arbitrary positions.
+    import chunk-streaming;
+    /// Provides collision boxes that host entities collide with.
+    import entity-collision;
     /// Provides entity types and manipulation.
     import entity;
     /// Provides boss bar creation and management.

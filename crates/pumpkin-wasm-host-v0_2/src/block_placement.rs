@@ -35,6 +35,7 @@ fn from_wit_source(source: WitPlacementSource) -> PlacementSource {
         WitPlacementSource::NeighbourShaft(shafts) => {
             PlacementSource::NeighbourShaft(shafts.into_iter().map(from_wit_shaft).collect())
         }
+        WitPlacementSource::TrackShape => PlacementSource::TrackShape,
         WitPlacementSource::Constant(value) => PlacementSource::Constant(value),
     }
 }

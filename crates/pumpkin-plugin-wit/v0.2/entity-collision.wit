@@ -1,0 +1,31 @@
+package pumpkin:plugin@0.2.0;
+
+/// Collision boxes that host entities collide with, in addition to the blocks of the world.
+///
+/// The host stops its own entities (mobs, items, projectiles) and corrects player movement against
+/// the blocks of the world. A plugin whose geometry is not a block of the world — a moving
+/// structure whose blocks live at a distant position, a hull, a platform — has no way to make host
+/// entities collide with it. This interface adds boxes to the collision test.
+///
+/// The boxes are axis aligned and are given in world space, already transformed by the plugin: the
+/// host never rotates a box, so a rotated shape is represented by its world aligned bounds. They
+/// collide in addition to the blocks, never instead of them.
+///
+/// Call `set-entity-collision-boxes` every tick (or whenever the geometry moves) with the boxes
+/// that are currently relevant. The host replaces the boxes of the calling plugin on every call, so
+/// a plugin that stops calling leaves its last boxes behind until it calls
+/// `clear-entity-collision-boxes` or unloads.
+interface entity-collision {
+    use %world.{%world, bounding-box};
+
+    /// Replaces the collision boxes of the calling plugin in `world-ref`.
+    ///
+    /// An empty list removes them, like `clear-entity-collision-boxes`. The boxes of every plugin
+    /// are combined. Host moved entities are clipped by the boxes exactly like by blocks; a player
+    /// whose movement packet ends inside a box is pushed back out along the axis of the smallest
+    /// overlap and teleported there, because the client owns player movement.
+    set-entity-collision-boxes: func(world-ref: borrow<%world>, boxes: list<bounding-box>);
+
+    /// Removes the collision boxes of the calling plugin in `world-ref`.
+    clear-entity-collision-boxes: func(world-ref: borrow<%world>);
+}

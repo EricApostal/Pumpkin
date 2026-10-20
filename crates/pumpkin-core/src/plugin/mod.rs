@@ -1095,6 +1095,10 @@ impl PluginManager {
             instance.on_unload(plugin.context.clone()).await.ok();
         }
 
+        // A plugin that is gone must not keep chunks loaded or collision boxes in the world.
+        crate::plugin_chunks::release_owner(name);
+        crate::plugin_collision::release_owner(name);
+
         if plugin.loader.can_unload() {
             if let Some(data) = plugin.loader_data {
                 plugin.loader.unload(data).await?;

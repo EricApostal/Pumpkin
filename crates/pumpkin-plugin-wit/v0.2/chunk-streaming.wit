@@ -1,0 +1,30 @@
+package pumpkin:plugin@0.2.0;
+
+/// Sends and removes single chunks of a player's world at arbitrary positions.
+///
+/// The host sends the chunks around a player by its view distance. A plugin that shows chunk data
+/// elsewhere than the host does — a copy of a build at a distant position, a plot yard, a preview
+/// area — needs to send those chunks itself. This interface does that with the same chunk packet
+/// (blocks, block entities, biomes and light) the host uses for the player's view, so a plugin does
+/// not have to encode chunk data.
+interface chunk-streaming {
+    use player.{player};
+    use common.{block-pos};
+
+    /// Sends the chunk that contains `pos` to `player`, using the world of the player.
+    ///
+    /// The chunk does not have to be inside the player's view distance. It must be loaded in the
+    /// world; keep it loaded with `chunk-tickets` first, otherwise the call fails. It also fails
+    /// for a player without a connection.
+    ///
+    /// The host records the chunk as sent to this player, so `unload-chunk-at` removes it again and
+    /// the host does not resend it as part of the view distance. Sending a chunk the player already
+    /// holds sends it again and replaces it on the client.
+    send-chunk-at: async func(player: borrow<player>, pos: block-pos) -> result<_, string>;
+
+    /// Tells `player` to drop the chunk that contains `pos` (`unload chunk` packet).
+    ///
+    /// Does nothing when the host has not sent that chunk to the player. The chunk stays loaded in
+    /// the world; release its `chunk-tickets` ticket to unload it.
+    unload-chunk-at: func(player: borrow<player>, pos: block-pos);
+}

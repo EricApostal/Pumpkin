@@ -531,6 +531,10 @@ impl Server {
         world_to_unload.shutdown().await;
         world_to_unload.unload().await;
 
+        // Chunks kept by plugins and their collision boxes die with the world.
+        crate::plugin_chunks::release_world(&world_to_unload);
+        crate::plugin_collision::release_world(&world_to_unload);
+
         self.worlds.rcu(|w_list| {
             let mut new_list = (**w_list).clone();
             new_list.retain(|w| !Arc::ptr_eq(w, &world_to_unload));

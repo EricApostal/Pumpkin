@@ -66,10 +66,18 @@ impl HostEntity for PluginHostState {
         Ok(Uuid::to_wit(&entity.get_entity().entity_uuid))
     }
 
-    fn get_type(&mut self, entity: Resource<Entity>) -> wasmtime::Result<entity_types::EntityType> {
+    fn get_type(
+        &mut self,
+        entity: Resource<Entity>,
+    ) -> wasmtime::Result<Option<entity_types::EntityType>> {
         let entity = self.get(&entity)?;
-        let original_name = entity.get_entity().entity_type.resource_name;
-        to_wit_entity_type(original_name)
+        let entity_type = entity.get_entity().entity_type;
+        if entity_type.is_plugin() {
+            // A plugin type is registered at runtime, the closed `entity-type` enum has no
+            // variant for it. Returning an error here traps the guest and poisons the store.
+            return Ok(None);
+        }
+        Ok(Some(to_wit_entity_type(entity_type.resource_name)?))
     }
 
     fn get_position(&mut self, entity: Resource<Entity>) -> wasmtime::Result<Position> {
@@ -1037,6 +1045,9 @@ impl HostEntityWithStore<PluginHostState> for HasSelf<PluginHostState> {
     }
 }
 
+/// Maps the name of a **vanilla** entity type to the WIT enum. A plugin type has no variant (it
+/// is registered at runtime), so its name is not in `EntityType::ALL`: callers that may see one
+/// must use `EntityType::is_plugin` first, see `HostEntity::get_type`.
 pub(crate) fn to_wit_entity_type(name: &str) -> wasmtime::Result<entity_types::EntityType> {
     let name = name.strip_prefix("minecraft:").unwrap_or(name);
     let index = pumpkin_data::entity::EntityType::ALL
@@ -1055,4 +1066,35 @@ pub(crate) fn from_wit_entity_type(
         .get(index)
         .copied()
         .ok_or_else(|| wasmtime::Error::msg(format!("Invalid entity type index: {index}")))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// `to_wit_entity_type` binary-searches `EntityType::ALL` by `resource_name` and takes the
+    /// found position as the WIT enum discriminant, so the table has to be sorted. The table is
+    /// generated; this guards a regeneration that is not.
+    #[test]
+    fn the_vanilla_entity_type_table_is_sorted_by_name() {
+        assert!(
+            pumpkin_data::entity::EntityType::ALL
+                .windows(2)
+                .all(|pair| pair[0].resource_name < pair[1].resource_name)
+        );
+    }
+
+    #[test]
+    fn a_vanilla_name_maps_to_its_index_and_an_unknown_one_errors() {
+        let index = pumpkin_data::entity::EntityType::ALL
+            .iter()
+            .position(|e| e.resource_name == "cow")
+            .expect("cow is a vanilla entity type");
+        assert_eq!(
+            to_wit_entity_type("minecraft:cow").unwrap() as usize,
+            index
+        );
+        assert_eq!(to_wit_entity_type("cow").unwrap() as usize, index);
+        assert!(to_wit_entity_type("create:contraption").is_err());
+    }
 }

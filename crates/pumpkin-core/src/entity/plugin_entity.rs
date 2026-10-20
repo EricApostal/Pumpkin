@@ -54,7 +54,14 @@ const SYNCED_DATA_KEY: &str = "PluginSyncedData";
 /// Key of the spawn data in the saved entity.
 const SPAWN_DATA_KEY: &str = "PluginSpawnData";
 /// The most a plugin can set as spawn data, it is written into one packet.
-pub const MAX_SPAWN_DATA: usize = 16 * 1024;
+///
+/// The packet ceiling is `MAX_PACKET_DATA_SIZE` (8 MiB) and NeoForge imposes no limit of its
+/// own on `AdvancedAddEntityPayload` (`UNBOUNDED_BYTE_ARRAY`). Create's own contraption spawn
+/// payload is capped at `1_048_576 - 20_000` (`ContraptionSyncLimiting`), so a 16 KiB limit here
+/// silently rejected every contraption bigger than a few blocks — the client then received the
+/// entity with no spawn data and rendered nothing. Keep parity with Create's limit, minus the
+/// packet header room.
+pub const MAX_SPAWN_DATA: usize = 1_048_576 - 20_000;
 /// The most a plugin can set as synced data, it is written into one packet.
 pub const MAX_SYNCED_DATA: usize = 8 * 1024;
 

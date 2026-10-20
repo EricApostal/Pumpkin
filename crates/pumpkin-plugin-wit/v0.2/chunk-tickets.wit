@@ -1,0 +1,42 @@
+package pumpkin:plugin@0.2.0;
+
+/// Keeps chunks of a world loaded for a plugin.
+///
+/// The host loads a chunk while a player watches it (view and simulation distance), while the
+/// `forceload` command keeps it, or while a plugin holds a ticket. A plugin that owns blocks far
+/// away from every player — a plot yard, a copy of a structure at a spare position, a machine room
+/// outside the map — needs a ticket for those chunks, otherwise they unload and their block
+/// entities stop ticking.
+///
+/// A ticketed chunk is generated, loaded and ticked like a chunk a player watches, so the block,
+/// block entity and scheduled tick calls of `world` work on it. The ticket is not a player view:
+/// the chunk is not sent to any client by the host, use `chunk-streaming` for that.
+interface chunk-tickets {
+    use %world.{%world};
+
+    /// Force-loads the chunk at the chunk coordinates `x`, `z` of `world-ref` and returns the
+    /// handle of the ticket.
+    ///
+    /// The call returns once the chunk is loaded, so block and block entity calls on it work
+    /// immediately. It fails when the chunk cannot be loaded (for example because the chunk
+    /// system is shut down), and then no ticket is left behind.
+    ///
+    /// The chunk stays loaded and ticks (block entities, random ticks, scheduled block and fluid
+    /// ticks) until the ticket is released, the plugin unloads, or the world unloads. Two tickets
+    /// for the same chunk are independent: the chunk unloads when the last one is gone. A handle
+    /// belongs to the calling plugin; releasing a handle of another plugin fails.
+    force-load-chunk: async func(world-ref: borrow<%world>, x: s32, z: s32) -> result<u32, string>;
+
+    /// Releases a ticket from `force-load-chunk` and returns whether it was released.
+    ///
+    /// False for an unknown handle, a handle that was already released, or a handle of another
+    /// plugin. The chunk unloads once no ticket, no `forceload` command and no player keeps it.
+    release-chunk-ticket: func(ticket: u32) -> bool;
+
+    /// Returns whether the calling plugin still holds the ticket `ticket`.
+    has-chunk-ticket: func(ticket: u32) -> bool;
+
+    /// Releases every ticket the calling plugin holds, in every world. The host calls this when the
+    /// plugin unloads; a plugin can call it to drop all of its tickets at once.
+    release-all-chunk-tickets: func();
+}
