@@ -245,7 +245,7 @@ impl HostRecipeManagerWithStore<PluginHostState> for HasSelf<PluginHostState> {
                 .collect(),
             pattern: recipe.pattern,
             result: OwnedRecipeResult {
-                item_id: result_stack.item.registry_key.to_string(),
+                item_id: crate::item_stack::namespaced_key(result_stack.item.registry_key),
                 count: result_stack.item_count,
             },
         };
@@ -280,7 +280,7 @@ impl HostRecipeManagerWithStore<PluginHostState> for HasSelf<PluginHostState> {
                 .map(to_owned_ingredient)
                 .collect(),
             result: OwnedRecipeResult {
-                item_id: result_stack.item.registry_key.to_string(),
+                item_id: crate::item_stack::namespaced_key(result_stack.item.registry_key),
                 count: result_stack.item_count,
             },
         };
@@ -314,7 +314,7 @@ impl HostRecipeManagerWithStore<PluginHostState> for HasSelf<PluginHostState> {
             cooking_time: recipe.cooking_time as i32,
             experience: recipe.experience,
             result: OwnedRecipeResult {
-                item_id: result_stack.item.registry_key.to_string(),
+                item_id: crate::item_stack::namespaced_key(result_stack.item.registry_key),
                 count: result_stack.item_count,
             },
         };

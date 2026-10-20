@@ -11,7 +11,7 @@ use pumpkin_world::world::BlockFlags;
 use crate::command::argument_builder::{
     ArgumentBuilder, RequiredArgumentBuilder, argument, command, literal,
 };
-use crate::command::argument_types::block::BlockArgumentType;
+use crate::command::argument_types::block::BlockStateArgumentType;
 use crate::command::argument_types::block_predicate::{BlockPredicate, BlockPredicateArgumentType};
 use crate::command::argument_types::coordinates::block_pos::BlockPosArgumentType;
 use crate::command::context::command_context::CommandContext;
@@ -55,7 +55,7 @@ fn fill_blocks(
     source: &CommandSource,
     from: BlockPos,
     to: BlockPos,
-    target_block: &'static Block,
+    target_block: &'static pumpkin_data::BlockState,
     mode: FillMode,
     filter: Option<&BlockPredicate>,
     _strict: bool,
@@ -85,7 +85,7 @@ fn fill_blocks(
         ));
     }
 
-    let target_state_id = target_block.default_state.id;
+    let target_state_id = target_block.id;
     let mut changed_positions = Vec::new();
 
     let min_chunk_x = min_x >> 4;
@@ -248,7 +248,7 @@ impl CommandExecutor for FillExecutor {
     fn execute(&self, context: &CommandContext) -> CommandExecutorResult {
         let from = BlockPosArgumentType::get_loaded_block_pos(context, "from")?;
         let to = BlockPosArgumentType::get_loaded_block_pos(context, "to")?;
-        let block = BlockArgumentType::get(context, "block")?;
+        let block = BlockStateArgumentType::get(context, "block")?;
 
         let filter = if matches!(self.filter_mode, FilterMode::WithFilter) {
             Some(BlockPredicateArgumentType::get(context, "filter")?)
@@ -326,7 +326,7 @@ pub fn register(dispatcher: &mut CommandDispatcher, registry: &PermissionRegistr
         strict: false,
     });
 
-    let block_arg = wrap_with_mode(argument("block", BlockArgumentType), false)
+    let block_arg = wrap_with_mode(argument("block", BlockStateArgumentType), false)
         .then(replace_literal)
         .then(keep_literal);
 

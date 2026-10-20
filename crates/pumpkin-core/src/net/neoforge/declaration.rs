@@ -542,8 +542,8 @@ impl Aggregate {
             .map(|m| m.display_name.clone())
     }
 
-    /// The config files to send to a `NeoForge` client: `NeoForge`'s own server config, empty, unless
-    /// a plugin declared a file of that name.
+    /// The config files to send to a `NeoForge` client: `NeoForge`'s own synced config with its
+    /// defaults, unless a plugin declared a file of that name.
     #[must_use]
     pub fn config_files_to_send(&self) -> Vec<(String, Vec<u8>)> {
         let mut files = Vec::with_capacity(self.config_files.len() + 1);
@@ -552,7 +552,10 @@ impl Aggregate {
             .iter()
             .any(|(name, _)| name == NEOFORGE_SERVER_CONFIG_FILE)
         {
-            files.push((NEOFORGE_SERVER_CONFIG_FILE.to_string(), Vec::new()));
+            files.push((
+                NEOFORGE_SERVER_CONFIG_FILE.to_string(),
+                channels::NEOFORGE_SERVER_CONFIG.as_bytes().to_vec(),
+            ));
         }
         files.extend(self.config_files.iter().cloned());
         files
@@ -712,7 +715,13 @@ mod tests {
             "Need moda 1.0, Mod B 1.0"
         );
         let files = aggregate.config_files_to_send();
-        assert_eq!(files[0].0, "neoforge-server.toml");
+        assert_eq!(files[0].0, NEOFORGE_SERVER_CONFIG_FILE);
+        assert_eq!(files[0].0, "neoforge-synced.toml");
+        // The defaults of `NeoForgeSyncedConfig`: an empty body leaves the client's config
+        // unloaded, and the first read of a value then throws.
+        let body = String::from_utf8(files[0].1.clone()).unwrap();
+        assert!(body.contains("removeErroringEntities = false"));
+        assert!(body.contains("permissionHandler = \"neoforge:default_handler\""));
         assert_eq!(files[1].0, "moda-server.toml");
     }
 

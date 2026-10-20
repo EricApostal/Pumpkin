@@ -57,6 +57,47 @@ const fn get_exits(
 const GRAVITY: f64 = 0.04;
 const RAIL_HEIGHT_OFFSET: f64 = 0.0625;
 
+/// Whether `block` in `state` is a rail for minecart movement: a vanilla rail, or a custom block
+/// in the `minecraft:rails` tag with a `shape` property. Create's cart assembler and controller
+/// rail extend vanilla's `BaseRailBlock`, so a plugin block that joins the tag behaves the same.
+fn is_rail(block: &Block, state_id: pumpkin_data::BlockStateId) -> bool {
+    block.id == Block::RAIL.id
+        || block.id == Block::POWERED_RAIL.id
+        || block.id == Block::DETECTOR_RAIL.id
+        || block.id == Block::ACTIVATOR_RAIL.id
+        || (block.is_dynamic()
+            && block.has_tag(&tag::Block::MINECRAFT_RAILS)
+            && rail_shape(block, state_id).is_some())
+}
+
+/// The shape of a custom rail from its `shape` property. `None` when the block has no such
+/// property or the value is not a rail shape.
+fn rail_shape(
+    block: &Block,
+    state_id: pumpkin_data::BlockStateId,
+) -> Option<pumpkin_data::block_properties::RailShape> {
+    use pumpkin_data::block_properties::RailShape;
+    let shape = block
+        .properties(state_id)?
+        .to_props()
+        .into_iter()
+        .find(|(name, _)| *name == "shape")?
+        .1;
+    Some(match shape {
+        "north_south" => RailShape::NorthSouth,
+        "east_west" => RailShape::EastWest,
+        "ascending_east" => RailShape::AscendingEast,
+        "ascending_west" => RailShape::AscendingWest,
+        "ascending_north" => RailShape::AscendingNorth,
+        "ascending_south" => RailShape::AscendingSouth,
+        "south_east" => RailShape::SouthEast,
+        "south_west" => RailShape::SouthWest,
+        "north_west" => RailShape::NorthWest,
+        "north_east" => RailShape::NorthEast,
+        _ => return None,
+    })
+}
+
 pub struct MinecartEntity {
     pub vehicle: VehicleEntity,
     kind: MinecartKind,
@@ -150,10 +191,7 @@ impl EntityBase for MinecartEntity {
 
         let mut is_powered_rail = block.id == Block::POWERED_RAIL.id;
         let mut is_activator_rail = block.id == Block::ACTIVATOR_RAIL.id;
-        let mut is_on_rails = is_powered_rail
-            || is_activator_rail
-            || block.id == Block::RAIL.id
-            || block.id == Block::DETECTOR_RAIL.id;
+        let mut is_on_rails = is_rail(block, state_id);
 
         // If not on rails at current Y level, check the block directly below
         if !is_on_rails {
@@ -163,11 +201,7 @@ impl EntityBase for MinecartEntity {
                 block_pos.0.z,
             ));
             let (below_block, below_state_id) = world.get_block_and_state_id(&below_block_pos);
-            if below_block.id == Block::RAIL.id
-                || below_block.id == Block::POWERED_RAIL.id
-                || below_block.id == Block::DETECTOR_RAIL.id
-                || below_block.id == Block::ACTIVATOR_RAIL.id
-            {
+            if is_rail(below_block, below_state_id) {
                 block_pos = below_block_pos;
                 block = below_block;
                 state_id = below_state_id;
@@ -337,7 +371,7 @@ impl EntityBase for MinecartEntity {
             let shape = if block.id == Block::RAIL.id {
                 let props = RailLikeProperties::from_state_id(state_id);
                 props.shape
-            } else {
+            } else if is_powered_rail || is_activator_rail || block.id == Block::DETECTOR_RAIL.id {
                 let props = PoweredRailLikeProperties::from_state_id(state_id);
                 match props.shape {
                     RailShapeStraight::NorthSouth => RailShape::NorthSouth,
@@ -347,6 +381,9 @@ impl EntityBase for MinecartEntity {
                     RailShapeStraight::AscendingNorth => RailShape::AscendingNorth,
                     RailShapeStraight::AscendingSouth => RailShape::AscendingSouth,
                 }
+            } else {
+                // A custom rail from the `minecraft:rails` tag, like Create's cart assembler.
+                rail_shape(block, state_id).unwrap_or(RailShape::NorthSouth)
             };
 
             let pos = self.vehicle.entity.pos.load();
@@ -496,6 +533,10 @@ impl EntityBase for MinecartEntity {
                 self.vehicle.entity.send_velocity();
             }
         }
+
+        // Vanilla `AbstractMinecart.move` applies the effects of the blocks the cart is inside
+        // after moving, which is what fires `entityInside` (the cart assembler needs it).
+        self.vehicle.entity.tick_block_collisions(caller);
 
         if let MinecartKind::Hopper(minecart) = &self.kind {
             minecart.tick(&self.vehicle.entity);
@@ -829,5 +870,44 @@ impl EntityBase for MinecartEntity {
 
     fn cast_any(&self) -> &dyn std::any::Any {
         self
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use pumpkin_data::block_properties::RailShape;
+
+    #[test]
+    fn vanilla_rails_count_as_rails() {
+        for block in [
+            &Block::RAIL,
+            &Block::POWERED_RAIL,
+            &Block::DETECTOR_RAIL,
+            &Block::ACTIVATOR_RAIL,
+        ] {
+            assert!(is_rail(block, block.default_state.id), "{}", block.name);
+        }
+        assert!(!is_rail(&Block::STONE, Block::STONE.default_state.id));
+        assert!(!is_rail(&Block::AIR, Block::AIR.default_state.id));
+    }
+
+    #[test]
+    fn rail_shape_reads_the_shape_property() {
+        let shape = rail_shape(&Block::RAIL, Block::RAIL.default_state.id);
+        assert!(shape.is_some());
+        assert!(matches!(
+            shape,
+            Some(
+                RailShape::NorthSouth
+                    | RailShape::EastWest
+                    | RailShape::AscendingEast
+                    | RailShape::AscendingWest
+                    | RailShape::AscendingNorth
+                    | RailShape::AscendingSouth
+            )
+        ));
+        // A block without a `shape` property is not a rail shape.
+        assert!(rail_shape(&Block::STONE, Block::STONE.default_state.id).is_none());
     }
 }

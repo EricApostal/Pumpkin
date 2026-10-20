@@ -33,6 +33,17 @@ use pumpkin_nbt::tag::NbtTag;
 use pumpkin_protocol::codec::data_component::{deserialize, serialize};
 use std::borrow::Cow;
 
+/// The namespaced registry key of an item: vanilla entries are stored bare ("cobblestone"), and
+/// every plugin compares against "minecraft:cobblestone". A key that already has a namespace, or
+/// a plugin item key, is returned unchanged.
+pub(crate) fn namespaced_key(key: &str) -> String {
+    if key.contains(':') {
+        key.to_string()
+    } else {
+        format!("minecraft:{key}")
+    }
+}
+
 pub(crate) fn to_wit_data_component(id: DataComponent) -> WitDataComponent {
     // SAFETY: WIT enum is generated in the same order as the internal enum
     unsafe { std::mem::transmute(id as u8) }
@@ -149,7 +160,9 @@ impl HostItemStackWithStore<PluginHostState> for HasSelf<PluginHostState> {
     ) -> wasmtime::Result<String> {
         let stack = accessor.get_res(&res)?;
         let stack = stack.lock().await;
-        Ok(stack.item.registry_key.to_string())
+        // Vanilla items store a bare name ("cobblestone"); the WIT contract and every plugin
+        // comparison use the namespaced form ("minecraft:cobblestone"), so hand that out.
+        Ok(namespaced_key(stack.item.registry_key))
     }
 
     async fn get_count(

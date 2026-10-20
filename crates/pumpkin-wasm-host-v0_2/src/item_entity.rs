@@ -90,7 +90,7 @@ fn snapshot(entity: &dyn EntityBase) -> wasmtime::Result<WitEntitySnapshot> {
     let item = entity.get_item_entity().map(|item| {
         let stack = item.get_item_stack().lock_ignore_poison();
         WitItemSummary {
-            registry_key: stack.item.registry_key.to_string(),
+            registry_key: crate::item_stack::namespaced_key(stack.item.registry_key),
             count: stack.item_count,
         }
     });

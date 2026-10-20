@@ -796,6 +796,9 @@ pub fn cleanup_event(event: &Event, state: &mut PluginHostState) {
         Event::CustomBlockShapeEvent(data) => {
             cleanup_world(state, &data.target_world);
         }
+        Event::CustomBlockCollisionShapeEvent(data) => {
+            cleanup_world(state, &data.target_world);
+        }
         Event::CustomBlockUseEvent(data) => {
             cleanup_world(state, &data.target_world);
             cleanup_player(state, &data.player);

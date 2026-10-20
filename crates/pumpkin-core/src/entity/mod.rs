@@ -1720,6 +1720,8 @@ impl Entity {
                 },
             );
 
+            // Vanilla `getEntityInsideCollisionShape`: the inside shape is independent of the
+            // collision shape, so a block that lets carts pass still gets `entityInside` for them.
             let collision_shape = if block == &Block::POWDER_SNOW {
                 crate::block::blocks::powder_snow::inside_collision_shape_for_entity(caller, &pos)
             } else {

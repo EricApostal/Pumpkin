@@ -2417,7 +2417,19 @@ impl World {
             let block = Block::from_state_id(state.id);
             let mut collided = false;
 
-            if block == &Block::POWDER_SNOW {
+            if let Some(shapes) = crate::block::blocks::dynamic::entity_collision_shapes(
+                self, &pos, state, entity,
+            ) {
+                // A plugin shape that depends on the entity, like a cart assembler that lets
+                // minecarts pass through.
+                for shape in shapes {
+                    let shape = shape.at_pos(pos);
+                    if shape.intersects(&bounding_box) {
+                        collided = true;
+                        collisions.push(shape);
+                    }
+                }
+            } else if block == &Block::POWDER_SNOW {
                 if let Some(shape) =
                     crate::block::blocks::powder_snow::collision_shape_for_entity(entity, &pos)
                 {
@@ -2456,21 +2468,42 @@ impl World {
     }
 
     pub fn is_space_empty(&self, bounding_box: BoundingBox) -> bool {
+        self.is_space_empty_for(bounding_box, None)
+    }
+
+    /// [`Self::is_space_empty`] for a known entity: a block whose collision shape depends on the
+    /// entity (`entity-collision-shape`) is asked with it, as `get_block_collisions` does.
+    ///
+    /// Without the entity a plugin block that lets a given entity through — a cart assembler
+    /// over a minecart, or a crushing wheel controller for the item it is crushing — still reads
+    /// as solid here, so the entity is pushed out of a block it is meant to enter.
+    pub fn is_space_empty_for(
+        &self,
+        bounding_box: BoundingBox,
+        entity: Option<&dyn EntityBase>,
+    ) -> bool {
         let min = bounding_box.min_block_pos();
         let max = bounding_box.max_block_pos();
 
         for pos in BlockPos::iterate(min, max) {
             let state = self.get_block_state(&pos);
-            let collided = self
-                .dynamic_block_shapes(&pos, state, ShapeKind::Collision)
-                .map_or_else(
-                    || Self::check_collision(&bounding_box, pos, state, false, |_| ()),
-                    |shapes| {
-                        shapes
-                            .iter()
-                            .any(|shape| shape.at_pos(pos).intersects(&bounding_box))
-                    },
-                );
+            let collided = match entity.and_then(|entity| {
+                crate::block::blocks::dynamic::entity_collision_shapes(self, &pos, state, entity)
+            }) {
+                Some(shapes) => shapes
+                    .iter()
+                    .any(|shape| shape.at_pos(pos).intersects(&bounding_box)),
+                None => self
+                    .dynamic_block_shapes(&pos, state, ShapeKind::Collision)
+                    .map_or_else(
+                        || Self::check_collision(&bounding_box, pos, state, false, |_| ()),
+                        |shapes| {
+                            shapes
+                                .iter()
+                                .any(|shape| shape.at_pos(pos).intersects(&bounding_box))
+                        },
+                    ),
+            };
 
             if collided {
                 return false;

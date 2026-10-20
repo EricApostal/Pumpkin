@@ -65,12 +65,24 @@ pub const REGISTRY_SYNC_REQUIRED: [&str; 3] = [
 /// The `c:` common network version (the only one that exists).
 pub const COMMON_NETWORK_VERSION: i32 = 1;
 
-/// The server config file `NeoForge` itself syncs.
+/// The synced config file `NeoForge` itself sends (`ConfigTracker.defaultConfigName`: `<modid>-<type>.toml`,
+/// `SYNCED`).
 ///
-/// It is sent empty so a client that was classified
-/// before the brand gets its defaults. A later `NeoForge` commit renamed the config type
-/// (`neoforge-synced.toml`), which name a 26.3.0.x client expects is not verified.
-pub const NEOFORGE_SERVER_CONFIG_FILE: &str = "neoforge-server.toml";
+/// The client looks the name up in its own config map (`ConfigSync.receiveSyncedConfig`) and silently
+/// ignores a name it does not know; the config then stays unloaded and the first read of one of its
+/// values throws "Cannot get config value before config is loaded" — which happens in
+/// `Level.guardEntityTick` when an entity tick fails, turning a logged error into a crash.
+pub const NEOFORGE_SERVER_CONFIG_FILE: &str = "neoforge-synced.toml";
+
+/// The body of [`NEOFORGE_SERVER_CONFIG_FILE`]: the defaults of `NeoForgeSyncedConfig`, so the client
+/// has a loaded config. A real server sends its file, which is these keys with comments.
+pub const NEOFORGE_SERVER_CONFIG: &str = "\
+removeErroringBlockEntities = false
+removeErroringEntities = false
+fullBoundingBoxLadders = false
+permissionHandler = \"neoforge:default_handler\"
+advertiseDedicatedServerToLan = false
+";
 
 /// An empty `neoforge:recipe_content`: no recipe types and no recipes. It makes the client fire
 /// `RecipesReceivedEvent`.

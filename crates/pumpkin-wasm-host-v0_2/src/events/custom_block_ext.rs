@@ -3,8 +3,9 @@
 use std::sync::Arc;
 
 use pumpkin_core::plugin::block::{
-    CustomBlockAttackEvent, CustomBlockCloneItemEvent, CustomBlockCondition,
-    CustomBlockConditionEvent, CustomBlockFireSpreadEvent, CustomBlockLandedEvent,
+    CustomBlockAttackEvent, CustomBlockCloneItemEvent, CustomBlockCollisionShapeEvent,
+    CustomBlockCondition, CustomBlockConditionEvent, CustomBlockFireSpreadEvent,
+    CustomBlockLandedEvent,
     CustomBlockPhysicsEvent, CustomBlockPhysicsKind, CustomBlockPlayerWillDestroyEvent,
     CustomBlockShapeEvent, CustomBlockSoundTypeEvent, CustomBlockUseEvent, CustomBlockUseResult,
 };
@@ -17,7 +18,7 @@ use tokio::sync::Mutex;
 use crate::{
     events::{
         ToFromWasmEvent, cleanup_event, to_wasm_block_name, to_wasm_block_position,
-        to_wasm_entity_type, to_wasm_hand,
+        to_wasm_entity_type, to_wasm_hand, to_wasm_position,
     },
     mob::to_wit_block_direction,
     pumpkin::plugin::{
@@ -26,12 +27,15 @@ use crate::{
             BlockCondition as WitBlockCondition, BlockPhysicsKind as WitPhysicsKind,
             BlockShapeKind as WitShapeKind, BlockUseResult as WitUseResult,
             CustomBlockAttackEventData, CustomBlockCloneItemEventData,
-            CustomBlockConditionEventData, CustomBlockFireSpreadEventData,
+            CustomBlockCollisionShapeEventData, CustomBlockConditionEventData,
+            CustomBlockFireSpreadEventData,
             CustomBlockLandedEventData, CustomBlockPhysicsEventData,
             CustomBlockPlayerWillDestroyEventData, CustomBlockShapeEventData,
             CustomBlockSoundTypeEventData, CustomBlockUseEventData, Event,
         },
+        uuid::Uuid as WitUuid,
     },
+    uuid::UuidExt,
 };
 
 const fn to_wit_shape_kind(kind: ShapeKind) -> WitShapeKind {
@@ -121,6 +125,37 @@ impl ToFromWasmEvent for CustomBlockShapeEvent {
     fn apply_wasm_event(&mut self, event: Event, state: &mut PluginHostState) {
         cleanup_event(&event, state);
         if let Event::CustomBlockShapeEvent(data) = event {
+            self.shapes = data.shapes.iter().map(from_wit_box).collect();
+        }
+    }
+}
+
+impl ToFromWasmEvent for CustomBlockCollisionShapeEvent {
+    fn to_wasm_event(&self, state: &mut PluginHostState) -> Event {
+        let target_world = state
+            .add(self.world.clone())
+            .expect("failed to add world resource");
+        Event::CustomBlockCollisionShapeEvent(CustomBlockCollisionShapeEventData {
+            target_world,
+            pos: to_wasm_block_position(self.position),
+            block: to_wasm_block_name(self.block),
+            state_index: self.state_index,
+            entity_id: self.entity_id,
+            entity_uuid: WitUuid::to_wit(&self.entity_uuid),
+            entity_type: to_wasm_entity_type(self.entity_type),
+            entity_pos: to_wasm_position(self.entity_position),
+            shapes: self.shapes.iter().map(to_wit_box).collect(),
+        })
+    }
+
+    fn from_wasm_event(_event: Event, _state: &mut PluginHostState) -> Self {
+        panic!("Cannot construct CustomBlockCollisionShapeEvent from WASM")
+    }
+
+    /// Only the shapes are the plugin's to change.
+    fn apply_wasm_event(&mut self, event: Event, state: &mut PluginHostState) {
+        cleanup_event(&event, state);
+        if let Event::CustomBlockCollisionShapeEvent(data) = event {
             self.shapes = data.shapes.iter().map(from_wit_box).collect();
         }
     }

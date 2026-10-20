@@ -1081,6 +1081,11 @@ interface %world {
         /// `custom-block-scheduled-tick-event`. Does nothing when the chunk is not loaded.
         schedule-block-tick: func(pos: block-pos, delay-ticks: u8, priority: tick-priority);
 
+        /// Returns whether a block tick is scheduled for the block at `pos`, like vanilla
+        /// `Level.getBlockTicks().hasScheduledTick(pos, block)`. The block is the one at `pos`
+        /// now; false for unloaded positions. Use it to avoid scheduling the same tick twice.
+        has-scheduled-tick: func(pos: block-pos) -> bool;
+
         /// Forgets what plugins answered for the block at `pos` and asks again next time: the
         /// shapes of a block with the `dynamic-shape` callback and the friction, speed factor and
         /// jump factor of blocks with those callbacks (see `block-callbacks`). Call it whenever a
@@ -1413,4 +1418,17 @@ interface %world {
 
     /// Returns whether the entity type (`minecraft:cow`) is in the entity type tag.
     entity-type-has-tag: func(entity-type-key: string, tag: string) -> bool;
+
+    /// Returns whether the item tag exists (`minecraft:planks`, `c:ingots/copper`).
+    ///
+    /// A client only knows the tags the server sent it, so an ingredient that names a tag the
+    /// server does not have makes it reject the recipe (or the whole registry sync). Plugins that
+    /// encode tags for clients check this first.
+    item-tag-exists: func(tag: string) -> bool;
+
+    /// Returns whether the block tag exists.
+    block-tag-exists: func(tag: string) -> bool;
+
+    /// Returns whether the fluid tag exists.
+    fluid-tag-exists: func(tag: string) -> bool;
 }

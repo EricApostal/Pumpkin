@@ -107,6 +107,10 @@ fn from_wit_flags(flags: BlockCallbackFlags) -> BlockCallbacks {
             BlockCallbackFlags::GET_FIRE_SPREAD,
             BlockCallbacks::GET_FIRE_SPREAD,
         ),
+        (
+            BlockCallbackFlags::ENTITY_COLLISION_SHAPE,
+            BlockCallbacks::ENTITY_COLLISION_SHAPE,
+        ),
     ]
     .into_iter()
     .filter(|(wit, _)| flags.contains(*wit))

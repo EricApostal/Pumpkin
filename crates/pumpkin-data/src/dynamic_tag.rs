@@ -154,6 +154,32 @@ pub fn refresh() {
     }
 }
 
+/// Whether a tag exists in the registry: generated or runtime. `tag` may be `#`-prefixed and
+/// without the `minecraft:` namespace.
+///
+/// A client only knows the tags the server sent it, so this is the check an encoder of client data
+/// needs before it names a tag.
+#[must_use]
+pub fn tag_exists(registry: RegistryKey, tag: &str) -> bool {
+    let name = tag.strip_prefix('#').unwrap_or(tag);
+    let name = if name.contains(':') {
+        name.to_string()
+    } else {
+        format!("minecraft:{name}")
+    };
+    if crate::tag::get_latest_map(registry).contains_key(name.as_str()) {
+        return true;
+    }
+    if !HAS_TAGS.load(Ordering::Acquire) {
+        return false;
+    }
+    let snapshot = SNAPSHOT.load();
+    snapshot
+        .as_ref()
+        .and_then(|snapshot| snapshot.tags.get(&registry))
+        .is_some_and(|tags| tags.contains_key(name.as_str()))
+}
+
 /// Whether the id is in the runtime tag of an item or block registry, `None` when no runtime tag
 /// has that name. `tag` may be `#`-prefixed and without the `minecraft:` namespace.
 #[must_use]

@@ -627,6 +627,27 @@ impl pumpkin::plugin::world::Host for PluginHostState {
                 .unwrap_or(false),
         )
     }
+
+    fn item_tag_exists(&mut self, tag: String) -> wasmtime::Result<bool> {
+        Ok(pumpkin_data::dynamic_tag::tag_exists(
+            pumpkin_data::tag::RegistryKey::Item,
+            &tag,
+        ))
+    }
+
+    fn block_tag_exists(&mut self, tag: String) -> wasmtime::Result<bool> {
+        Ok(pumpkin_data::dynamic_tag::tag_exists(
+            pumpkin_data::tag::RegistryKey::Block,
+            &tag,
+        ))
+    }
+
+    fn fluid_tag_exists(&mut self, tag: String) -> wasmtime::Result<bool> {
+        Ok(pumpkin_data::dynamic_tag::tag_exists(
+            pumpkin_data::tag::RegistryKey::Fluid,
+            &tag,
+        ))
+    }
 }
 impl pumpkin::plugin::particles::Host for PluginHostState {}
 impl pumpkin::plugin::sounds::Host for PluginHostState {}
@@ -903,6 +924,19 @@ impl pumpkin::plugin::world::HostWorld for PluginHostState {
             );
         }
         Ok(())
+    }
+
+    fn has_scheduled_tick(
+        &mut self,
+        world: Resource<World>,
+        pos: WitBlockPos,
+    ) -> wasmtime::Result<bool> {
+        let world_ref = self.get(&world)?;
+        let internal_pos = BlockPos::new(pos.x, pos.y, pos.z);
+        if !world_ref.is_loaded(&internal_pos) {
+            return Ok(false);
+        }
+        Ok(world_ref.is_block_tick_scheduled(&internal_pos, world_ref.get_block(&internal_pos)))
     }
 
     fn invalidate_block_shape(

@@ -538,9 +538,9 @@ mod tests {
         expected.extend(lp("minecraft:item"));
         assert_eq!(encode_sync_start(&["minecraft:item"]), expected);
 
-        let mut expected = lp("neoforge-server.toml");
+        let mut expected = lp("neoforge-synced.toml");
         expected.push(0);
-        assert_eq!(encode_config_file("neoforge-server.toml", &[]), expected);
+        assert_eq!(encode_config_file("neoforge-synced.toml", &[]), expected);
         let mut expected = lp("a.toml");
         expected.extend([2, b'h', b'i']);
         assert_eq!(encode_config_file("a.toml", b"hi"), expected);

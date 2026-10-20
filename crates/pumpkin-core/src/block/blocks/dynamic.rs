@@ -13,14 +13,14 @@ use crate::entity::player::Player;
 use crate::plugin::Payload;
 use crate::plugin::block::{
     CustomBlockAttackEvent, CustomBlockBrokenEvent, CustomBlockCanPlaceEvent,
-    CustomBlockCloneItemEvent, CustomBlockComparatorOutputEvent, CustomBlockCondition,
-    CustomBlockConditionEvent, CustomBlockEntityCollisionEvent, CustomBlockEntityStepEvent,
-    CustomBlockFireSpreadEvent, CustomBlockLandedEvent, CustomBlockNeighborUpdateEvent,
-    CustomBlockPhysicsEvent, CustomBlockPhysicsKind, CustomBlockPlacedEvent,
-    CustomBlockPlayerWillDestroyEvent, CustomBlockRandomTickEvent, CustomBlockRedstonePowerEvent,
-    CustomBlockScheduledTickEvent, CustomBlockShapeEvent, CustomBlockSoundTypeEvent,
-    CustomBlockStateReplacedEvent, CustomBlockUpdateShapeEvent, CustomBlockUseEvent,
-    CustomBlockUseResult,
+    CustomBlockCloneItemEvent, CustomBlockCollisionShapeEvent,
+    CustomBlockComparatorOutputEvent, CustomBlockCondition, CustomBlockConditionEvent,
+    CustomBlockEntityCollisionEvent, CustomBlockEntityStepEvent, CustomBlockFireSpreadEvent,
+    CustomBlockLandedEvent, CustomBlockNeighborUpdateEvent, CustomBlockPhysicsEvent,
+    CustomBlockPhysicsKind, CustomBlockPlacedEvent, CustomBlockPlayerWillDestroyEvent,
+    CustomBlockRandomTickEvent, CustomBlockRedstonePowerEvent, CustomBlockScheduledTickEvent,
+    CustomBlockShapeEvent, CustomBlockSoundTypeEvent, CustomBlockStateReplacedEvent,
+    CustomBlockUpdateShapeEvent, CustomBlockUseEvent, CustomBlockUseResult,
 };
 use crate::server::Server;
 use crate::world::World;
@@ -725,6 +725,62 @@ pub fn dynamic_shapes(
         .plugin_block_cache
         .store_shape(position, state.id, kind, shapes.clone());
     Some(shapes)
+}
+
+/// The collision shape a plugin gives for a block with the `entity_collision_shape` callback while
+/// `entity` moves, in block units. `None` when the block did not opt in or no plugin listens, then
+/// the collision shape of the state applies. Never cached: the answer depends on the entity.
+#[must_use]
+pub fn entity_collision_shapes(
+    world: &World,
+    position: &BlockPos,
+    state: &BlockState,
+    entity: &dyn EntityBase,
+) -> Option<Vec<BoundingBox>> {
+    // Vanilla blocks are the bulk of the lookups, they have no hooks.
+    if state.id.as_u32() < u32::from(Block::vanilla_state_count()) {
+        return None;
+    }
+    let block = Block::from_state_id(state.id);
+    opted_in(block, BlockCallbacks::ENTITY_COLLISION_SHAPE)?;
+    let hook = hook::<CustomBlockCollisionShapeEvent>(
+        world,
+        block,
+        state.id,
+        BlockCallbacks::ENTITY_COLLISION_SHAPE,
+    )?;
+    let entity = entity.get_entity();
+    // The registered collision shape of the state is where the plugin starts from, or what the
+    // `dynamic-shape` hook already answered for the position when the block has both.
+    let shapes = world
+        .plugin_block_cache
+        .shape(position, state.id, ShapeKind::Collision)
+        .map_or_else(
+            || state.get_block_collision_shapes().collect(),
+            |shapes| shapes.to_vec(),
+        );
+    let mut event = CustomBlockCollisionShapeEvent {
+        world: hook.world.clone(),
+        position: *position,
+        block: Block::from_id(block.id),
+        state_index: hook.state_index,
+        entity_id: entity.entity_id,
+        entity_uuid: entity.entity_uuid,
+        entity_type: entity.entity_type,
+        entity_position: entity.pos.load(),
+        shapes,
+    };
+    hook.server
+        .plugin_manager
+        .fire_blocking(&hook.server, &mut event);
+    Some(
+        event
+            .shapes
+            .into_iter()
+            .filter(usable_box)
+            .take(MAX_SHAPE_BOXES)
+            .collect(),
+    )
 }
 
 /// The friction, speed factor or jump factor a plugin gives for a block with the matching

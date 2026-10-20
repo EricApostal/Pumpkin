@@ -207,33 +207,50 @@ fn extra_serializer_id(key: &str, extras: &[String]) -> Option<i32> {
         .and_then(|index| i32::try_from(index + VANILLA_RECIPE_SERIALIZERS.len()).ok())
 }
 
-/// `Ingredient.CONTENTS_STREAM_CODEC`: a holder set of items. A tag is sent as a reference, the
-/// client has the tags already.
-fn write_ingredient(w: &mut Writer, ingredient: &OwnedRecipeIngredient) {
+/// `Ingredient.CONTENTS_STREAM_CODEC`: a holder set of items. A tag is sent as a reference, which
+/// the client resolves in the tags the server sent.
+///
+/// Returns whether the ingredient could be written: a tag the server does not have would make the
+/// client throw while decoding (`ByteBufCodecs` holder sets use `orElseThrow`), which drops the
+/// whole payload, so such a recipe is left out instead.
+fn write_ingredient(w: &mut Writer, ingredient: &OwnedRecipeIngredient) -> bool {
     let ids: Vec<i32> = match ingredient {
         OwnedRecipeIngredient::Simple(id) => item_id(id).into_iter().collect(),
         OwnedRecipeIngredient::OneOf(ids) => ids.iter().filter_map(|id| item_id(id)).collect(),
         OwnedRecipeIngredient::Tagged(tag) => {
             let tag = tag.strip_prefix('#').unwrap_or(tag);
-            w.var_int(0);
-            w.string(&if tag.contains(':') {
+            let tag = if tag.contains(':') {
                 tag.to_string()
             } else {
                 format!("minecraft:{tag}")
-            });
-            return;
+            };
+            if !pumpkin_data::dynamic_tag::tag_exists(
+                pumpkin_data::tag::RegistryKey::Item,
+                &tag,
+            ) {
+                return false;
+            }
+            w.var_int(0);
+            w.string(&tag);
+            return true;
         }
     };
     w.var_len(ids.len() + 1);
     for id in ids {
         w.var_int(id);
     }
+    true
 }
 
-fn write_optional_ingredient(w: &mut Writer, ingredient: Option<&OwnedRecipeIngredient>) {
-    w.bool(ingredient.is_some());
-    if let Some(ingredient) = ingredient {
-        write_ingredient(w, ingredient);
+/// `Ingredient.OPTIONAL_CONTENTS_STREAM_CODEC`: no presence flag, an empty slot is an empty holder
+/// set (`ByteBufCodecs.holderSet` writes `len + 1`, so an empty one is `1`).
+fn write_optional_ingredient(w: &mut Writer, ingredient: Option<&OwnedRecipeIngredient>) -> bool {
+    match ingredient {
+        Some(ingredient) => write_ingredient(w, ingredient),
+        None => {
+            w.var_len(1);
+            true
+        }
     }
 }
 
@@ -303,7 +320,9 @@ fn encode_crafting(recipe: &OwnedCraftingRecipe, index: usize) -> Option<Encoded
                         .filter(|c| *c != ' ')
                         .and_then(|c| key.iter().find(|(k, _)| *k == c))
                         .map(|(_, ingredient)| ingredient);
-                    write_optional_ingredient(&mut w, ingredient);
+                    if !write_optional_ingredient(&mut w, ingredient) {
+                        return None;
+                    }
                 }
             }
             if !write_result(&mut w, result) {
@@ -330,7 +349,9 @@ fn encode_crafting(recipe: &OwnedCraftingRecipe, index: usize) -> Option<Encoded
             w.var_int(crafting_category(category));
             w.var_len(ingredients.len());
             for ingredient in ingredients {
-                write_ingredient(&mut w, ingredient);
+                if !write_ingredient(&mut w, ingredient) {
+                    return None;
+                }
             }
             if !write_result(&mut w, result) {
                 return None;
@@ -359,7 +380,9 @@ fn encode_cooking(recipe: &OwnedCookingRecipeType) -> Option<Encoded> {
     let mut w = Writer::new();
     w.string(cooking.group.as_deref().unwrap_or(""));
     w.var_int(cooking_category(&cooking.category));
-    write_ingredient(&mut w, &cooking.ingredient);
+    if !write_ingredient(&mut w, &cooking.ingredient) {
+        return None;
+    }
     if !write_result(&mut w, &cooking.result) {
         return None;
     }
@@ -378,7 +401,9 @@ fn encode_raw(recipe: &pumpkin_protocol::codec::recipe::OwnedRawRecipe) -> Optio
     match recipe.recipe_type.as_str() {
         "minecraft:stonecutting" => {
             w.string(recipe.group.as_deref().unwrap_or(""));
-            write_ingredient(&mut w, recipe.ingredients.first()?);
+            if !write_ingredient(&mut w, recipe.ingredients.first()?) {
+                return None;
+            }
             if !write_result(&mut w, recipe.results.first()?) {
                 return None;
             }
@@ -391,7 +416,9 @@ fn encode_raw(recipe: &pumpkin_protocol::codec::recipe::OwnedRawRecipe) -> Optio
         }
         "minecraft:smithing_transform" => {
             for index in 0..3 {
-                write_optional_ingredient(&mut w, recipe.ingredients.get(index));
+                if !write_optional_ingredient(&mut w, recipe.ingredients.get(index)) {
+                    return None;
+                }
             }
             if !write_result(&mut w, recipe.results.first()?) {
                 return None;
@@ -518,7 +545,11 @@ mod tests {
             "create:pressing"
         );
         assert!(canonical_type("Bad Type").is_err());
-        assert_eq!(VANILLA_RECIPE_SERIALIZERS.len(), 21);
+        assert_eq!(VANILLA_RECIPE_SERIALIZERS.len(), 22);
+        // The ids the frozen registry sync gives the client.
+        assert_eq!(vanilla_serializer_id("smelting"), 17);
+        assert_eq!(type_id("minecraft:smelting", &[]), Some(4));
+        assert_eq!(type_id("minecraft:stonecutting", &[]), Some(7));
     }
 
     #[test]
@@ -534,11 +565,13 @@ mod tests {
         );
         let mut r = Reader::new(&bytes);
         assert_eq!(r.var_int().unwrap(), 2);
-        assert_eq!(r.var_int().unwrap(), 1);
-        assert_eq!(r.var_int().unwrap(), 2);
+        // The recipe type ids of `minecraft:smelting` and `minecraft:blasting`.
+        assert_eq!(r.var_int().unwrap(), 4);
+        assert_eq!(r.var_int().unwrap(), 0);
         assert_eq!(r.var_int().unwrap(), 1);
         assert_eq!(r.string().unwrap(), "test:iron");
-        assert_eq!(r.var_int().unwrap(), 13);
+        // The `minecraft:smelting` serializer id.
+        assert_eq!(r.var_int().unwrap(), 17);
         assert_eq!(r.string().unwrap(), "");
         assert_eq!(r.var_int().unwrap(), 1);
         // A tag reference.
@@ -554,6 +587,26 @@ mod tests {
     }
 
     #[test]
+    fn recipes_with_a_tag_the_client_does_not_have_are_left_out() {
+        // The client resolves a tag reference in the tags the server sent and throws when it is
+        // missing (`ByteBufCodecs` holder sets), which drops the whole payload.
+        let DynamicRecipe::Cooking(OwnedCookingRecipeType::Smelting(cooking)) = smelting() else {
+            unreachable!()
+        };
+        let recipe = DynamicRecipe::Cooking(OwnedCookingRecipeType::Smelting(OwnedCookingRecipe {
+            ingredient: OwnedRecipeIngredient::Tagged("no_such_mod:no_such_tag".to_string()),
+            ..cooking
+        }));
+        let plugin = PluginRecipeRegistry::new();
+        let bytes = encode_recipe_content(&["minecraft:smelting".to_string()], &[recipe], &plugin);
+        let mut r = Reader::new(&bytes);
+        assert_eq!(r.var_int().unwrap(), 1);
+        assert_eq!(r.var_int().unwrap(), 4);
+        assert_eq!(r.var_int().unwrap(), 0);
+        r.finish().unwrap();
+    }
+
+    #[test]
     fn unsynced_types_are_left_out() {
         let plugin = PluginRecipeRegistry::new();
         let bytes = encode_recipe_content(
@@ -561,7 +614,7 @@ mod tests {
             &[smelting()],
             &plugin,
         );
-        assert_eq!(bytes, vec![1, 5, 0]);
+        assert_eq!(bytes, vec![1, 7, 0]);
         assert_eq!(encode_recipe_content(&[], &[], &plugin), vec![0, 0]);
     }
 }

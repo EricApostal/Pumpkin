@@ -114,6 +114,12 @@ interface block-callbacks {
         can-connect-redstone,
         /// How fast the block catches fire and burns: `custom-block-fire-spread-event`.
         get-fire-spread,
+        /// The collision shape depends on the entity, like a cart assembler that lets minecarts
+        /// pass through: while an entity moves, the server asks with a
+        /// `custom-block-collision-shape-event` for the shape that stops it. Asked for every move
+        /// and every entity, never cached, so handle it very quickly. The registered collision
+        /// shape is the start of the event's list.
+        entity-collision-shape,
     }
 
     /// Sets the hooks of a block registered with `register-block` that call the plugin. Fails for

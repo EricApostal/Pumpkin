@@ -12,6 +12,7 @@ use pumpkin_util::Hand;
 use pumpkin_util::math::boundingbox::BoundingBox;
 use pumpkin_util::math::position::BlockPos;
 use pumpkin_util::math::vector3::Vector3;
+use uuid::Uuid;
 
 use crate::entity::player::Player;
 use crate::world::World;
@@ -28,6 +29,26 @@ pub struct CustomBlockShapeEvent {
     pub block: &'static Block,
     pub state_index: u16,
     pub kind: ShapeKind,
+    pub shapes: Vec<BoundingBox>,
+}
+
+/// The collision shape of a custom block with the `entity_collision_shape` callback is asked for
+/// while `entity` moves.
+///
+/// A handler changes `shapes`, boxes in block units (`0..1` is the block). It starts as the
+/// collision shape that is registered for the state, and an empty list lets the entity pass. Unlike
+/// [`CustomBlockShapeEvent`] the answer is never cached: it depends on the entity and is asked
+/// again for every move.
+#[derive(Event, Clone)]
+pub struct CustomBlockCollisionShapeEvent {
+    pub world: Arc<World>,
+    pub position: BlockPos,
+    pub block: &'static Block,
+    pub state_index: u16,
+    pub entity_id: i32,
+    pub entity_uuid: Uuid,
+    pub entity_type: &'static EntityType,
+    pub entity_position: Vector3<f64>,
     pub shapes: Vec<BoundingBox>,
 }
 

@@ -2588,6 +2588,27 @@ interface event {
         shapes: list<block-box>
     }
 
+    /// The collision shape of a custom block that set `entity-collision-shape` in
+    /// `block-callbacks` is asked for while `entity` moves. Change `shapes` in a blocking handler:
+    /// boxes in block units (`0..1` is the block), at most 64, none to let the entity pass. It
+    /// starts as the registered collision shape of the state. Never cached: it is asked again for
+    /// every entity and every move, like vanilla `BlockBehaviour.getCollisionShape` with an
+    /// `EntityCollisionContext`.
+    record custom-block-collision-shape-event-data {
+        target-world: %world,
+        pos: block-pos,
+        /// The key of the block.
+        block: string,
+        state-index: u16,
+        entity-id: s32,
+        entity-uuid: uuid,
+        /// The key of the entity type.
+        entity-type: string,
+        /// The position of the entity.
+        entity-pos: position,
+        shapes: list<block-box>
+    }
+
     /// What a use of a block gives back.
     enum block-use-result {
         /// Handled, the hand swings.
@@ -3125,6 +3146,7 @@ interface event {
         custom-block-redstone-power-event,
         custom-block-comparator-output-event,
         custom-block-shape-event,
+        custom-block-collision-shape-event,
         custom-block-use-event,
         custom-block-attack-event,
         custom-block-clone-item-event,
@@ -3465,6 +3487,7 @@ interface event {
         custom-block-redstone-power-event(custom-block-redstone-power-event-data),
         custom-block-comparator-output-event(custom-block-comparator-output-event-data),
         custom-block-shape-event(custom-block-shape-event-data),
+        custom-block-collision-shape-event(custom-block-collision-shape-event-data),
         custom-block-use-event(custom-block-use-event-data),
         custom-block-attack-event(custom-block-attack-event-data),
         custom-block-clone-item-event(custom-block-clone-item-event-data),

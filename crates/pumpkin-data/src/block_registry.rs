@@ -409,13 +409,15 @@ impl BlockCallbacks {
     pub const CAN_CONNECT_REDSTONE: Self = Self(1 << 28);
     /// The plugin sets how fast the block catches fire and burns.
     pub const GET_FIRE_SPREAD: Self = Self(1 << 29);
+    /// The collision shape depends on the entity: the plugin is asked for it on every move.
+    pub const ENTITY_COLLISION_SHAPE: Self = Self(1 << 30);
 
     /// The callbacks that make a block a redstone signal source.
     pub const REDSTONE_SOURCE: Self =
         Self(Self::REDSTONE_OUTPUT.0 | Self::WEAK_POWER.0 | Self::STRONG_POWER.0);
 
     /// Every callback there is.
-    pub const ALL: Self = Self((1 << 30) - 1);
+    pub const ALL: Self = Self((1 << 31) - 1);
 
     /// `None` when `bits` has a bit that is not a callback.
     #[must_use]
@@ -1451,7 +1453,8 @@ pub struct DynamicBlockRegistry {
     states: Vec<&'static BlockState>,
     /// The index into `blocks` of the owner of each entry of `states`.
     state_owners: Vec<usize>,
-    /// Item id to the index of the block it places.
+    /// Item id to the index of the first block it places. One item can place several blocks
+    /// (a sail item places the frame and every dyed sail), so this keeps the first link.
     item_blocks: HashMap<u16, usize>,
     /// Collision shapes that are not in `COLLISION_SHAPES`, by `shape index - COLLISION_SHAPES.len()`.
     shapes: Vec<BoundingBox>,
@@ -1662,12 +1665,11 @@ impl DynamicBlockRegistry {
                 current.item_id
             )));
         }
-        if let Some(&other) = self.item_blocks.get(&item_id) {
-            return Err(BlockRegistrationError::AlreadyLinked(format!(
-                "item {item_id} places '{}' already",
-                self.blocks[other].name
-            )));
-        }
+        // One item may place several blocks: Java's `Item.registerBlocks` is a
+        // `Map<Block, Item>` filled with many blocks for one item (the sail item places the
+        // frame and all sixteen dyed sails). The reverse lookup `from_item_id` is ambiguous
+        // then, so it keeps the first block that was linked. Only the item's own block, which
+        // the item was registered with, is what placement uses.
         if self.frozen {
             return Err(BlockRegistrationError::Frozen);
         }
@@ -1677,7 +1679,7 @@ impl DynamicBlockRegistry {
         updated.item_id = item_id;
         let updated: &'static Block = Box::leak(Box::new(updated));
         self.blocks[index] = updated;
-        self.item_blocks.insert(item_id, index);
+        self.item_blocks.entry(item_id).or_insert(index);
         Ok(updated)
     }
 

@@ -74,7 +74,7 @@ impl Host for PluginHostState {
                 info!(
                     "Plugin {} registered item {} with id {}",
                     self.name.as_deref().unwrap_or("<unknown>"),
-                    item.registry_key,
+                    crate::item_stack::namespaced_key(item.registry_key),
                     item.id
                 );
                 Ok(u32::from(item.id))

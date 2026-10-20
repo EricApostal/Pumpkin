@@ -10,6 +10,7 @@ use pumpkin_util::PermissionLvl;
 use pumpkin_util::math::vector2::Vector2;
 use pumpkin_util::permission::{Permission, PermissionDefault, PermissionRegistry};
 use pumpkin_util::text::TextComponent;
+use pumpkin_world::chunk_system::ChunkPos;
 
 const DESCRIPTION: &str = "Constantly load chunks in the world.";
 const PERMISSION: &str = "minecraft:command.forceload";
@@ -30,6 +31,29 @@ static ERROR_TOO_MANY: CommandErrorType<2> = CommandErrorType::new(
     translation::java::COMMANDS_FORCELOAD_TOOBIG,
     "Too many chunks",
 );
+
+/// Adds or removes the chunk tickets of a block of forced chunks.
+///
+/// Recording the chunk in `world.forced_chunks` only makes it *active* (it is ticked and spawned
+/// in once it is loaded); nothing loads it. A chunk is generated and kept loaded by a ticket, so
+/// a forced chunk needs one of its own, exactly like `ServerLevel.setChunkForced`. Without this a
+/// headless server with no players in range has no chunk loaded at all, and `forceload add` plus
+/// `setblock` reports `That position is not loaded`.
+fn set_forced_tickets(world: &crate::world::World, x: i32, z: i32, add: bool) {
+    let mut loading = world
+        .level
+        .chunk_loading
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let pos = ChunkPos::new(x, z);
+    if add {
+        // high priority as well: a forced chunk is generated before the chunks around it
+        loading.add_force_ticket(pos);
+    } else {
+        loading.remove_force_ticket(pos);
+    }
+    loading.send_change();
+}
 
 struct ForceloadAddExecutor;
 
@@ -83,6 +107,11 @@ impl CommandExecutor for ForceloadAddExecutor {
             }
         }
 
+        for x in min_x..=max_x {
+            for z in min_z..=max_z {
+                set_forced_tickets(world, x, z, true);
+            }
+        }
         world.update_active_chunks();
 
         let dimension_name = world.dimension.minecraft_name.to_string();
@@ -166,6 +195,11 @@ impl CommandExecutor for ForceloadRemoveExecutor {
             }
         }
 
+        for x in min_x..=max_x {
+            for z in min_z..=max_z {
+                set_forced_tickets(world, x, z, false);
+            }
+        }
         world.update_active_chunks();
 
         let dimension_name = world.dimension.minecraft_name.to_string();

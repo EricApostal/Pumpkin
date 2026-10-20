@@ -150,6 +150,19 @@ codegen-units = 16
 [profile.release.package.pumpkin-wasm-host-v0_2]
 codegen-units = 16
 
+# A faster release build, for iterating and for performance testing that does not have to be
+# publishable: thin LTO optimises across crates in parallel and needs far less memory than fat LTO,
+# which merges every crate into one LLVM module and re-optimises it single-threaded at the final
+# link (most of a `--release` build), and 16 codegen units let codegen run in parallel as well.
+#
+#   cargo build --profile fast -p pumpkin --features plugin-v0_2
+#
+# `--release` stays the profile for numbers that are compared across commits or published.
+[profile.fast]
+inherits = "release"
+lto = "thin"
+codegen-units = 16
+
 [profile.bench]
 debug = true
 

@@ -1392,15 +1392,20 @@ fn register_custom_block_ext_event(
     event_type: EventType,
 ) {
     use pumpkin_core::plugin::block::{
-        CustomBlockAttackEvent, CustomBlockCloneItemEvent, CustomBlockConditionEvent,
-        CustomBlockFireSpreadEvent, CustomBlockLandedEvent, CustomBlockPhysicsEvent,
-        CustomBlockPlayerWillDestroyEvent, CustomBlockShapeEvent, CustomBlockSoundTypeEvent,
-        CustomBlockUseEvent,
+        CustomBlockAttackEvent, CustomBlockCloneItemEvent, CustomBlockCollisionShapeEvent,
+        CustomBlockConditionEvent, CustomBlockFireSpreadEvent, CustomBlockLandedEvent,
+        CustomBlockPhysicsEvent, CustomBlockPlayerWillDestroyEvent, CustomBlockShapeEvent,
+        CustomBlockSoundTypeEvent, CustomBlockUseEvent,
     };
 
     match event_type {
         EventType::CustomBlockShapeEvent => {
             register_typed_event::<CustomBlockShapeEvent>(resource, handler, priority, blocking);
+        }
+        EventType::CustomBlockCollisionShapeEvent => {
+            register_typed_event::<CustomBlockCollisionShapeEvent>(
+                resource, handler, priority, blocking,
+            );
         }
         EventType::CustomBlockUseEvent => {
             register_typed_event::<CustomBlockUseEvent>(resource, handler, priority, blocking);
@@ -1926,6 +1931,7 @@ impl pumpkin::plugin::context::HostContext for PluginHostState {
                 register_custom_block_event(ctx, &handler, priority, blocking, event_type);
             }
             event_type @ (EventType::CustomBlockShapeEvent
+            | EventType::CustomBlockCollisionShapeEvent
             | EventType::CustomBlockUseEvent
             | EventType::CustomBlockAttackEvent
             | EventType::CustomBlockCloneItemEvent

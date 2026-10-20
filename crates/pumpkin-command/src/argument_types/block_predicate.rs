@@ -63,7 +63,7 @@ impl BlockPredicate {
     }
 }
 
-fn parse_properties(
+pub(crate) fn parse_properties(
     reader: &mut StringReader,
 ) -> Result<HashMap<String, String>, CommandSyntaxError> {
     let mut properties = HashMap::new();
