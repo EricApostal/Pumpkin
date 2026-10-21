@@ -38,6 +38,7 @@ pub mod java;
 pub mod lan_broadcast;
 pub mod packet_limiter;
 pub use packet_limiter::PacketRateLimiter;
+pub mod packet_trace;
 pub mod management;
 pub mod neoforge;
 mod proxy;

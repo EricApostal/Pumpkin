@@ -489,6 +489,9 @@ pub fn apply_step<T: GenerationCache>(
                 );
                 let positions = positions.into_inner();
                 if !positions.is_empty() {
+                    // The chunk has to carry the plugin's blocks before the next step reads it, so
+                    // this waits for the handler; the host schedules the dispatch in the background
+                    // class instead of letting it delay the tick (see `PluginFeaturePlaceEvent`).
                     block_registry.place_plugin_feature(
                         &rule.feature,
                         cache.get_center_chunk_mut(),

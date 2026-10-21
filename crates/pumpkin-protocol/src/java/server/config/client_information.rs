@@ -28,6 +28,15 @@ pub struct SClientInformationConfig<'a> {
     pub text_filtering: bool,
     /// Whether the player should appear in the server's online player list
     pub server_listing: bool,
+    /// How much of the client's particle effects the server may send (`ALL`, `DECREASED`,
+    /// `MINIMAL`, by ordinal).
+    ///
+    /// A `NeoForge` server of 26.3 decodes this from `client_information` (its patched
+    /// `ClientInformation`), and a client that leaves it out gets its packet refused with
+    /// `Failed to decode packet 'serverbound/minecraft:client_information'`. A peer that does not
+    /// send it (a plain vanilla 26.3 client) means `ALL`, so the field is only read when the
+    /// payload still has bytes for it.
+    pub particle_status: VarInt,
 }
 
 impl<'a> ServerPacket<'a> for SClientInformationConfig<'a> {
@@ -53,6 +62,12 @@ impl<'a> ServerPacket<'a> for SClientInformationConfig<'a> {
             true
         };
 
+        let particle_status = if version >= &JavaMinecraftVersion::V_26_3 && !bytebuf.is_empty() {
+            bytebuf.get_var_int()?
+        } else {
+            VarInt(0)
+        };
+
         Ok(Self {
             locale,
             view_distance,
@@ -62,6 +77,7 @@ impl<'a> ServerPacket<'a> for SClientInformationConfig<'a> {
             main_hand,
             text_filtering,
             server_listing,
+            particle_status,
         })
     }
 }
@@ -86,6 +102,9 @@ impl crate::ClientPacket for SClientInformationConfig<'_> {
         }
         if version >= &JavaMinecraftVersion::V_1_18 {
             write.write_bool(self.server_listing)?;
+        }
+        if version >= &JavaMinecraftVersion::V_26_3 {
+            write.write_var_int(&self.particle_status)?;
         }
         Ok(())
     }

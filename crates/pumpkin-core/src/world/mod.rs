@@ -6513,6 +6513,63 @@ impl World {
         }
     }
 
+    /// Puts `nbt` on the block entity at `block_pos`, now (`/data merge block`, `/data modify
+    /// block`, `/data remove block`).
+    ///
+    /// The tag goes into the chunk's pending list either way: that is the saved form, it creates
+    /// the entity when the chunk loads, and it is what the chunk packet is built from. For a
+    /// position whose entity is **already loaded** queueing is not enough — while a chunk is
+    /// loaded the live map is the source of truth (`save_block_entities` writes it back) and
+    /// nothing reads the pending tag for an entity that exists — so the entity is rebuilt from
+    /// the tag here, the same way [`Self::get_block_entity`] wakes one up. Vanilla updates the
+    /// loaded block entity in place; a rebuilt entity carries exactly the state the tag holds,
+    /// which is what this world can do for every entity type without a reader per type (and what
+    /// [`Self::add_block_entity`] already does for a block placed with block entity data).
+    ///
+    /// Two consequences worth knowing: an `Arc` somebody else holds for the old entity (an open
+    /// container screen's inventory) goes on living with the old state, and a plugin block entity
+    /// is announced again, so the plugin's `read` sees the new data.
+    pub fn apply_block_entity_nbt(&self, block_pos: BlockPos, nbt: &NbtCompound) {
+        self.add_block_entity_nbt(block_pos, nbt);
+
+        let chunk_pos = block_pos.chunk_position();
+        // Dropped so that `get_block_entity` rebuilds it from the tag; an entity that is not
+        // loaded stays away, the pending tag is what brings it back.
+        let was_loaded = self
+            .block_entities
+            .get_mut(&chunk_pos)
+            .is_some_and(|mut entities| entities.remove(&block_pos).is_some());
+        if !was_loaded {
+            return;
+        }
+
+        let Some(entity) = self.get_block_entity(&block_pos) else {
+            return;
+        };
+        if let Some(client_nbt) = entity.chunk_data_nbt() {
+            let bytes = pumpkin_nbt::Nbt::from(client_nbt).write_unnamed();
+            self.broadcast_to_chunk(
+                chunk_pos,
+                &CBlockEntityData::new(
+                    entity.get_position(),
+                    VarInt(entity.get_id() as i32),
+                    bytes.as_ref().into(),
+                ),
+            );
+        }
+        // A rebuilt entity starts with fresh change flags, and the blocks that read a container
+        // (a comparator) only look at the containers marked changed: a data change is a change.
+        if let Some(inventory) = entity.clone().get_inventory() {
+            inventory.mark_dirty();
+        }
+        self.level.read_chunk_sync(&chunk_pos, |chunk| {
+            chunk.mark_dirty(true);
+        });
+        // A plugin block entity that was rebuilt has not been announced, so its plugin is told
+        // about it again and reads the new data.
+        self.announce_plugin_block_entities(chunk_pos);
+    }
+
     pub fn remove_block_entity(&self, block_pos: &BlockPos) {
         let chunk_pos = block_pos.chunk_position();
         // The NBT copy also serves lazy loading; leaving it revives removed entities.

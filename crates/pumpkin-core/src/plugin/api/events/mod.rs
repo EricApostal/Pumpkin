@@ -46,6 +46,36 @@ pub trait Payload: Send + Sync {
     /// # Returns
     /// A mutable reference to the payload as a `dyn Any` trait object.
     fn as_any_mut(&mut self) -> &mut dyn Any;
+
+    /// An owned copy of this payload, for a dispatch that has to be deferred out of a guest call.
+    ///
+    /// The `Event` derive provides this for every event type that derives `Clone`. `None` means
+    /// the event cannot copy itself, in which case a dispatch inside a guest call is skipped
+    /// instead of deadlocking the plugin.
+    fn duplicate(&self) -> Option<Box<dyn Payload + Send + Sync>> {
+        None
+    }
+
+    /// The class this event dispatches in, see [`DispatchClass`].
+    ///
+    /// The `Event` derive overrides this for an event marked `#[dispatch_class(background)]`.
+    fn dispatch_class(&self) -> DispatchClass {
+        DispatchClass::Normal
+    }
+}
+
+/// How much a dispatch of an event may delay the rest of the server.
+///
+/// All handlers of a plugin run in its single guest, one call at a time, so a caller waits for the
+/// guest calls in front of it. A [`Normal`](Self::Normal) dispatch is what the server's own
+/// timeline (a tick, a player action) waits on and always goes first; a
+/// [`Background`](Self::Background) one is work the server only wants throughput from, like the
+/// feature placement of chunk generation, and waits for every normal dispatch instead of delaying
+/// it.
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub enum DispatchClass {
+    Normal,
+    Background,
 }
 
 /// Helper functions for safe downcasting of Payload implementations.

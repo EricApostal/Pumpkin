@@ -12,11 +12,13 @@ use wasmtime::component::Resource;
 use crate::pumpkin;
 use pumpkin_core::{
     entity::player::Player,
-    plugin::{BoxFuture, EventHandler, Payload},
+    plugin::{BoxFuture, DispatchClass, EventHandler, Payload},
     server::Server,
     world::World,
 };
-use pumpkin_wasm_host_common::{plugin::WasmPlugin, state::PluginHostState};
+use pumpkin_wasm_host_common::{
+    concurrent_store::AdmissionClass, plugin::WasmPlugin, state::PluginHostState,
+};
 
 pub mod block;
 pub mod cleanup;
@@ -267,6 +269,14 @@ impl<E: ToFromWasmEvent + Send + 'static> PendingWasmEvent for BlockingEvent<E> 
     }
 }
 
+/// The admission class a dispatch of `class` runs in.
+fn admission_class(class: DispatchClass) -> AdmissionClass {
+    match class {
+        DispatchClass::Normal => AdmissionClass::Normal,
+        DispatchClass::Background => AdmissionClass::Background,
+    }
+}
+
 impl WasmPluginEventHandler {
     // Kept non-generic over the event type so the guest round trip is compiled once, not
     // once per event (~27% of the pumpkin crate's LLVM IR before this was split out).
@@ -274,12 +284,13 @@ impl WasmPluginEventHandler {
         &self,
         server: Arc<Server>,
         event: Box<dyn PendingWasmEvent>,
+        class: AdmissionClass,
     ) -> wasmtime::Result<Box<dyn Any + Send>> {
         let handler_id = self.handler_id;
         let function = self.plugin.instance::<crate::Plugin>().func_handle_event();
         self.plugin
             .store
-            .call_guest(move |mut guest| {
+            .call_guest_in(class, move |mut guest| {
                 Box::pin(async move {
                     let (wasm_event, server_res) = guest.with(|mut store| {
                         let wasm_event = event.to_wasm(store.data_mut());
@@ -306,8 +317,9 @@ impl WasmPluginEventHandler {
 impl<E: Payload + ToFromWasmEvent + Clone + 'static> EventHandler<E> for WasmPluginEventHandler {
     fn handle<'a>(&'a self, server: &'a Arc<Server>, event: &'a E) -> BoxFuture<'a, ()> {
         Box::pin(async {
+            let class = admission_class(event.dispatch_class());
             let pending = Box::new(NotifiedEvent(event.clone()));
-            if let Err(error) = self.dispatch(server.clone(), pending).await {
+            if let Err(error) = self.dispatch(server.clone(), pending, class).await {
                 tracing::error!(handler_id = self.handler_id, %error, "Wasm event handler failed");
             }
         })
@@ -319,8 +331,9 @@ impl<E: Payload + ToFromWasmEvent + Clone + 'static> EventHandler<E> for WasmPlu
         event: &'a mut E,
     ) -> BoxFuture<'a, ()> {
         Box::pin(async {
+            let class = admission_class(event.dispatch_class());
             let pending = Box::new(BlockingEvent(event.clone()));
-            match self.dispatch(server.clone(), pending).await {
+            match self.dispatch(server.clone(), pending, class).await {
                 Ok(updated_event) => {
                     if let Ok(updated_event) = updated_event.downcast::<E>() {
                         *event = *updated_event;

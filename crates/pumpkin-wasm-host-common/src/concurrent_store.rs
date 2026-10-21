@@ -5,7 +5,7 @@ use wasmtime::Store;
 
 use super::state::PluginHostState;
 
-pub use pumpkin_plugin_runtime::LegacySyncReentry;
+pub use pumpkin_plugin_runtime::{AdmissionClass, LegacySyncReentry};
 
 pub type LegacyStore = StoreExecutor<PluginHostState, LegacySyncReentry>;
 

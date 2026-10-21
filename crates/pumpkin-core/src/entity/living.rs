@@ -1594,7 +1594,7 @@ impl LivingEntity {
         self.entity
             .update_velocity_from_input(self.movement_input.load(), speed);
 
-        self.apply_climbing_speed();
+        self.apply_climbing_speed(caller);
 
         self.make_move(caller);
 
@@ -1763,68 +1763,51 @@ impl LivingEntity {
     fn make_move(&self, caller: &dyn EntityBase) {
         self.entity.move_entity(caller, self.entity.velocity.load());
 
-        self.check_climbing();
+        // Vanilla evaluates `onClimbable` again after the move, for the `0.2` push of a climbable
+        // (`LivingEntity.java:2777`).
+        self.check_climbing(caller);
     }
 
-    fn check_climbing(&self) {
-        // If spectator: return false
+    /// Vanilla `LivingEntity#onClimbable` (`LivingEntity.java:1800-1812`): a non-spectator entity is
+    /// climbing when the block its feet are in is a ladder, which is `BlockTags.CLIMBABLE`
+    /// (`Block#isLadder`, `IBlockExtension.java:172-174`); a glider inside a `can_glide_through`
+    /// block is not. The entity has to be in the block's cell (`Entity#getInBlockState`,
+    /// `Entity.java:3870-3876`), pushing into it is not part of the check: a climbable only slows
+    /// the fall, moving up additionally needs a horizontal collision or a jump
+    /// (`LivingEntity.java:2777`).
+    fn check_climbing(&self, caller: &dyn EntityBase) -> bool {
+        let pos = self.entity.block_pos.load();
 
-        // TODO
-        // let mut pos = self.entity.block_pos.load();
+        let climbing = if caller.is_spectator() {
+            false
+        } else {
+            let block = self.entity.world.load().get_block(&pos);
 
-        // let world = self.entity.world.read().await;
+            // A glider inside a `can_glide_through` block is not climbing, the client agrees.
+            block.has_tag(&tag::Block::MINECRAFT_CLIMBABLE)
+                && !(self.entity.is_fall_flying()
+                    && block.has_tag(&tag::Block::MINECRAFT_CAN_GLIDE_THROUGH))
+        };
 
-        // let (block, state) = world.get_block_and_state(&pos);
+        if climbing {
+            self.climbing.store(true, Relaxed);
 
-        // let name = block.properties(state.id).map(|props| props.name());
+            self.climbing_pos.store(Some(pos));
+        } else {
+            self.climbing.store(false, Relaxed);
 
-        // if let Some(name) = name {
-        //     if name == "LadderLikeProperties"
-        //         || name == "ScaffoldingLikeProperties"
-        //         || name == "CaveVinesLikeProperties"
-        //         || name == "CaveVinesPlantLikeProperties"
-        //     {
-        //         self.climbing.store(true, Relaxed);
-
-        //         self.climbing_pos.store(Some(pos));
-
-        //         return;
-        //     }
-
-        //     if name == "OakTrapdoorLikeProperties" {
-        //         let trapdoor = OakTrapdoorLikeProperties::from_state_id(state.id);
-
-        //         pos.0.y -= 1;
-
-        //         let (down_block, down_state) = world.get_block_and_state(&pos);
-
-        //         let is_ladder = down_block
-        //             .properties(down_state.id)
-        //             .is_some_and(|down_props| down_props.name() == "LadderLikeProperties");
-
-        //         if is_ladder {
-        //             let ladder = LadderLikeProperties::from_state_id(down_state.id);
-
-        //             if trapdoor.r#facing == ladder.r#facing {
-        //                 self.climbing.store(true, Relaxed);
-
-        //                 self.climbing_pos.store(Some(pos));
-
-        //                 return;
-        //             }
-        //         }
-        //     }
-        // }
-
-        self.climbing.store(false, Relaxed);
-
-        if self.entity.on_ground.load(SeqCst) {
-            self.climbing_pos.store(None);
+            if self.entity.on_ground.load(SeqCst) {
+                self.climbing_pos.store(None);
+            }
         }
+
+        climbing
     }
 
-    fn apply_climbing_speed(&self) {
-        if self.climbing.load(Relaxed) {
+    /// Vanilla `LivingEntity#handleOnClimbable` (`LivingEntity.java:2799-2814`), called before the
+    /// move, unlike the check after it in [`Self::make_move`].
+    fn apply_climbing_speed(&self, caller: &dyn EntityBase) {
+        if self.check_climbing(caller) {
             self.fall_distance.store(0.0);
 
             let mut velo = self.entity.velocity.load();
@@ -1847,25 +1830,23 @@ impl LivingEntity {
 
             velo.y = velo.y.max(neg);
 
-            // TODO
-            // if velo.y < 0.0
-            //     && self.entity.entity_type == &EntityType::PLAYER
-            //     && self.entity.sneaking.load(Relaxed)
-            // {
-            //     let block = self
-            //         .entity
-            //         .world
-            //         .read()
-            //         .await
-            //         .get_block(&self.entity.block_pos.load())
-            //         .await;
+            // A sneaking player holds on to a ladder or vine instead of sliding down, on
+            // scaffolding it keeps sliding at the `-0.15` from above. Vanilla `isScaffolding` is
+            // `state.is(Blocks.SCAFFOLDING)` for a block that does not override it
+            // (`IBlockExtension.java:770`); a custom block cannot override it yet, see
+            // `pumpkin-plugin-wit`.
+            if velo.y < 0.0 && self.entity.is_sneaking() && caller.get_player().is_some() {
+                let in_scaffolding = self
+                    .entity
+                    .world
+                    .load()
+                    .get_block(&self.entity.block_pos.load())
+                    == &Block::SCAFFOLDING;
 
-            //     if let Some(props) = block.properties(block.default_state.id) {
-            //         if props.name() == "ScaffoldingLikeProperties" {
-            //             velo.y = 0.0;
-            //         }
-            //     }
-            // }
+                if !in_scaffolding {
+                    velo.y = 0.0;
+                }
+            }
 
             self.entity.velocity.store(velo);
         }

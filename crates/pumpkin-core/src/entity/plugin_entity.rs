@@ -23,19 +23,20 @@ use std::collections::{BTreeMap, HashMap};
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
 
-use bytes::BufMut;
+use bytes::{BufMut, Bytes};
 use pumpkin_data::entity_registry::PluginEntityType;
 use pumpkin_data::packet::CURRENT_MC_VERSION;
 use pumpkin_nbt::{compound::NbtCompound, tag::NbtTag};
 use pumpkin_protocol::{
     ConnectionFlavour,
     codec::var_int::VarInt,
-    java::client::play::{CCustomPayload, CSetEntityMetadata, Metadata},
+    java::client::play::{CBundleDelimiter, CCustomPayload, CSetEntityMetadata, Metadata},
     ser::NetworkWriteExt,
 };
 use pumpkin_util::math::boundingbox::{BoundingBox, EntityDimensions};
 use pumpkin_util::math::vector3::Vector3;
 use pumpkin_util::version::JavaMinecraftVersion;
+use tracing::warn;
 
 use crate::{
     entity::{Entity, EntityBase, living::LivingEntity},
@@ -423,32 +424,110 @@ impl EntityBase for PluginEntity {
 
     fn send_java_spawn_packet(&self, client: &JavaClient) {
         let entity = &self.entity;
-        let spawn_packet = entity.create_spawn_packet();
-        if let Ok(data) = client.serialize_packet(&spawn_packet) {
-            client.try_enqueue_packet(data);
-        }
         // NeoForge clients read the spawn data from their own payload, others from the channel
         // of the type, if it has one.
-        let channel = if client.flavour.load() == ConnectionFlavour::NeoForge
-            && (self.plugin_type.definition.spawn_data_channel.is_some()
-                || !lock(&self.spawn_data).is_empty())
+        let flavour = client.flavour.load();
+        let spawn_data_len = lock(&self.spawn_data).len();
+        let channel = if flavour == ConnectionFlavour::NeoForge
+            && (self.plugin_type.definition.spawn_data_channel.is_some() || spawn_data_len > 0)
         {
             Some(ADVANCED_ADD_ENTITY)
         } else {
             self.plugin_type.definition.spawn_data_channel.as_deref()
         };
+
+        // A mod entity whose spawn data the plugin never set (or lost) is sent as a bare
+        // add-entity packet. A client that draws it from that data (`IEntityWithComplexSpawn`,
+        // every contraption of Create) then keeps an entity it cannot render and discards it on
+        // its first tick, and nothing else is ever sent for it: silent, permanent invisibility.
+        // Say it, one line per spawn.
+        if channel.is_none() && spawn_data_len == 0 {
+            warn!(
+                "Entity {} of plugin type '{}' ({:?} client) is spawned without spawn data: it is \
+                 sent as a plain add-entity packet and a client that needs the data will not \
+                 render it",
+                entity.entity_id,
+                self.plugin_type.key,
+                flavour
+            );
+        } else if flavour == ConnectionFlavour::NeoForge && spawn_data_len == 0 {
+            warn!(
+                "Entity {} of plugin type '{}' is spawned with an empty spawn data payload; only \
+                 the channel '{}' is sent. Set it before the spawn if the client reads it",
+                entity.entity_id,
+                self.plugin_type.key,
+                self.plugin_type
+                    .definition
+                    .spawn_data_channel
+                    .as_deref()
+                    .unwrap_or(ADVANCED_ADD_ENTITY)
+            );
+        }
+
+        // The add-entity packet and the spawn data must reach the client in one bundle.
+        // `ClientPayloadHandler.handle(AdvancedAddEntityPayload)` looks the entity up by id and
+        // silently gives up while it is not there yet, and the entity is discarded on its first
+        // tick without the spawn data, so as separate packets the client can tick in between and
+        // lose the entity for good. Vanilla pairs them the same way
+        // (`ServerEntity.sendPairingData` collects them into a `ClientboundBundlePacket`).
+        let mut packets: Vec<Bytes> = Vec::with_capacity(3);
+        let spawn_packet = entity.create_spawn_packet();
+        match client.serialize_packet(&spawn_packet) {
+            Ok(data) => packets.push(data),
+            Err(error) => warn!(
+                "Could not serialize the add-entity packet of {} of plugin type '{}': {error}",
+                entity.entity_id, self.plugin_type.key
+            ),
+        }
         if let Some(channel) = channel {
             let payload = self.spawn_payload();
             let packet = CCustomPayload::new(channel, &payload);
-            if let Ok(data) = client.serialize_packet(&packet) {
-                client.try_enqueue_packet(data);
+            match client.serialize_packet(&packet) {
+                Ok(data) => packets.push(data),
+                Err(error) => warn!(
+                    "Could not serialize the {}-byte spawn payload of {} of plugin type '{}' for \
+                     channel '{channel}': {error}",
+                    payload.len(),
+                    entity.entity_id,
+                    self.plugin_type.key
+                ),
             }
         }
         if let Some(metadata) = self.java_spawn_metadata(CURRENT_MC_VERSION) {
             let packet = CSetEntityMetadata::new(entity.entity_id.into(), metadata);
-            if let Ok(data) = client.serialize_packet(&packet) {
-                client.try_enqueue_packet(data);
+            match client.serialize_packet(&packet) {
+                Ok(data) => packets.push(data),
+                Err(error) => warn!(
+                    "Could not serialize the metadata of {} of plugin type '{}': {error}",
+                    entity.entity_id, self.plugin_type.key
+                ),
             }
+        }
+
+        // Two delimiters around the packets: the client buffers what is between them and hands the
+        // whole bundle to the game thread at once, so nothing can run between the entity being
+        // added and its spawn data being applied. A lone packet needs no bundle.
+        if packets.len() > 1 {
+            match client.serialize_packet(&CBundleDelimiter) {
+                Ok(delimiter) => {
+                    client.try_enqueue_packet(delimiter.clone());
+                    for data in packets {
+                        client.try_enqueue_packet(data);
+                    }
+                    client.try_enqueue_packet(delimiter);
+                    return;
+                }
+                // Without the delimiters the client may tick between the add-entity and the
+                // payload and drop the entity for good, so this is worth a line.
+                Err(error) => warn!(
+                    "Could not serialize the bundle delimiter for {} of plugin type '{}', sending \
+                     the spawn packets unbundled: {error}",
+                    entity.entity_id, self.plugin_type.key
+                ),
+            }
+        }
+        for data in packets {
+            client.try_enqueue_packet(data);
         }
     }
 

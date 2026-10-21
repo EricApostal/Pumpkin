@@ -59,22 +59,24 @@ impl LpVector3d {
     }
 
     pub fn read<R: std::io::Read>(reader: &mut R) -> Result<Self, ReadingError> {
-        let mut low_16 = [0u8; 2];
+        // A zero vector is a **single** zero byte (`write` above, and vanilla's `LpVec3` reader);
+        // anything else is a header byte with a non-zero scale in it, followed by five more.
+        // Reading two bytes for the zero case ate the next field instead.
+        let mut bytes = [0u8; 6];
         reader
-            .read_exact(&mut low_16)
+            .read_exact(&mut bytes[..1])
             .map_err(|e| ReadingError::Message(e.to_string()))?;
 
-        if low_16[0] == 0 && low_16[1] == 0 {
+        if bytes[0] == 0 {
             return Ok(Self(Vector3::new(0.0, 0.0, 0.0)));
         }
 
-        let mut mid_32 = [0u8; 4];
         reader
-            .read_exact(&mut mid_32)
+            .read_exact(&mut bytes[1..])
             .map_err(|e| ReadingError::Message(e.to_string()))?;
 
-        let low = u16::from_le_bytes(low_16) as i64;
-        let mid = i32::from_be_bytes(mid_32) as i64;
+        let low = u16::from_le_bytes([bytes[0], bytes[1]]) as i64;
+        let mid = i32::from_be_bytes([bytes[2], bytes[3], bytes[4], bytes[5]]) as i64;
         let packed_data = low | (mid << 16);
 
         let header = packed_data & 0x07;

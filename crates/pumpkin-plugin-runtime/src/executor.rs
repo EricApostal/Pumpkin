@@ -20,7 +20,7 @@ use wasmtime::{
 
 use crate::{
     RuntimeSpawner,
-    chain::{ReentryContext, RootAdmissionGuard, scope, sync_scope},
+    chain::{AdmissionClass, ReentryContext, RootAdmissionGuard, scope, sync_scope},
     lifecycle::{DriverError, DriverJoin, DriverState, Lifecycle},
     policy::{LegacySyncReentry, StorePolicy},
 };
@@ -346,6 +346,42 @@ std::thread_local! {
 /// The admission of the driver polling on this thread, if any.
 fn driving_admission() -> Option<u64> {
     DRIVING_ADMISSION.with(std::cell::Cell::get)
+}
+
+/// Whether a host-initiated guest call is running on the current thread right now.
+///
+/// The driver that would serve a nested guest call is on this thread's stack for as long as that
+/// call runs, so a plugin callback fired from here can never be admitted: it would wait for the
+/// driver that is waiting for the caller. Host code that can re-enter a plugin therefore has to
+/// check this before it fires an event.
+#[must_use]
+pub fn is_running_guest_call() -> bool {
+    driving_admission().is_some()
+}
+
+/// The hook the plugin host installs to flush the events a guest call had to defer.
+///
+/// A host write fired inside a guest call cannot dispatch the event it fires — the nested call
+/// would wait for the driver that is waiting for the write — so the host queues it instead. The
+/// queue is only dispatched once no guest call is active, and the earliest such point is the
+/// outermost guest call of a chain returning: the plugin code has unwound and the driver is free
+/// again. Without the hook the queue waits for the next host dispatch outside a guest call, which
+/// in practice is the next server tick, so every deferred callback costs a tick.
+static GUEST_CALL_RETURN_HOOK: OnceLock<fn()> = OnceLock::new();
+
+/// Registers the hook the executor calls when the outermost guest call of a chain returns.
+///
+/// See [`GUEST_CALL_RETURN_HOOK`]; the plugin host installs it once at startup, like
+/// `pumpkin_core::plugin::install_guest_call_probe` installs the probe in the other direction.
+pub fn install_guest_call_return_hook(hook: fn()) {
+    let _ = GUEST_CALL_RETURN_HOOK.set(hook);
+}
+
+/// Tells the host that the outermost guest call of a chain returned.
+fn notify_guest_call_return() {
+    if let Some(hook) = GUEST_CALL_RETURN_HOOK.get() {
+        hook();
+    }
 }
 
 /// Sets [`DRIVING_ADMISSION`] while alive and restores the previous value on drop.
@@ -675,12 +711,24 @@ where
         F: for<'a> FnOnce(LegacyGuestScope<'a, T>) -> StoreFuture<'a, R> + Send + 'static,
         R: Send + 'static,
     {
+        self.call_guest_in(AdmissionClass::Normal, call).await
+    }
+
+    /// Like [`Self::call_guest`], for a root call that must not delay a synchronous one: the class
+    /// only decides who the admission is handed to next, see [`AdmissionClass`].
+    pub async fn call_guest_in<R, F>(&self, class: AdmissionClass, call: F) -> wasmtime::Result<R>
+    where
+        F: for<'a> FnOnce(LegacyGuestScope<'a, T>) -> StoreFuture<'a, R> + Send + 'static,
+        R: Send + 'static,
+    {
         if let Some(message) = self.shared.guest_call_failure.message() {
             return Err(wasmtime::Error::msg(format!(
                 "Wasm plugin store failed during a guest call: {message}"
             )));
         }
         let (result, receiver) = oneshot::channel();
+        // TEMPORARY DRAINDBG.
+        let guest_call_started = std::time::Instant::now();
         let inherited_context = self.shared.policy.inherited_context();
         let (context, root_admission) = if let Some(context) = inherited_context {
             tracing::trace!(
@@ -705,9 +753,13 @@ where
             (context, None)
         } else {
             self.ensure_accepting("Wasm plugin store is shutting down")?;
-            let admission = self.shared.policy.acquire_root().await?;
+            let admission = self.shared.policy.acquire_root(class).await?;
             (admission.context(), Some(admission))
         };
+        // A call that had no chain to inherit or route through took a fresh root admission: nothing
+        // else of that chain is on this task's stack, so this is its outermost call and the point
+        // where the events a host write inside it had to defer can be dispatched.
+        let outermost = root_admission.is_some();
         let mut job: Box<dyn GuestStoreJob<T>> = Box::new(GuestStoreCall {
             call,
             result,
@@ -745,8 +797,24 @@ where
         permit.send(StoreMessage::GuestCall(job));
         drop(send_guard);
 
-        self.receive_result(receiver, "Wasm plugin guest call did not complete")
-            .await
+        let result = self
+            .receive_result(receiver, "Wasm plugin guest call did not complete")
+            .await;
+        // TEMPORARY DRAINDBG: the guest-call round trip a dispatch waits for.
+        let micros = guest_call_started.elapsed().as_micros();
+        if micros > 5000 {
+            tracing::warn!(
+                DRAINDBG = "call_guest_in",
+                outermost,
+                micros,
+                tid = ?std::thread::current().id(),
+                "DRAINDBG slow guest call"
+            );
+        }
+        if outermost && !is_running_guest_call() {
+            notify_guest_call_return();
+        }
+        result
     }
 
     /// Awaits host work in the active guest call's chain with the reentry depth incremented
@@ -838,6 +906,8 @@ where
         // `spawn_blocking` returns, and a callback that finds no scope is queued on the driver,
         // which cannot run it while the outer guest call is suspended here.
         let (mut registration, mut reentry) = self.shared.reentry.register(context);
+        // TEMPORARY DRAINDBG.
+        let pump_started = std::time::Instant::now();
         let (result, receiver) = oneshot::channel();
         if let Err(error) = self.shared.spawner.spawn_blocking(Box::new(move || {
             let output = catch_unwind(AssertUnwindSafe(|| sync_scope(context, operation)))
@@ -851,6 +921,16 @@ where
         }
 
         let output = pump_reentrant_jobs(accessor, &mut reentry, receiver).await;
+        // TEMPORARY DRAINDBG: how long the host operation plus the callbacks it fired took.
+        let micros = pump_started.elapsed().as_micros();
+        if micros > 5000 {
+            tracing::warn!(
+                DRAINDBG = "pump_blocking_accessor",
+                micros,
+                tid = ?std::thread::current().id(),
+                "DRAINDBG slow blocking operation"
+            );
+        }
         registration.close();
         reentry.close();
         while let Ok(job) = reentry.try_recv() {
@@ -988,7 +1068,20 @@ where
         if jobs_open {
             tokio::select! {
                 job = jobs.recv() => match job {
-                    Some(job) => job.run_concurrent(accessor).await?,
+                    Some(job) => {
+                        // TEMPORARY DRAINDBG.
+                        let started = std::time::Instant::now();
+                        job.run_concurrent(accessor).await?;
+                        let micros = started.elapsed().as_micros();
+                        if micros > 5000 {
+                            tracing::warn!(
+                                DRAINDBG = "pump_reentrant_jobs",
+                                micros,
+                                tid = ?std::thread::current().id(),
+                                "DRAINDBG slow reentrant job"
+                            );
+                        }
+                    }
                     None => jobs_open = false,
                 },
                 output = &mut result => {
@@ -1156,7 +1249,7 @@ where
             );
             (context, None)
         } else {
-            let admission = self.handle.shared.policy.acquire_root().await?;
+            let admission = self.handle.shared.policy.acquire_root(AdmissionClass::Normal).await?;
             (admission.context(), Some(admission))
         };
         let send_guard = self.handle.shared.send_gate.lock().await;
@@ -1255,9 +1348,23 @@ fn control_result(message: Option<&ControlMessage>) -> wasmtime::Result<()> {
 /// would still look like it runs inside a guest call.
 async fn drive_marked<R>(driver: impl Future<Output = R>, admission_id: u64) -> R {
     let mut driver = std::pin::pin!(driver);
+    // TEMPORARY DRAINDBG: how long the driver goes unpolled, i.e. whether a queued job waits for
+    // the driver to be scheduled or for the guest call itself to execute.
+    let mut last_poll = std::time::Instant::now();
     poll_fn(|cx| {
+        let gap = last_poll.elapsed();
+        if gap.as_millis() > 5 {
+            tracing::warn!(
+                DRAINDBG = "drive_marked",
+                gap_micros = gap.as_micros(),
+                tid = ?std::thread::current().id(),
+                "DRAINDBG driver not polled for a while"
+            );
+        }
         let _driving = DrivingAdmissionGuard::enter(admission_id);
-        driver.as_mut().poll(cx)
+        let output = driver.as_mut().poll(cx);
+        last_poll = std::time::Instant::now();
+        output
     })
     .await
 }

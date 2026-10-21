@@ -1,4 +1,5 @@
 use std::{
+    borrow::Cow,
     path::PathBuf,
     str::FromStr,
     sync::{
@@ -505,13 +506,6 @@ impl ChunkData {
     pub fn internal_to_bytes(&self) -> Bytes {
         use pumpkin_nbt::tag::NbtTag;
 
-        fn extract_light_ref(light: Option<&LightContainer>) -> Option<&[u8]> {
-            match light {
-                Some(LightContainer::Full(data)) => Some(data.as_ref()),
-                _ => None,
-            }
-        }
-
         let is_light_correct = self
             .light_populated
             .load(std::sync::atomic::Ordering::Relaxed);
@@ -636,13 +630,13 @@ impl ChunkData {
             section_comp.put_compound("biomes", b_comp);
 
             // block_light
-            if let Some(light_data) = extract_light_ref(light_lock.block_light.get(i)) {
+            if let Some(light_data) = stored_light_bytes(light_lock.block_light.get(i)) {
                 let bytes: Box<[i8]> = light_data.iter().map(|&x| x as i8).collect();
                 section_comp.put("BlockLight", NbtTag::ByteArray(bytes));
             }
 
             // sky_light
-            if let Some(light_data) = extract_light_ref(light_lock.sky_light.get(i)) {
+            if let Some(light_data) = stored_light_bytes(light_lock.sky_light.get(i)) {
                 let bytes: Box<[i8]> = light_data.iter().map(|&x| x as i8).collect();
                 section_comp.put("SkyLight", NbtTag::ByteArray(bytes));
             }
@@ -800,18 +794,8 @@ impl ChunkData {
             block_lock[i].write_pump_binary(&mut out);
             biome_lock[i].write_pump_binary(&mut out);
 
-            let bl = match light_lock.block_light.get(i) {
-                Some(LightContainer::Full(data)) if data.len() == LightContainer::ARRAY_SIZE => {
-                    Some(data.as_ref())
-                }
-                _ => None,
-            };
-            let sl = match light_lock.sky_light.get(i) {
-                Some(LightContainer::Full(data)) if data.len() == LightContainer::ARRAY_SIZE => {
-                    Some(data.as_ref())
-                }
-                _ => None,
-            };
+            let bl = stored_light_bytes(light_lock.block_light.get(i));
+            let sl = stored_light_bytes(light_lock.sky_light.get(i));
             let mut light_flags = 0u8;
             if bl.is_some() {
                 light_flags |= 1;
@@ -821,10 +805,10 @@ impl ChunkData {
             }
             out.put_u8(light_flags);
             if let Some(data) = bl {
-                out.extend_from_slice(data);
+                out.extend_from_slice(&data);
             }
             if let Some(data) = sl {
-                out.extend_from_slice(data);
+                out.extend_from_slice(&data);
             }
         }
 
@@ -1359,6 +1343,24 @@ pub enum LightContainer {
     Full(Box<[u8]>),
 }
 
+/// The light bytes of one chunk section for storage, `None` when there is nothing to store.
+///
+/// `Empty(value)` is a section whose every cell holds `value`, **not** a dark one. A section with
+/// no stored data reads back as `Empty(0)`, so writing nothing for a lit-but-uniform section
+/// brings it back dark — and it is then announced to the client as an empty section, which the
+/// client applies as all zeros.
+fn stored_light_bytes(light: Option<&LightContainer>) -> Option<Cow<'_, [u8]>> {
+    match light {
+        Some(LightContainer::Empty(value)) if *value > 0 => {
+            Some(Cow::Owned(LightContainer::uniform_bytes(*value).into_vec()))
+        }
+        Some(LightContainer::Full(data)) if data.len() == LightContainer::ARRAY_SIZE => {
+            Some(Cow::Borrowed(data.as_ref()))
+        }
+        _ => None,
+    }
+}
+
 impl LightContainer {
     pub const DIM: usize = 16;
     pub const ARRAY_SIZE: usize = Self::DIM * Self::DIM * Self::DIM / 2;
@@ -1377,6 +1379,15 @@ impl LightContainer {
             Self::ARRAY_SIZE
         );
         Self::Full(data)
+    }
+
+    /// The 2048 light bytes of a section whose every cell holds `value`.
+    ///
+    /// Half a byte per cell, low nibble first, smallest coordinate first: the order every reader
+    /// of a light array uses (`DataLayer`, and `LightContainer::get`).
+    #[must_use]
+    pub fn uniform_bytes(value: u8) -> Box<[u8]> {
+        vec![value << 4 | value; Self::ARRAY_SIZE].into_boxed_slice()
     }
 
     #[must_use]

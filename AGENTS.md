@@ -85,6 +85,7 @@ This section covers changes to the plugin API inside this repo. How to write a p
 - **The WIT is public.** `crates/pumpkin-plugin-wit` is mirrored to its own repository on every push to `master`, and bindings for other languages are generated from it. A breaking change there breaks SDKs outside this repo too. Prefer additive changes, and call out anything breaking in the PR.
 - **Change the layers together.** A WIT change also needs the host implementation for that API version (`crates/pumpkin-wasm-host-v0_1/` or `crates/pumpkin-wasm-host-v0_2/`, which each generate their own bindings; shared code is in `crates/pumpkin-wasm-host-common/`), the SDK (`pumpkin-plugin-api`) and sometimes the runtime (`pumpkin-plugin-runtime`). Run `cargo run --locked -p pumpkin-codegen -- wit` afterwards, because WIT data and packet mappings are generated. The v0.2 host is behind the `plugin-v0_2` feature of `pumpkin`, which stays off until the v0.2 ABI is finished; pass `--features plugin-v0_2` to build, run or test the server with it. Breaking changes to the native plugin API bump `PLUGIN_API_VERSION` in `plugin/mod.rs`.
 - **Keep events working.** When you port gameplay that a plugin could want to observe or cancel, check whether an event for it already exists in `plugin/api/events/`. If it does, keep its contract: fire it at the same point existing callers do, fill in the same payload, and if it's cancellable, skip the effect when `cancelled()` returns true. Look at how the event is fired elsewhere before wiring it up. A port that skips an existing event silently breaks every plugin that relied on it.
+- **An event fired inside a guest call is deferred, never dispatched.** Host-initiated guest calls run on the thread that polls the plugin's store driver, so a `fire_blocking` from inside one — the neighbour updates of a `NOTIFY_ALL` write a plugin made, for instance — would have to wait for that driver while the driver waits for the caller: the plugin deadlocks, ticks stop and shutdown never finishes. `PluginManager` checks `plugin::in_guest_call()` (the probe `pumpkin_plugin_runtime::is_running_guest_call`, installed in `pumpkin-wasm-host/src/runtime.rs`) and queues the event instead; the next dispatch outside a guest call delivers it, copied through `Payload::duplicate`, which the `Event` derive implements from `Clone`. A handler's answer (`cancelled`, `drop`, a shape override) therefore arrives after a write the plugin itself started, so callers that read it back must not treat a plugin-initiated write as vetoable.
 
 ## Code quality
 
@@ -158,6 +159,41 @@ Passing clippy and tests doesn't show that a gameplay change works. Run the serv
 - **Keep investigation tools out of the repo.** Bot scripts, one-off benchmark scripts and debug patches you used while working live outside the repository and don't go into the PR. A benchmark or test worth keeping goes into the existing benches or test suite instead, sized like its neighbours.
 
 Some things still need a real client: rendering, particles, sounds, animations, GUI screens, and anything that depends on client-side prediction. For those, say in your report exactly what a human should do in-game and what they should see, so they can check it before the PR goes up.
+
+### Watching what the server sends
+
+"The client never got it" is easier to answer with the packets than with the code path. Two traces write the same JSON-lines schema, one on each side of the wire.
+
+**Server side, opt-in by environment.** `PUMPKIN_PACKET_TRACE=<path>` makes the server truncate that file at boot and append one JSON object per line for every packet it enqueues to a client. It taps the per-client enqueue path (`JavaClient::queue_outgoing`, `crates/pumpkin-core/src/net/java/mod.rs`), not the packet encoders, so every send path is covered once and a line only exists when there is a recipient:
+
+```jsonc
+{"tick":123,"client":1,"kind":"block_update","pos":[1,64,2],"state":38191}
+{"tick":123,"client":1,"kind":"section_block_update","pos":[1,64,3],"state":38191} // one line per block in the packet
+{"tick":123,"client":1,"kind":"block_entity_data","pos":[1,64,2],"type":17,"nbt":"0a00"}
+{"tick":123,"client":1,"kind":"add_entity","entity":42,"type":161,"pos":[1,64,2]}
+{"tick":123,"client":1,"kind":"custom_payload","channel":"some:channel","data":"0102"}
+{"tick":123,"client":1,"kind":"chunk","chunk":[0,0]}
+{"tick":123,"client":1,"kind":"unload_chunk","chunk":[0,0]}
+{"tick":123,"client":1,"kind":"bundle_start"}
+{"tick":123,"client":1,"kind":"add_entity","entity":42,"type":161,"pos":[1,64,2],"bundle":true}
+{"tick":123,"client":1,"kind":"bundle_end"}
+{"tick":123,"client":1,"kind":"dropped","id":24}
+```
+
+- `tick` is `Server::tick_count`, sampled once per tick. `client` is the connection id (`JavaClient::id`): it names the connection, not the player's entity.
+- Bytes are lowercase hex, never base64, so `nbt` and `data` need no decoder. `pos` is a block position and `chunk` a chunk column; `state` is a global block state id and `type` the entity or block-entity type id as it went out.
+- `bundle_start`/`bundle_end` are the bundle delimiters and the packets between them carry `"bundle":true`. The client applies a bundle in one go, so an add-entity that arrived outside its payload's bundle is exactly the failure this shows.
+- `dropped` is a packet that never reached the queue — a full connection buffer, or a closed one. It is the difference between "the server never sent it" and "the client did not receive it", which looks the same from the client side.
+- **It costs nothing when unset.** The environment is read once, in `Server::new` (`packet_trace::init_from_env`), and the packet path only tests a cached `AtomicBool` before touching anything: no allocation, no formatting, no lock, one relaxed load and a branch — what a `debug!` leaves behind.
+
+**Client side, for a client that is not a real one.** `pumpkin-tester client --addr <host:port> --name <A> --trace <path> [--neoforge]` joins with the headless bot (`tools/pumpkin-tester/src/bot.rs`) and writes the same schema for everything it *receives*, with `"dir":"recv"` and `"client"` set to `--name`. It answers keep-alives and runs until stdin closes or it is signalled; it exits non-zero when the join never completed. A packet outside the kinds above is written as `{"kind":"other","id":N,"len":L}`, so nothing received goes unrecorded (a packet of a kind the trace decodes whose payload does not decode gets that line too). `--neoforge` runs the modded handshake, but a separate process loads no plugins, so it cannot answer the server's channel query on the plugin's behalf: the server refuses it (`Incompatible mods`). The handshake itself is tested in-process instead (`tools/pumpkin-tester/tests/neoforge_handshake.rs`); the vanilla join still receives the modded payloads a plugin sends over its declared channels.
+
+This side also reports what a chunk packet *carried* — a joining client gets a block entity's client data inside `LEVEL_CHUNK_WITH_LIGHT`, not as a `BLOCK_ENTITY_DATA` packet, so without these lines "the relogin learned it from the chunk" is invisible:
+
+```jsonc
+{"dir":"recv","client":"A","kind":"chunk","chunk":[0,0]}
+{"dir":"recv","client":"A","kind":"chunk_block_entity","chunk":[0,0],"pos":[4,70,0],"type":17,"nbt":"0a00"}
+```
 
 ### Tests
 

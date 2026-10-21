@@ -4,10 +4,11 @@ use loader::{LoaderError, PluginLoader, native::NativePluginLoader};
 use notify::{EventKind, RecursiveMode, Watcher, event::ModifyKind};
 use std::{
     any::Any,
-    collections::{HashMap, HashSet},
+    cell::Cell,
+    collections::{HashMap, HashSet, VecDeque},
     path::{Path, PathBuf},
     pin::Pin,
-    sync::{Arc, RwLock as SyncRwLock, atomic::AtomicBool},
+    sync::{Arc, Mutex, OnceLock, RwLock as SyncRwLock, atomic::AtomicBool},
     thread::ThreadId,
     time::Duration,
 };
@@ -37,6 +38,97 @@ pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 pub const PLUGIN_API_VERSION: u32 = 2;
 
 const PLUGIN_DIR: &str = "./plugins";
+
+/// Probe the plugin runtime installs to tell whether the current thread runs a plugin guest call.
+static GUEST_CALL_PROBE: OnceLock<fn() -> bool> = OnceLock::new();
+
+/// A plugin event whose dispatch had to wait for the guest call that fired it to return.
+struct DeferredEvent {
+    server: Arc<Server>,
+    event_name: &'static str,
+    event: Box<dyn Payload + Send + Sync>,
+}
+
+/// Events fired from inside a guest call, oldest first, waiting for a dispatch outside one.
+static DEFERRED_EVENTS: Mutex<VecDeque<DeferredEvent>> = Mutex::new(VecDeque::new());
+
+std::thread_local! {
+    /// Set while this thread dispatches deferred events, so that dispatch does not recurse.
+    static DISPATCHING_DEFERRED: Cell<bool> = const { Cell::new(false) };
+}
+
+/// Registers the probe that reports whether the current thread is running a plugin guest call.
+///
+/// The plugin runtime calls this once at startup. Without it a dispatch inside a guest call would
+/// always be attempted, which deadlocks the plugin it re-enters.
+pub fn install_guest_call_probe(probe: fn() -> bool) {
+    let _ = GUEST_CALL_PROBE.set(probe);
+}
+
+/// Whether a plugin guest call is running on this thread right now.
+fn in_guest_call() -> bool {
+    GUEST_CALL_PROBE
+        .get()
+        .is_some_and(|probe| probe())
+}
+
+/// Dispatches the plugin events that were deferred out of guest calls, oldest first.
+///
+/// Host code that fires an event outside a guest call is the point where a plugin can be
+/// re-entered, so it delivers what the guest calls had to postpone.
+fn dispatch_deferred_events() {
+    if DISPATCHING_DEFERRED.with(|dispatching| dispatching.replace(true)) {
+        return;
+    }
+    let _guard = DeferredDispatchGuard;
+
+    // TEMPORARY DRAINDBG: how much the queue held when a dispatch drained it.
+    let mut drained = 0usize;
+    loop {
+        let deferred = DEFERRED_EVENTS
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .pop_front();
+        let Some(mut deferred) = deferred else {
+            break;
+        };
+        drained += 1;
+        deferred
+            .server
+            .plugin_manager
+            .fire_blocking_dyn(&deferred.server, deferred.event_name, &mut *deferred.event);
+    }
+    if drained > 0 {
+        tracing::warn!(
+            DRAINDBG = "dispatch_deferred_events",
+            drained,
+            tid = ?std::thread::current().id(),
+            "DRAINDBG drained deferred events"
+        );
+    }
+}
+
+/// Dispatches the events deferred out of guest calls, oldest first, at the end of the guest call
+/// that queued them.
+///
+/// The plugin runtime installs this as its guest-call-return hook
+/// (`pumpkin_plugin_runtime::install_guest_call_return_hook`): it calls it once the outermost
+/// guest call of a chain has returned, which is the earliest moment the queue can be dispatched
+/// without re-entering a plugin from inside its own call. Until then the queue waits for the next
+/// host dispatch outside a guest call — in practice the next server tick, so a plugin-initiated
+/// write of N blocks pays a tick per block for callbacks that do microseconds of work.
+pub fn drain_deferred_events_after_guest_call() {
+    dispatch_deferred_events();
+}
+
+/// Clears [`DISPATCHING_DEFERRED`] when the dispatch that set it leaves, even on a panic.
+struct DeferredDispatchGuard;
+
+impl Drop for DeferredDispatchGuard {
+    fn drop(&mut self) {
+        DISPATCHING_DEFERRED.with(|dispatching| dispatching.set(false));
+    }
+}
 
 /// A trait for handling events dynamically.
 ///
@@ -230,6 +322,41 @@ impl Default for PluginManager {
     fn default() -> Self {
         Self::new(Vec::new())
     }
+}
+
+/// Queues an event that was fired from inside a guest call.
+///
+/// The guest call runs on the thread that polls the plugin's store driver, so the nested call this
+/// dispatch needs would wait for the driver that is waiting for the write that fired the event:
+/// dispatching it there deadlocks the plugin. The write itself has already happened, so the
+/// notification is deferred to the next dispatch outside a guest call instead of being lost. A
+/// handler can therefore not cancel or reshape the write that fired the event: its answer arrives
+/// after the fact.
+fn defer_event(
+    server: &Arc<Server>,
+    event_name: &'static str,
+    event: &(dyn Payload + Send + Sync),
+) {
+    let Some(event) = event.duplicate() else {
+        tracing::warn!(
+            wasm_plugin_event = event_name,
+            "An event fired inside a guest call cannot be copied and did not reach plugins"
+        );
+        return;
+    };
+
+    tracing::trace!(
+        wasm_plugin_event = event_name,
+        "Deferred a plugin event fired inside a guest call"
+    );
+    DEFERRED_EVENTS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .push_back(DeferredEvent {
+            server: Arc::clone(server),
+            event_name,
+            event,
+        });
 }
 
 impl PluginManager {
@@ -1231,14 +1358,39 @@ impl PluginManager {
         // Process blocking handlers first
         for handler in handlers {
             if handler.is_blocking() {
+                // TEMPORARY DRAINDBG: per-handler dispatch cost.
+                let started = std::time::Instant::now();
                 handler.handle_blocking_dyn(server, event).await;
+                let micros = started.elapsed().as_micros();
+                if micros > 5000 {
+                    tracing::warn!(
+                        DRAINDBG = "fire_dyn",
+                        event_name,
+                        blocking = true,
+                        micros,
+                        "DRAINDBG slow blocking handler"
+                    );
+                }
             }
         }
 
         // Process non-blocking handlers
         for handler in handlers {
             if !handler.is_blocking() {
+                // TEMPORARY DRAINDBG: per-handler dispatch cost.
+                let started = std::time::Instant::now();
                 handler.handle_dyn(server, event).await;
+                let micros = started.elapsed().as_micros();
+                if micros > 5000 {
+                    tracing::warn!(
+                        DRAINDBG = "fire_dyn",
+                        event_name,
+                        blocking = false,
+                        micros,
+                        tid = ?std::thread::current().id(),
+                        "DRAINDBG slow handler"
+                    );
+                }
             }
         }
     }
@@ -1259,6 +1411,10 @@ impl PluginManager {
         event_name: &'static str,
         event: &mut (dyn Payload + Send + Sync),
     ) {
+        if !in_guest_call() {
+            dispatch_deferred_events();
+        }
+
         let handlers_map = self.handlers.load();
         if handlers_map.is_empty() {
             return;
@@ -1272,12 +1428,34 @@ impl PluginManager {
             return;
         }
 
+        if in_guest_call() {
+            defer_event(server, event_name, event);
+            return;
+        }
+
         if tokio::runtime::Handle::try_current().is_ok() {
+            // TEMPORARY DRAINDBG: whole-dispatch cost on the caller's thread.
+            let started = std::time::Instant::now();
             tokio::task::block_in_place(|| {
                 server
                     .runtime
                     .block_on(self.fire_dyn(server, event_name, event));
             });
+            let micros = started.elapsed().as_micros();
+            if micros > 5000 {
+                tracing::warn!(
+                    DRAINDBG = "fire_blocking_dyn",
+                    event_name,
+                    handlers = self
+                        .handlers
+                        .load()
+                        .get(event_name)
+                        .map_or(0, Vec::len),
+                    micros,
+                    tid = ?std::thread::current().id(),
+                    "DRAINDBG slow dispatch"
+                );
+            }
         } else {
             server
                 .runtime

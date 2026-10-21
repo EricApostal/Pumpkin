@@ -94,6 +94,10 @@ pub trait WorldPortalExt: Send + Sync {
     /// generated. `positions` are the origins the placement rule chose, `seed` is the decorator
     /// seed of the rule. Runs on a generation worker thread, writes only reach `chunk`. The
     /// default does nothing.
+    ///
+    /// The call returns once the plugin placed its blocks: the generator reads the chunk again
+    /// afterwards, so an implementation may wait for the plugin but must not let that wait delay
+    /// the server's own plugin work.
     fn place_plugin_feature(
         &self,
         _feature_key: &str,

@@ -69,6 +69,7 @@ use arc_swap::ArcSwap;
 use pending::PendingConnection;
 
 use crate::entity::player::Player;
+use crate::net::packet_trace;
 use crate::net::{
     ClientPlatform, GameProfile, MAX_PENDING_BYTES, PacketRateLimiter, PlayerConfig,
     decrement_pending_bytes,
@@ -463,6 +464,9 @@ impl JavaClient {
 
         if new_bytes > MAX_PENDING_BYTES {
             decrement_pending_bytes(&self.pending_bytes, packet_len);
+            if packet_trace::active() {
+                packet_trace::on_dropped(self.id, &packet_data);
+            }
             if !self.close_token.is_cancelled() {
                 warn!(
                     "Client {} outbound packet buffer overflow ({} bytes > {} bytes). Closing connection.",
@@ -524,21 +528,32 @@ impl JavaClient {
     }
 
     /// `false` once the writer is gone. Then the connection is closed.
+    ///
+    /// Every send path funnels through here, which is also where the opt-in packet trace taps
+    /// the connection ([`packet_trace`]).
     fn queue_outgoing(&self, packet: OutgoingPacket, packet_len: usize) -> bool {
-        if self.outgoing_packet_queue_send.send(packet).is_ok() {
-            return true;
+        if packet_trace::active() && let OutgoingPacket::Data { data, .. } = &packet {
+            packet_trace::on_outgoing(self.id, self.version.load(), data);
         }
-        decrement_pending_bytes(&self.pending_bytes, packet_len);
-        // It is expected that the packet will fail if closed
-        if !self.close_token.is_cancelled() {
-            warn!(
-                "Failed to add packet to the outgoing packet queue for client {}: channel closed",
-                self.id
-            );
-            // Connection to the client closed since the stream is in an unknown state
-            self.close();
+        match self.outgoing_packet_queue_send.send(packet) {
+            Ok(()) => true,
+            Err(err) => {
+                if packet_trace::active() && let OutgoingPacket::Data { data, .. } = &err.0 {
+                    packet_trace::on_dropped(self.id, data);
+                }
+                decrement_pending_bytes(&self.pending_bytes, packet_len);
+                // It is expected that the packet will fail if closed
+                if !self.close_token.is_cancelled() {
+                    warn!(
+                        "Failed to add packet to the outgoing packet queue for client {}: channel closed",
+                        self.id
+                    );
+                    // Connection to the client closed since the stream is in an unknown state
+                    self.close();
+                }
+                false
+            }
         }
-        false
     }
 
     pub async fn await_close_interrupt(&self) {

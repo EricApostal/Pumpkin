@@ -11,13 +11,38 @@ use syn::{Block as SynBlock, Expr, Field, Fields, ItemStruct, Stmt, parse_macro_
 
 /// Derives the `Payload` trait for an event struct, enabling it to be used in the plugin system.
 ///
+/// `#[dispatch_class(background)]` marks an event that must not delay the server's own timeline
+/// while its handlers run, see `Payload::dispatch_class`.
+///
 /// # Arguments
 /// - `item` – The input `TokenStream` representing the struct to derive `Event` for.
-#[proc_macro_derive(Event)]
+#[proc_macro_derive(Event, attributes(dispatch_class))]
 pub fn event(item: TokenStream) -> TokenStream {
     let ast = parse_macro_input!(item as DeriveInput);
     let name = &ast.ident;
     let (impl_generics, ty_generics, where_clause) = ast.generics.split_for_impl();
+
+    // The host defers a dispatch out of a guest call by copying the event, so an event keeps
+    // reaching plugins when a plugin-initiated write fires it. Every event derives `Clone`.
+    let duplicate_impl = quote! {
+        fn duplicate(&self) -> Option<Box<dyn crate::plugin::Payload + Send + Sync>> {
+            Some(Box::new(self.clone()))
+        }
+    };
+
+    let background = ast.attrs.iter().any(|attribute| {
+        attribute.path().is_ident("dispatch_class")
+            && attribute
+                .parse_args::<syn::Ident>()
+                .is_ok_and(|class| class == "background")
+    });
+    let dispatch_class_impl = background.then(|| {
+        quote! {
+            fn dispatch_class(&self) -> crate::plugin::DispatchClass {
+                crate::plugin::DispatchClass::Background
+            }
+        }
+    });
 
     quote! {
         impl #impl_generics crate::plugin::Payload for #name #ty_generics #where_clause {
@@ -36,6 +61,9 @@ pub fn event(item: TokenStream) -> TokenStream {
             fn as_any(&self) -> &dyn std::any::Any {
                 self
             }
+
+            #duplicate_impl
+            #dispatch_class_impl
         }
     }
     .into()

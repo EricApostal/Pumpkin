@@ -3,12 +3,99 @@ mod bot_tests;
 mod gametests;
 mod harness;
 
-use std::{net::SocketAddr, process::ExitCode, sync::Arc, time::Instant};
+use std::{net::SocketAddr, path::PathBuf, process::ExitCode, sync::Arc, time::Instant};
 
 use pumpkin_core::server::Server;
 use pumpkin_gametest::GameTestRunner;
+use pumpkin_tester::client_trace::ClientOptions;
 use tokio::net::TcpListener;
 use tokio_util::{sync::CancellationToken, task::TaskTracker};
+
+/// `pumpkin-tester client --addr <host:port> --name <name> --trace <path> [--neoforge] [--mirror]`
+///
+/// Joins a running server as a protocol-777 client and writes every packet it receives to
+/// `--trace` as one JSON line per packet (`src/client_trace.rs`), so a test harness in another
+/// repository can observe a server it did not boot itself.
+const CLIENT_USAGE: &str =
+    "usage: pumpkin-tester client --addr <host:port> --name <name> --trace <path> \
+     [--neoforge] [--mirror]";
+
+#[expect(
+    clippy::print_stderr,
+    reason = "a CLI: a usage error has nowhere else to go"
+)]
+fn parse_client_options(args: &[String]) -> Option<ClientOptions> {
+    let mut addr = None;
+    let mut name = None;
+    let mut trace = None;
+    let mut neoforge = false;
+    let mut mirror = false;
+
+    let mut index = 0;
+    while index < args.len() {
+        let argument = args[index].as_str();
+        match argument {
+            "--addr" => {
+                let Some(value) = args.get(index + 1) else {
+                    eprintln!("--addr needs a value\n{CLIENT_USAGE}");
+                    return None;
+                };
+                match value.parse::<SocketAddr>() {
+                    Ok(parsed) => addr = Some(parsed),
+                    Err(err) => {
+                        eprintln!("--addr {value}: {err}");
+                        return None;
+                    }
+                }
+                index += 2;
+            }
+            "--name" => {
+                let Some(value) = args.get(index + 1) else {
+                    eprintln!("--name needs a value\n{CLIENT_USAGE}");
+                    return None;
+                };
+                name = Some(value.clone());
+                index += 2;
+            }
+            "--trace" => {
+                let Some(value) = args.get(index + 1) else {
+                    eprintln!("--trace needs a value\n{CLIENT_USAGE}");
+                    return None;
+                };
+                trace = Some(PathBuf::from(value));
+                index += 2;
+            }
+            "--neoforge" => {
+                neoforge = true;
+                index += 1;
+            }
+            "--mirror" => {
+                // Mirroring is the `NeoForge` handshake derived from the server, so it implies it.
+                neoforge = true;
+                mirror = true;
+                index += 1;
+            }
+            other => {
+                eprintln!("unknown argument '{other}'\n{CLIENT_USAGE}");
+                return None;
+            }
+        }
+    }
+
+    match (addr, name, trace) {
+        (Some(addr), Some(name), Some(trace)) => Some(ClientOptions {
+            addr,
+            name,
+            trace,
+            neoforge,
+            mirror,
+        }),
+        _ => {
+            eprintln!("{CLIENT_USAGE}");
+            None
+        }
+    }
+}
 
 async fn run_all_suites(server: &Arc<Server>, addr: SocketAddr) -> Result<Vec<String>, String> {
     let mut summary_lines = Vec::new();
@@ -27,6 +114,20 @@ async fn run_all_suites(server: &Arc<Server>, addr: SocketAddr) -> Result<Vec<St
 )]
 #[tokio::main]
 async fn main() -> ExitCode {
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    if args.first().map(String::as_str) == Some("client") {
+        let Some(options) = parse_client_options(&args[1..]) else {
+            return ExitCode::FAILURE;
+        };
+        return match pumpkin_tester::client_trace::run(options).await {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(err) => {
+                eprintln!("pumpkin-tester client FAILED: {err}");
+                ExitCode::FAILURE
+            }
+        };
+    }
+
     let _ = rustls::crypto::ring::default_provider().install_default();
     let _ = rayon::ThreadPoolBuilder::new()
         .thread_name(|i| format!("Rayon-Tester-{i}"))

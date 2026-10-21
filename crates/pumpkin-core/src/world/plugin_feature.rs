@@ -25,6 +25,13 @@ impl Drop for Restore<'_> {
 
 /// Fires [`PluginFeaturePlaceEvent`] with the chunk as writable state. Blocks the generation
 /// worker until the handlers are done.
+///
+/// This is the one guest call of the server that is allowed to be slow: the event dispatches in
+/// [`DispatchClass::Background`](crate::plugin::DispatchClass::Background), so while a generation
+/// worker waits here the plugin's other work (a tick, a player action) is still served first. The
+/// chunk has to come back from the handler before the generator can continue with it, so the wait
+/// itself is unavoidable; what the class prevents is this wait piling up in front of the tick when
+/// all generation workers arrive at once.
 pub fn place(
     world: &Arc<World>,
     feature_key: &str,

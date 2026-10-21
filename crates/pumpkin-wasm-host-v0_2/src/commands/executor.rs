@@ -19,7 +19,9 @@ use pumpkin_core::{
     server::Server,
 };
 use pumpkin_wasm_host_common::{
-    args::build_consumed_args_from_context, plugin::WasmPlugin, state::PluginHostState,
+    args::build_consumed_args_from_context,
+    plugin::WasmPlugin,
+    state::{CommandSenderContext, PluginHostState},
 };
 
 fn map_command_result(
@@ -53,7 +55,8 @@ pub struct WasmCommandExecutor {
 
 impl CommandExecutor for WasmCommandExecutor {
     fn execute(&self, context: &CommandContext) -> CommandExecutorResult {
-        let sender = context.source.output.clone();
+        let sender =
+            CommandSenderContext::new(context.source.output.clone(), context.source.world.clone());
         let server = self.server.clone();
         let consumed_args = build_consumed_args_from_context(context);
         let handler_id = self.handler_id;
@@ -127,7 +130,8 @@ pub struct WasmCommandSuggestionProvider {
 
 impl SuggestionProvider for WasmCommandSuggestionProvider {
     fn suggest(&self, context: &CommandContext, builder: SuggestionsBuilder) -> Suggestions {
-        let sender = context.source.output.clone();
+        let sender =
+            CommandSenderContext::new(context.source.output.clone(), context.source.world.clone());
         let server = self.server.clone();
         let input = context.input.clone();
         let request = SuggestionRequest {

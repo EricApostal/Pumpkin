@@ -4,8 +4,10 @@ mod lifecycle;
 mod policy;
 mod spawn;
 
+pub use chain::AdmissionClass;
 pub use executor::{
     LegacyGuestScope, LegacyStore, StoreDataMut, StoreExecutor, StoreFuture, StoreHandle,
+    install_guest_call_return_hook, is_running_guest_call,
 };
 pub use lifecycle::{DriverError, DriverJoin, DriverState};
 pub use policy::{LegacySyncReentry, StorePolicy};

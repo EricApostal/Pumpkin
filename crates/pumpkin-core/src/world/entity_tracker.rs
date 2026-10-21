@@ -1000,9 +1000,22 @@ impl EntityTracker {
                 get_section_cord(pos.z.floor() as i32),
             );
             let old_pos = tracked.last_section_pos.load();
-            if old_pos != new_pos {
+            // Vanilla `ChunkMap.trackEntity` pairs every tick; this used to pair only on a
+            // section change, so a pairing that failed once was permanent. It fails whenever
+            // `is_chunk_ready` is still false - the player's chunk packet for the entity's chunk
+            // is queued but not delivered yet - which is the normal case for an entity a plugin
+            // spawns right after it built the block or the chunk it sits in. The client then saw
+            // the entity only after a relogin, which re-pairs unconditionally.
+            //
+            // `seen_by` holds the watchers except the entity itself when it is a player's, so the
+            // count of possible watchers is one less for those.
+            let possible_watchers =
+                players.len() - usize::from(tracked.entity.get_player().is_some());
+            let every_watcher_paired = tracked.seen_by.len() >= possible_watchers;
+            if old_pos != new_pos || !every_watcher_paired {
                 tracked.update_players(players.as_ref(), world);
-                if let Some(player) = tracked.entity.get_player()
+                if old_pos != new_pos
+                    && let Some(player) = tracked.entity.get_player()
                     && let Some(player_arc) = world.get_player_by_uuid(player.gameprofile.id)
                 {
                     moved_players.push(player_arc);

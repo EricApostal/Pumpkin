@@ -240,6 +240,20 @@ impl BlockEntity for PluginBlockEntity {
         }
     }
 
+    /// The update tag: exactly what the chunk packet sends for this entity (`CLIENT_DATA_KEY`,
+    /// see `net/java/chunk_data/v1_18.rs`), so the two paths give the client the same data.
+    ///
+    /// This is the only way a plugin block entity's data reaches a client *after* a fresh
+    /// `set_block_state`: the tick-end flush (`flush_block_updates`) re-sends the block update and
+    /// then this data. Without it, `publish_plugin_block_entity`'s own broadcast is the only
+    /// carrier and it is enqueued mid-tick, before the deferred block update, so the client
+    /// (`ClientPacketListener.handleBlockEntityData` -> `getBlockEntity(pos, type)`) finds no block
+    /// entity at the position yet and drops it. The block entity it then creates from the block
+    /// update stays empty until the chunk is sent again (relogin).
+    fn chunk_data_nbt(&self) -> Option<NbtCompound> {
+        self.client_data()
+    }
+
     fn from_nbt(nbt: &NbtCompound, position: BlockPos) -> Self
     where
         Self: Sized,

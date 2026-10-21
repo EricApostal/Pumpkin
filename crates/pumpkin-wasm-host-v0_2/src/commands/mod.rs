@@ -282,7 +282,7 @@ impl pumpkin::plugin::command::HostCommandSender for PluginHostState {
         res: Resource<CommandSender>,
     ) -> wasmtime::Result<CommandSenderType> {
         let sender = self.get(&res)?.clone();
-        match sender {
+        match sender.sender {
             pumpkin_core::command::CommandSender::Console => Ok(CommandSenderType::Console),
             pumpkin_core::command::CommandSender::Player(player) => {
                 Ok(CommandSenderType::Player(self.add(player)?))
@@ -295,7 +295,7 @@ impl pumpkin::plugin::command::HostCommandSender for PluginHostState {
     }
 
     fn get_name(&mut self, sender: Resource<CommandSender>) -> wasmtime::Result<String> {
-        Ok(self.get(&sender)?.to_string())
+        Ok(self.get(&sender)?.sender.to_string())
     }
 
     fn send_message(
@@ -342,14 +342,14 @@ impl pumpkin::plugin::command::HostCommandSender for PluginHostState {
 
     fn is_player(&mut self, sender: Resource<CommandSender>) -> wasmtime::Result<bool> {
         Ok(matches!(
-            self.get(&sender)?,
+            &self.get(&sender)?.sender,
             pumpkin_core::command::CommandSender::Player(_)
         ))
     }
 
     fn is_console(&mut self, sender: Resource<CommandSender>) -> wasmtime::Result<bool> {
         Ok(matches!(
-            self.get(&sender)?,
+            &self.get(&sender)?.sender,
             pumpkin_core::command::CommandSender::Console
         ))
     }
@@ -358,7 +358,7 @@ impl pumpkin::plugin::command::HostCommandSender for PluginHostState {
         &mut self,
         sender: Resource<CommandSender>,
     ) -> wasmtime::Result<Option<Resource<Player>>> {
-        if let pumpkin_core::command::CommandSender::Player(player) = &self.get(&sender)? {
+        if let pumpkin_core::command::CommandSender::Player(player) = &self.get(&sender)?.sender {
             Ok(Some(self.add(player.clone()).map_err(|_| {
                 wasmtime::Error::msg("Failed to add player resource")
             })?))
@@ -403,6 +403,8 @@ impl pumpkin::plugin::command::HostCommandSender for PluginHostState {
         &mut self,
         sender: Resource<CommandSender>,
     ) -> wasmtime::Result<Option<Resource<World>>> {
+        // `CommandSenderContext::world` also returns the world of the command
+        // source for senders that have none of their own, like the console.
         if let Some(world) = self.get(&sender)?.world() {
             Ok(Some(self.add(world).map_err(|_| {
                 wasmtime::Error::msg("Failed to add world resource")

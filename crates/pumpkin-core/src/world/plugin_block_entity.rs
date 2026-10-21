@@ -384,6 +384,13 @@ impl World {
         entity.write_internal(&mut nbt);
         self.add_block_entity_nbt(position, &nbt);
 
+        // The block entity data goes out with the block update of the same tick through
+        // `flush_block_updates` (`BlockEntity::chunk_data_nbt`), in the order the client needs:
+        // its `handleBlockEntityData` drops a packet for a block entity it does not have yet, and
+        // the one it creates from the block update otherwise stays empty until the chunk is sent
+        // again. Vanilla pairs them the same way (`ChunkHolder.broadcastChanges`:
+        // `ClientboundBlockUpdatePacket`, then `broadcastBlockEntityIfNeeded`). This broadcast
+        // covers the other case: a block that is already on the client whose data changed.
         if let Some(client_data) = entity.client_data() {
             let bytes = pumpkin_nbt::Nbt::from(client_data).write_unnamed();
             self.broadcast_to_chunk(

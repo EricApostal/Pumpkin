@@ -7,13 +7,35 @@ use pumpkin_core::{
         ClientPlatform, PacketHandlerResult, PacketRateLimiter,
         java::{JavaClient, pending::PendingConnection},
     },
+    plugin::loader::PluginLoader,
     server::Server,
 };
 use pumpkin_util::PermissionLvl;
+use pumpkin_wasm_host::WasmPluginLoader;
 use tokio::net::TcpListener;
 use tokio_util::{sync::CancellationToken, task::TaskTracker};
 
+/// Boots a test server with **no plugins**.
 pub async fn create_test_server(temp_dir: &tempfile::TempDir) -> Result<Arc<Server>, String> {
+    create_test_server_inner(temp_dir, false).await
+}
+
+/// Boots a test server that loads every wasm component in `./plugins`.
+///
+/// `PLUGIN_DIR` is the cwd-relative `./plugins` (`pumpkin-core/src/plugin/mod.rs:40`), so a test
+/// using this **must run with the repository root as its working directory** — `cargo test` does
+/// that. The plugins config defaults would otherwise hang the run waiting for a console
+/// permission prompt (`pumpkin-config/src/plugins.rs:57`), so confirmation is disabled here.
+pub async fn create_test_server_with_plugin(
+    temp_dir: &tempfile::TempDir,
+) -> Result<Arc<Server>, String> {
+    create_test_server_inner(temp_dir, true).await
+}
+
+async fn create_test_server_inner(
+    temp_dir: &tempfile::TempDir,
+    plugin: bool,
+) -> Result<Arc<Server>, String> {
     let basic_config = BasicConfiguration {
         default_level_name: temp_dir.path().to_string_lossy().into_owned(),
         allow_nether: false,
@@ -33,15 +55,40 @@ pub async fn create_test_server(temp_dir: &tempfile::TempDir) -> Result<Arc<Serv
     advanced_config.player_data.save_player_data = false;
     advanced_config.advancement.save_advancements = false;
 
-    Server::new(
+    if plugin {
+        advanced_config.plugins.enabled = true;
+        advanced_config.plugins.hot_reload = false;
+        advanced_config.plugins.ask_permission_confirmation = false;
+        advanced_config.plugins.allow_unsigned = true;
+    }
+
+    let plugin_loaders: Vec<Arc<dyn PluginLoader>> = if plugin {
+        vec![Arc::new(WasmPluginLoader::new(false))]
+    } else {
+        Vec::new()
+    };
+
+    let server = Server::new(
         basic_config,
         advanced_config,
         TelemetryConfig::default(),
         VanillaData::default(),
-        Vec::new(),
+        plugin_loaders,
     )
     .await
-    .map_err(|err| format!("Failed to initialize test Server: {err}"))
+    .map_err(|err| format!("Failed to initialize test Server: {err}"))?;
+
+    if plugin {
+        // `PumpkinServer::init_plugins` is the production entry (`pumpkin-core/src/lib.rs:422`);
+        // the harness holds only the inner `Server`, so it drives the manager directly.
+        server
+            .plugin_manager
+            .load_plugins(&server)
+            .await
+            .map_err(|err| format!("Failed to load plugins from ./plugins: {err}"))?;
+    }
+
+    Ok(server)
 }
 
 pub fn spawn_java_listener(

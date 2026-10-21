@@ -106,4 +106,44 @@ mod tests {
             );
         }
     }
+
+    /// **What the client is told about a section that is uniformly lit.**
+    ///
+    /// The empty mask means "all zeros" (`ClientPacketListener.readSectionList` stores a
+    /// `new DataLayer()` for a section in it), so a section that is uniformly 15 has to travel as
+    /// an array of 15. The light payload is the last thing in the packet, so the tail of the
+    /// serialized packet is the assertion.
+    #[test]
+    fn a_uniform_section_is_sent_as_an_array_and_not_as_an_empty_one() {
+        use pumpkin_world::chunk::format::LightContainer;
+
+        let chunk = ChunkData::empty(0, 0);
+        {
+            let mut engine = chunk
+                .light_engine
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            let mut sky = vec![LightContainer::new_empty(0); 24];
+            sky[0] = LightContainer::new_empty(15);
+            engine.sky_light = sky.into_boxed_slice();
+            engine.block_light = vec![LightContainer::new_empty(0); 24].into_boxed_slice();
+        }
+
+        let mut buf = Vec::new();
+        CChunkData(&chunk)
+            .write_packet_data(&mut buf, &JavaMinecraftVersion::V_26_3)
+            .expect("chunk data serializes");
+
+        // Sky light arrays: the fixed length of one array, then the array, then no block light
+        // array at all. A section announced as empty would leave the count at zero instead.
+        let mut expected = vec![0x01, 0x80, 0x10];
+        expected.extend_from_slice(&[0xFF; 2048]);
+        expected.push(0x00);
+        assert!(
+            buf.ends_with(&expected),
+            "the section that is uniformly 15 is not in the sky light arrays: the packet ends \
+             with {:?}",
+            &buf[buf.len().saturating_sub(8)..],
+        );
+    }
 }

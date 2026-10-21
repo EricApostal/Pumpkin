@@ -5,6 +5,9 @@
 //! bot, and inspect the packets the bot actually received.
 
 pub mod bot;
+pub mod client_trace;
 pub mod harness;
+pub mod mctrace;
 pub mod packet_capture;
+pub mod recorder;
 pub mod scenario;

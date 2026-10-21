@@ -9,7 +9,15 @@ use std::sync::{Arc, Mutex};
 ///
 /// It fires on a chunk generation worker thread, so handlers must be blocking and cheap. The
 /// writable chunk is only the chunk being generated, blocks outside it cannot be reached.
+///
+/// It dispatches in [`DispatchClass::Background`](crate::plugin::DispatchClass::Background): the
+/// only thing a generation worker wants from the plugin is throughput, so this event never delays
+/// a dispatch the server's own timeline waits on (a tick, a player action), see
+/// `Payload::dispatch_class`. Every generation worker blocks here until its answer arrives, which
+/// is what makes that queue the one place where a slow plugin could otherwise stall the tick once
+/// the workers pile up on the single guest.
 #[derive(Event, Clone)]
+#[dispatch_class(background)]
 pub struct PluginFeaturePlaceEvent {
     /// The world that generates the chunk.
     pub world: Arc<World>,

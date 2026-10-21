@@ -51,7 +51,6 @@ pub use crate::bindings::{Plugin, pumpkin};
 mod resource_with {
     use super::pumpkin::plugin;
     use pumpkin_core::{
-        command::CommandSender,
         entity::{EntityBase, player::Player},
         plugin::{Context, api::gui::PluginGui},
         server::{RecipeManager, Server},
@@ -61,8 +60,8 @@ mod resource_with {
     use pumpkin_wasm_host_common::{
         args::OwnedArg,
         state::{
-            ChunkBuffer, FromResource, InventoryProvider, ScoreboardProvider, WasmCommand,
-            WasmCommandNode,
+            ChunkBuffer, CommandSenderContext, FromResource, InventoryProvider, ScoreboardProvider,
+            WasmCommand, WasmCommandNode,
         },
     };
     use std::collections::HashMap;
@@ -116,7 +115,7 @@ mod resource_with {
         type Internal = WasmCommand;
     }
     impl FromResource for plugin::command::CommandSender {
-        type Internal = CommandSender;
+        type Internal = CommandSenderContext;
     }
     impl FromResource for plugin::command::ConsumedArgs {
         type Internal = HashMap<String, OwnedArg>;

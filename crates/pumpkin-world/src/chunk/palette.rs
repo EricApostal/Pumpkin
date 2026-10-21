@@ -949,6 +949,11 @@ impl BlockPalette {
         }
     }
 
+    /// The binary form names each state by its full id in a `u16`, so the format tops out at
+    /// 65536 states in total (the generated vanilla states first, then the registered plugin
+    /// ones). `as_u16` truncates silently; a build whose registry grew past that limit would
+    /// corrupt a chunk rather than fail. Widen this and `read_state` (and the format version)
+    /// before that can happen.
     pub(crate) fn write_pump_binary(&self, out: &mut Vec<u8>) {
         use bytes::BufMut;
 
@@ -977,8 +982,9 @@ impl BlockPalette {
         }
     }
 
-    /// Reads a block palette. Sets `unresolved` when a state id is not a generated one, which the
-    /// pumpkin binary format turns into air: the chunk named a block this build does not know.
+    /// Reads a block palette. Sets `unresolved` when a state id names no state of this build (a
+    /// block that is not registered, e.g. a plugin that has not loaded yet), which the pumpkin
+    /// binary format turns into air: the chunk named a block this build does not know.
     pub(crate) fn read_pump_binary(
         buf: &mut &[u8],
         unresolved: &mut bool,
@@ -986,11 +992,18 @@ impl BlockPalette {
         use bytes::Buf;
 
         fn read_state(buf: &mut &[u8], unresolved: &mut bool) -> BlockStateId {
+            // Both the generated vanilla states and the registered plugin states are named by
+            // their full id here, so this must go through `from_raw`/`from_raw_or_air`, which
+            // check `total_count()`. `new_or_air` only knows the generated (vanilla) states
+            // (`STATE_COUNT`) and turned every plugin block into air on the next load, which the
+            // following save then wrote back - silently deleting the plugin's blocks from a chunk
+            // the first time the chunk was saved again after a restart.
             let raw = buf.get_u16();
-            if raw >= BlockStateId::COUNT {
+            let state = BlockStateId::from_raw(u32::from(raw));
+            if state.is_none() {
                 *unresolved = true;
             }
-            BlockStateId::new_or_air(raw)
+            state.unwrap_or(BlockStateId::AIR)
         }
 
         if !buf.has_remaining() {

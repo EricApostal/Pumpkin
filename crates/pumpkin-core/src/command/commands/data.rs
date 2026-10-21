@@ -289,7 +289,9 @@ impl BlockDataAccessor {
 impl DataAccessor for BlockDataAccessor {
     fn set_data(&self, tag: &NbtCompound) -> Result<(), CommandSyntaxError> {
         if self.world.get_block_entity(&self.pos).is_some() {
-            self.world.add_block_entity_nbt(self.pos, tag);
+            // `apply_`, not `add_`: the entity is usually loaded (the accessor was built from
+            // it), and a tag that is only queued never reaches a loaded entity.
+            self.world.apply_block_entity_nbt(self.pos, tag);
             Ok(())
         } else {
             Err(ERROR_BLOCK_INVALID.create_without_context())

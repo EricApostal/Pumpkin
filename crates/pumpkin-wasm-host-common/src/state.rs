@@ -10,7 +10,7 @@ use wasmtime_wasi_http::{
 };
 
 use crate::plugin::WasmPlugin;
-use pumpkin_core::{entity::player::Player, server::Server, world::World};
+use pumpkin_core::{command::CommandSender, entity::player::Player, server::Server, world::World};
 
 pub struct WasmCommand {
     pub names: Vec<String>,
@@ -92,6 +92,41 @@ impl WasmCommandNode {
                 pumpkin_core::command::node::detached::DetachedNode::Argument(b.build())
             }
         }
+    }
+}
+
+/// A command sender as handed to a plugin, together with the world the command
+/// is being executed in.
+///
+/// [`CommandSender`] only knows a world for the senders that are bound to one
+/// (players and command blocks). Console and dummy senders operate in the world
+/// of the command source that dispatched them, which is only known while the
+/// command runs, so it is recorded here instead of being dropped.
+#[derive(Clone)]
+pub struct CommandSenderContext {
+    pub sender: CommandSender,
+    pub world: Option<Arc<World>>,
+}
+
+impl CommandSenderContext {
+    #[must_use]
+    pub const fn new(sender: CommandSender, world: Option<Arc<World>>) -> Self {
+        Self { sender, world }
+    }
+
+    /// The world this command runs in: the sender's own world if it is bound to
+    /// one, otherwise the world of the command source that dispatched it.
+    #[must_use]
+    pub fn world(&self) -> Option<Arc<World>> {
+        self.sender.world().or_else(|| self.world.clone())
+    }
+}
+
+impl std::ops::Deref for CommandSenderContext {
+    type Target = CommandSender;
+
+    fn deref(&self) -> &Self::Target {
+        &self.sender
     }
 }
 

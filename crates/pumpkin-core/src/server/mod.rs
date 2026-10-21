@@ -172,6 +172,9 @@ impl Server {
         plugin_loaders: Vec<Arc<dyn PluginLoader>>,
     ) -> Result<Arc<Self>, WorldInfoError> {
         let permission_manager = Arc::new(PermissionManager::new());
+        // Reads `PUMPKIN_PACKET_TRACE` before anything can send a packet, and is the only place
+        // the environment is consulted: the packet paths test a cached flag.
+        crate::net::packet_trace::init_from_env();
         // First register the default commands. After that, plugins can put in their own.
         let command_dispatcher = ArcSwap::from_pointee(default_dispatcher(
             &permission_manager,
@@ -1226,6 +1229,7 @@ impl Server {
     /// Main server tick method. This now handles both player/network ticking (which always runs)
     /// and world/game logic ticking (which is affected by freeze state).
     pub fn tick(self: &Arc<Self>) {
+        crate::net::packet_trace::set_tick(self.tick_count.load(Ordering::Relaxed));
         // Do not flush mid-tick; `Flush` is `flushChannel`.
         let suspended = self.suspend_player_flushes();
         if self.tick_rate_manager.runs_normally() || self.tick_rate_manager.is_sprinting() {

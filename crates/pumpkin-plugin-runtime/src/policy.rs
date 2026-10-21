@@ -1,6 +1,6 @@
 use std::future::Future;
 
-use crate::chain::{ReentryContext, RootAdmission, RootAdmissionGuard, scope};
+use crate::chain::{AdmissionClass, ReentryContext, RootAdmission, RootAdmissionGuard, scope};
 
 mod sealed {
     pub trait StorePolicy {}
@@ -38,8 +38,11 @@ impl LegacySyncReentry {
         ReentryContext::current().filter(|context| self.root_admission.admits(*context))
     }
 
-    pub(crate) async fn acquire_root(&self) -> wasmtime::Result<RootAdmissionGuard> {
-        self.root_admission.acquire_root().await
+    pub(crate) async fn acquire_root(
+        &self,
+        class: AdmissionClass,
+    ) -> wasmtime::Result<RootAdmissionGuard> {
+        self.root_admission.acquire_root(class).await
     }
 
     /// A fresh root context of this admission authority, without waiting for the admission.
@@ -67,7 +70,7 @@ impl LegacySyncReentry {
             return scope(context, future).await;
         }
 
-        let admission = self.acquire_root().await?;
+        let admission = self.acquire_root(AdmissionClass::Normal).await?;
         let context = admission.context();
         let output = scope(context, future).await;
         drop(admission);

@@ -95,6 +95,19 @@ impl PluginRuntime {
         task_scheduler: Arc<TaskScheduler>,
         store_spawner: Arc<dyn RuntimeSpawner>,
     ) -> Result<Self, PluginInitError> {
+        // A plugin event fired while the current thread runs a host-initiated guest call cannot be
+        // dispatched re-entrantly: the store driver that would serve the nested call is on that
+        // thread's stack. The runtime reports it so the dispatch is deferred instead.
+        pumpkin_core::plugin::install_guest_call_probe(
+            pumpkin_plugin_runtime::is_running_guest_call,
+        );
+        // The other half of that round trip: the runtime reports when the outermost guest call of
+        // a chain has returned, so the events a host write inside it had to defer are dispatched
+        // then rather than at the next server tick.
+        pumpkin_plugin_runtime::install_guest_call_return_hook(
+            pumpkin_core::plugin::drain_deferred_events_after_guest_call,
+        );
+
         let mut config = wasmtime::Config::new();
         config.wasm_component_model(true);
         config.wasm_component_model_async(true);

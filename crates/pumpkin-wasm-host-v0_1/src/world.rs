@@ -75,6 +75,7 @@ use pumpkin_core::block::entities::trial_spawner::TrialSpawnerBlockEntity as Int
 use pumpkin_core::block::entities::vault::VaultBlockEntity as InternalVaultBlockEntity;
 use pumpkin_core::world::explosion::ExplosionInteraction;
 use pumpkin_data::game_rules::{GameRule, GameRuleValue};
+use pumpkin_wasm_host_common::concurrent_store::AdmissionClass;
 use pumpkin_wasm_host_common::state::ChunkBuffer;
 use pumpkin_wasm_host_common::state::PluginHostState;
 
@@ -2141,10 +2142,14 @@ impl WasmChunkGenerator {
         };
         let generator_id = self.generator_id;
         let run = async {
+            // A phase runs on a chunk generation worker and its answer is only needed by the
+            // generator, so it is dispatched in the background class: a plugin that generates its
+            // own chunks must not queue in front of the server's own timeline either (see
+            // `AdmissionClass`).
             let result = self
                 .plugin
                 .store
-                .call_guest(move |mut guest| {
+                .call_guest_in(AdmissionClass::Background, move |mut guest| {
                     Box::pin(async move {
                         let (buffer_resource, buffer_rep) = guest.with(|mut store| {
                             let resource = store.data_mut().add(chunk_buffer)?;
