@@ -65,7 +65,10 @@ impl CommandExecutor for WasmCommandExecutor {
             plugin.func_handle_command()
         };
 
-        tokio::task::block_in_place(|| {
+        // Plugin-attribution: this is a host→guest call the caller's thread waits for
+        // (`plugin/perf.rs`), off unless `PUMPKIN_PLUGIN_PERF` is set.
+        let started = pumpkin_core::plugin::perf::start();
+        let result = tokio::task::block_in_place(|| {
             tokio::runtime::Handle::current().block_on(async {
                 self.plugin
                     .store
@@ -118,7 +121,9 @@ impl CommandExecutor for WasmCommandExecutor {
                         )
                     })?
             })
-        })
+        });
+        pumpkin_core::plugin::perf::record("command-handler", started);
+        result
     }
 }
 
@@ -146,7 +151,9 @@ impl SuggestionProvider for WasmCommandSuggestionProvider {
             plugin.func_handle_command_suggestion()
         };
 
-        tokio::task::block_in_place(|| {
+        // Plugin-attribution: a host→guest call the caller waits for (`plugin/perf.rs`).
+        let started = pumpkin_core::plugin::perf::start();
+        let result = tokio::task::block_in_place(|| {
             tokio::runtime::Handle::current().block_on(async {
                 match self
                     .plugin
@@ -200,6 +207,8 @@ impl SuggestionProvider for WasmCommandSuggestionProvider {
                     }
                 }
             })
-        })
+        });
+        pumpkin_core::plugin::perf::record("command-suggestion", started);
+        result
     }
 }

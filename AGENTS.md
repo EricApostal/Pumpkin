@@ -186,7 +186,7 @@ Some things still need a real client: rendering, particles, sounds, animations, 
 - `dropped` is a packet that never reached the queue — a full connection buffer, or a closed one. It is the difference between "the server never sent it" and "the client did not receive it", which looks the same from the client side.
 - **It costs nothing when unset.** The environment is read once, in `Server::new` (`packet_trace::init_from_env`), and the packet path only tests a cached `AtomicBool` before touching anything: no allocation, no formatting, no lock, one relaxed load and a branch — what a `debug!` leaves behind.
 
-**Client side, for a client that is not a real one.** `pumpkin-tester client --addr <host:port> --name <A> --trace <path> [--neoforge]` joins with the headless bot (`tools/pumpkin-tester/src/bot.rs`) and writes the same schema for everything it *receives*, with `"dir":"recv"` and `"client"` set to `--name`. It answers keep-alives and runs until stdin closes or it is signalled; it exits non-zero when the join never completed. A packet outside the kinds above is written as `{"kind":"other","id":N,"len":L}`, so nothing received goes unrecorded (a packet of a kind the trace decodes whose payload does not decode gets that line too). `--neoforge` runs the modded handshake, but a separate process loads no plugins, so it cannot answer the server's channel query on the plugin's behalf: the server refuses it (`Incompatible mods`). The handshake itself is tested in-process instead (`tools/pumpkin-tester/tests/neoforge_handshake.rs`); the vanilla join still receives the modded payloads a plugin sends over its declared channels.
+**Client side, for a client that is not a real one.** `pumpkin-tester client --addr <host:port> --name <A> --trace <path> [--neoforge] [--mirror]` joins with the headless bot (`tools/pumpkin-tester/src/bot.rs`) and writes the same schema for everything it *receives*, with `"dir":"recv"` and `"client"` set to `--name`. It answers keep-alives and runs until stdin closes or it is signalled; it exits non-zero when the join never completed. A packet outside the kinds above is written as `{"kind":"other","id":N,"len":L}`, so nothing received goes unrecorded (a packet of a kind the trace decodes whose payload does not decode gets that line too). `--neoforge` runs the modded handshake, but a separate process loads no plugins, so it cannot answer the server's channel query on the plugin's behalf: the server refuses it (`Incompatible mods`). The handshake itself is tested in-process instead (`tools/pumpkin-tester/tests/neoforge_handshake.rs`); the vanilla join still receives the modded payloads a plugin sends over its declared channels.
 
 This side also reports what a chunk packet *carried* — a joining client gets a block entity's client data inside `LEVEL_CHUNK_WITH_LIGHT`, not as a `BLOCK_ENTITY_DATA` packet, so without these lines "the relogin learned it from the chunk" is invisible:
 
@@ -194,6 +194,37 @@ This side also reports what a chunk packet *carried* — a joining client gets a
 {"dir":"recv","client":"A","kind":"chunk","chunk":[0,0]}
 {"dir":"recv","client":"A","kind":"chunk_block_entity","chunk":[0,0],"pos":[4,70,0],"type":17,"nbt":"0a00"}
 ```
+
+**Both directions, from outside either side.** `mctrace` (`tools/pumpkin-tester/src/bin/mctrace.rs`, `tools/pumpkin-tester/src/mctrace.rs`) is a recording TCP proxy: put it in front of any server — a `Java` `NeoForge` one, Pumpkin, any version, any mod set — and point the client at the proxy instead of the server.
+
+```bash
+mctrace --listen 127.0.0.1:25570 --upstream 127.0.0.1:25598 --out trace.jsonl
+```
+
+It knows nothing about the protocol beyond the framing every `Java` edition connection shares — a `VarInt` length and then that many bytes — which is exactly why it is server-agnostic, and why it records what a *client* sends as faithfully as what a server does: the handshake a working client answers with is the one thing a server's own trace can never show. Every connection is recorded (the first client is `c:1`) and every line is flushed, so the file can be tailed while a run is live. The upstream is connected lazily, on the first client frame, so the proxy may start before the server does; it says on stderr when it is waiting for one. `Ctrl-C`/`SIGTERM` prints a summary (connections, frames, bytes, per direction) and closes the file.
+
+```jsonc
+{"c":1,"dir":"c2s","t":12,"id":0,"len":16,"data":"00…"}
+{"c":1,"dir":"s2c","t":15,"id":3,"len":3,"data":"8002"}
+```
+
+- `c` is the connection index (`1` for the first client, a higher number after a relogin), `dir` is `c2s` or `s2c`, `t` is milliseconds since the proxy started, `len` the frame length.
+- `data` is lowercase hex of the frame's bytes *exactly* as they crossed the socket, the id bytes first, so a frame can be replayed byte for byte.
+- `id` is the `VarInt` at the start of the frame, `null` when there is not one. **A frame a server compressed after `set_compression` starts with the uncompressed length instead of the id**, so `id` is that length and not a packet id (the real id is inside the compressed bytes); `mctrace decode` resolves it.
+- An encrypted connection (an `online-mode` server after the login) can be recorded but not decoded: the bytes after the key exchange are ciphertext.
+
+**Decoding a capture.** `mctrace decode --trace <trace.jsonl> [--dir c2s|s2c] [--connection N]` replays the frames of a connection through the decoder a real client uses (`pumpkin-protocol`'s `TCPNetworkDecoder`, compression included) and writes one line per packet, classified by the same code the tests assert through (`packet_capture`):
+
+```jsonc
+{"c":1,"dir":"s2c","t":15,"id":34,"len":5,"kind":"chunk","x":0,"z":0}
+{"c":1,"dir":"c2s","t":16,"id":2,"len":243,"kind":"payload","channel":"minecraft:register","data":"6e656f…"}
+```
+
+- `c`/`dir`/`t` come from the recorded frame, `id`/`len` from the decoded packet, `kind` from `packet_capture` (`chunk`, `unload_chunk`, `add_entity`, `payload`, `bundle_delimiter`, `set_compression`, `other`).
+- A configuration payload is the same `payload` kind with its `channel` and `data`, which is what a modded handshake (`neoforge:network`, `minecraft:register`, `c:register`, …) is read with.
+- A `NeoForge` connection writes its **play** payloads in `NeoForge`'s own encodings, which these decoders do not know: those packets stay `"kind":"other"` with their id.
+
+**Joining a server whose mods this process cannot read.** `pumpkin-tester client … --mirror` joins without an in-process plugin declaration: the `NeoForge` handshake is derived from **what the server says on the connection** (`minecraft:register`, `minecraft:unregister`, the query) and from **what the server refuses with**. A `NeoForge` server decides on the answer to its `neoforge:register` query — every channel it registered that is not optional must be in it, with the same flow and version — and it announces only the channels it listens on, so a client without the mods learns the rest from `neoforge:modded_network_setup_failed`, which names every channel that did not match and why (missing, the flow it expects, the version it has). Each refusal buys one more connection's worth of knowledge; `--mirror` therefore reconnects, up to `MIRRORING_ATTEMPTS` (6), and fails with the server's own message if that is not enough. It is the only way to join a server that runs its mods out of process, such as a `Java` `NeoForge` server, and against a server without the handshake it is a plain join.
 
 ### Tests
 

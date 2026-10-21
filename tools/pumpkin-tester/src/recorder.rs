@@ -17,10 +17,7 @@ use tokio::{
     task::JoinHandle,
 };
 
-use crate::{
-    bot::{HeadlessBot, MIRRORING_ATTEMPTS},
-    packet_capture::PacketCapture,
-};
+use crate::{bot::HeadlessBot, packet_capture::PacketCapture};
 
 /// A joined bot whose read half is being recorded.
 ///
@@ -58,9 +55,7 @@ impl ConnectedBot {
         addr: std::net::SocketAddr,
         name: &str,
     ) -> Result<Self, String> {
-        Self::from_bot(
-            HeadlessBot::connect_and_join_neoforge_mirroring(addr, name, MIRRORING_ATTEMPTS).await?,
-        )
+        Self::from_bot(HeadlessBot::connect_and_join_neoforge_mirroring(addr, name).await?)
     }
 
     fn from_bot(bot: HeadlessBot) -> Result<Self, String> {

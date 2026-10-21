@@ -129,6 +129,9 @@ impl Ticker {
             }
 
             server.update_tick_times(tick_duration_nanos);
+            // Closes the plugin-attribution interval of this tick (see `plugin/perf.rs`): a
+            // cached environment read and a compare when `PUMPKIN_PLUGIN_PERF` is unset.
+            crate::plugin::perf::on_tick();
 
             if STOP_INTERRUPT.is_cancelled() {
                 break 'ticker;

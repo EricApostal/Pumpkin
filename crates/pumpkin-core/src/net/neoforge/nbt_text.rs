@@ -97,6 +97,11 @@ impl NbtText {
             let name = read_nbt_string(reader)?;
             match (name.as_str(), entry) {
                 ("text", TAG_STRING) => text = Some(read_nbt_string(reader)?),
+                // A text component with no field name is how a `NeoForge` server writes a literal
+                // *argument* of a translatable component (the arguments of a list are compounds,
+                // and a plain string component becomes `{"": "text"}`): a real server's
+                // `neoforge:modded_network_setup_failed` carries its mod names that way.
+                ("", TAG_STRING) => text = Some(read_nbt_string(reader)?),
                 ("translate", TAG_STRING) => key = Some(read_nbt_string(reader)?),
                 ("with", TAG_LIST) => {
                     let element = reader.byte()?;

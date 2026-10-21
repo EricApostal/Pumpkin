@@ -20,7 +20,12 @@ pub struct SInteract {
 // Great job Mojang ;D
 impl<'a> ServerPacket<'a> for SInteract {
     fn read(mut read: &mut &'a [u8], version: &JavaMinecraftVersion) -> Result<Self, ReadingError> {
-        // 26.1+ removes the 'type' field and uses doubles for location
+        // 26.1+ removed the 'type' field: one interact packet, with the click position as an
+        // `LpVec3`, and the attack as its own `ServerboundAttackPacket` (`SAttack`). The single
+        // entry point that packet means is `Entity.interact(player, hand, location)`
+        // (`Player.interactOn`), so the action is `Interact`: `InteractAt` is a distinction this
+        // wire cannot express and that vanilla no longer has. The position is always there, which
+        // is what `target_position` carries below.
         if version >= &JavaMinecraftVersion::V_26_1 {
             let entity_id = read.get_var_int()?;
             let hand = Some(read.get_var_int()?);
@@ -29,7 +34,7 @@ impl<'a> ServerPacket<'a> for SInteract {
 
             return Ok(Self {
                 entity_id,
-                r#type: VarInt(2), // InteractAt for compatibility
+                r#type: VarInt(ActionType::Interact as i32),
                 target_position,
                 hand,
                 sneaking,

@@ -1578,6 +1578,28 @@ fn props_to_pairs(props: &[Property]) -> Vec<(&'static str, &'static str)> {
         .collect()
 }
 
+/// The name/value pairs of every property of `state`, as the registry stores them.
+///
+/// `BlockProperties::to_props` answers with the closed vanilla [`Property`] enum, which can only
+/// represent vanilla property *names* — a block registered at runtime may have properties of its
+/// own (genuinely new name, or a vanilla name with a longer value list), and those are dropped
+/// there. Anything that has to address a property *by name* (the block state argument, block
+/// predicates, the item block-state component) needs this instead: for a vanilla block the two are
+/// identical, for a dynamic block this is the unfiltered answer the registry was given.
+#[must_use]
+pub fn state_property_pairs(
+    block: &'static Block,
+    state: &'static BlockState,
+) -> Vec<(&'static str, &'static str)> {
+    if let Some(info) = block.dynamic_info() {
+        return info.to_props(info.state_index(state.id).unwrap_or(info.default_index));
+    }
+    match block.properties(state.id) {
+        Some(properties) => props_to_pairs(&properties.to_props()),
+        None => Vec::new(),
+    }
+}
+
 fn unit_box() -> BoundingBox {
     BoundingBox {
         min: Vector3::new(0.0, 0.0, 0.0),

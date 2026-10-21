@@ -20,6 +20,9 @@ pub struct PlayerInteractUnknownEntityEvent {
     pub entity_id: i32,
 
     /// The type of interaction (Interact, Attack, or `InteractAt`).
+    ///
+    /// 26.1+ only carries `Interact`: that protocol has a single interact packet with no type
+    /// field, and a left click arrives as its own packet.
     pub action: ActionType,
 }
 

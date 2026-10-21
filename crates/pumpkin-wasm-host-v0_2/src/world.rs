@@ -1,8 +1,10 @@
 use super::{AccessorExt, in_active_context, run_blocking};
 use crate::LockIgnorePoison;
 
-use pumpkin_data::block_properties::NoteblockInstrument as InternalNoteblockInstrument;
-use pumpkin_data::block_registry::ShapeKind;
+use pumpkin_data::block_properties::{
+    BlockProperties, NoteblockInstrument as InternalNoteblockInstrument,
+};
+use pumpkin_data::block_registry::{DynamicBlockProperties, ShapeKind};
 use pumpkin_data::block_state::PistonBehavior;
 use pumpkin_data::tag::Taggable;
 use pumpkin_data::{BlockDirection as InternalBlockDirection, BlockId, BlockStateId};
@@ -438,6 +440,21 @@ impl pumpkin::plugin::world::Host for PluginHostState {
             return Ok(Some(block.default_state.id.as_u32()));
         }
 
+        // A block registered at runtime resolves its own property names (which the closed vanilla
+        // `Property` enum cannot hold) through its layout; `from_str_pair` would drop them.
+        if let Some(info) = block.dynamic_info() {
+            let pairs: Vec<(&str, &str)> = properties
+                .iter()
+                .map(|(name, value)| (name.as_str(), value.as_str()))
+                .collect();
+            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                info.strict_index_from_props(&pairs)
+                    .map(|index| DynamicBlockProperties::new(info, index))
+                    .map(|props| props.to_state_id(block).as_u32())
+            }));
+            return Ok(result.ok().flatten());
+        }
+
         let props: Vec<pumpkin_data::Property> = properties
             .iter()
             .filter_map(|(k, v)| pumpkin_data::Property::from_str_pair(k, v))
@@ -459,15 +476,17 @@ impl pumpkin::plugin::world::Host for PluginHostState {
             let bsid = BlockStateId::from_raw_or_air(state_id);
             let block = pumpkin_data::Block::from_state_id(bsid);
             let name = block.resource_location().into_owned();
-            let properties = block
-                .properties(bsid)
-                .map(|p| {
-                    p.to_props()
-                        .into_iter()
-                        .map(|prop| (prop.key_str().to_string(), prop.value_str().to_string()))
-                        .collect()
-                })
-                .unwrap_or_default();
+            // `state_property_pairs`, not `properties(..).to_props()`: the latter answers with the
+            // closed vanilla `Property` enum and drops every property a plugin-named property such
+            // as `axis_along_first` or `receiver` (the guest would read them as absent).
+            let properties =
+                pumpkin_data::block_registry::state_property_pairs(
+                    block,
+                    pumpkin_data::BlockState::from_id(bsid),
+                )
+                .into_iter()
+                .map(|(name, value)| (name.to_string(), value.to_string()))
+                .collect();
             WitBlockStateInfo { name, properties }
         }));
         Ok(result.ok())
@@ -667,7 +686,12 @@ const fn from_wit_tick_priority(priority: WitTickPriority) -> TickPriority {
 
 impl pumpkin::plugin::world::HostWorld for PluginHostState {
     fn get_id(&mut self, world: Resource<World>) -> wasmtime::Result<String> {
-        Ok(self.get(&world)?.get_world_name().to_string())
+        // Plugin-attribution (`plugin/perf.rs`): the plugin asks for this once per world tick
+        // (`WorldTick.worldId`), so the kind answers "does an idle tick call into the host".
+        let started = pumpkin_core::plugin::perf::start();
+        let result = Ok(self.get(&world)?.get_world_name().to_string());
+        pumpkin_core::plugin::perf::record("import.world.get-id", started);
+        result
     }
 
     fn get_border(&mut self, world: Resource<World>) -> wasmtime::Result<Resource<WitWorldBorder>> {
@@ -903,7 +927,12 @@ impl pumpkin::plugin::world::HostWorld for PluginHostState {
     }
 
     fn get_world_age(&mut self, world: Resource<World>) -> wasmtime::Result<u64> {
-        Ok(self.get(&world)?.get_world_age() as u64)
+        // Plugin-attribution (`plugin/perf.rs`): the trains module reads the world age every tick
+        // (`HostTrainLevel.gameTime`), so this kind is one call per tick on an idle server.
+        let started = pumpkin_core::plugin::perf::start();
+        let result = Ok(self.get(&world)?.get_world_age() as u64);
+        pumpkin_core::plugin::perf::record("import.world.get-world-age", started);
+        result
     }
 
     fn schedule_block_tick(
@@ -2537,6 +2566,8 @@ impl WasmChunkGenerator {
             // generator, so it is dispatched in the background class: a plugin that generates its
             // own chunks must not queue in front of the server's own timeline either (see
             // `AdmissionClass`).
+            // Plugin-attribution (`plugin/perf.rs`): one host→guest call per generation phase.
+            let started = pumpkin_core::plugin::perf::start();
             let result = self
                 .plugin
                 .store
@@ -2559,6 +2590,7 @@ impl WasmChunkGenerator {
                     })
                 })
                 .await;
+            pumpkin_core::plugin::perf::record("worldgen-phase", started);
             if let Err(error) = result {
                 panic!("Wasm chunk generation phase failed for generator {generator_id}: {error}");
             }

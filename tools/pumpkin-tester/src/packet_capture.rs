@@ -10,6 +10,7 @@ use bytes::Bytes;
 use pumpkin_data::packet::CURRENT_MC_VERSION;
 use pumpkin_protocol::{
     RawPacket, ServerPacket,
+    codec::bit_set::BitSet,
     java::client::play::{
         CBlockEntityData, CBlockUpdate, CBundleDelimiter, CChunkData, CCustomPayload,
         CMultiBlockUpdate, CSpawnEntity, CUnloadChunk,
@@ -303,6 +304,166 @@ pub struct ChunkBlockEntity {
     pub nbt: Vec<u8>,
 }
 
+/// One heightmap a `LEVEL_CHUNK_WITH_LIGHT` carried.
+///
+/// The client files it under [`ChunkHeightmap::index`] (`Heightmap.Types`: 1 world surface,
+/// 4 motion blocking, 5 motion blocking no leaves), and reads the packed heights from the
+/// world's minimum Y: 9 bits per column, 7 columns per long, low column first.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ChunkHeightmap {
+    pub index: i32,
+    pub data: Vec<i64>,
+}
+
+impl ChunkHeightmap {
+    /// The height the map reports for the column `(x, z)` of the chunk, in **block** Y.
+    ///
+    /// `min_y` is the world's minimum Y section floor (overworld: -64) — the packet itself does
+    /// not carry it, a client knows it from the dimension.
+    #[must_use]
+    pub fn height_at(&self, min_y: i32, local_x: usize, local_z: usize) -> i32 {
+        let column = local_z * 16 + local_x;
+        let packed = self.data.get(column / 7).copied().unwrap_or(0);
+        let value = (packed >> ((column % 7) * 9)) & 0x1FF;
+        min_y + value as i32
+    }
+
+    /// A stable digest of the packed heights, for "did this column's heightmap change".
+    #[must_use]
+    pub fn digest(&self) -> u64 {
+        let mut digest = 0xcbf29ce484222325u64;
+        for value in &self.data {
+            for byte in value.to_be_bytes() {
+                digest = fnv1a_byte(digest, byte);
+            }
+        }
+        digest
+    }
+}
+
+/// Which of the two light layers of a chunk.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LightLayer {
+    Sky,
+    Block,
+}
+
+/// How one section of one light layer is described by the payload.
+///
+/// This mirrors what a client does with the packet (`LightData` in
+/// `pumpkin-protocol/src/java/client/play/light_update.rs`, read by the client's
+/// `readSectionList`): a section in the light mask carries a 2048-byte array, one in the empty
+/// mask is all zeros, and one in neither mask is not mentioned at all — a client keeps whatever
+/// layer it already had (which is an all-15 default for a lit sky section it has no data for).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum SectionLight {
+    /// A 2048-byte array of 16³ nibbles (low nibble of the first byte is x=0,y=0,z=0).
+    Array(Vec<u8>),
+    /// The empty mask says the section is all zeros.
+    Empty,
+    /// Neither mask mentions the section.
+    Absent,
+}
+
+/// The light of one `LEVEL_CHUNK_WITH_LIGHT`, decoded from the payload's tail.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ChunkLight {
+    pub sky_light_mask: u64,
+    pub block_light_mask: u64,
+    pub empty_sky_light_mask: u64,
+    pub empty_block_light_mask: u64,
+    pub sky_light_arrays: Vec<Vec<u8>>,
+    pub block_light_arrays: Vec<Vec<u8>>,
+}
+
+impl ChunkLight {
+    fn masks(&self, layer: LightLayer) -> (u64, u64) {
+        match layer {
+            LightLayer::Sky => (self.sky_light_mask, self.empty_sky_light_mask),
+            LightLayer::Block => (self.block_light_mask, self.empty_block_light_mask),
+        }
+    }
+
+    fn arrays(&self, layer: LightLayer) -> &[Vec<u8>] {
+        match layer {
+            LightLayer::Sky => &self.sky_light_arrays,
+            LightLayer::Block => &self.block_light_arrays,
+        }
+    }
+
+    /// The section `section` of `layer`, counted from the world's lowest section (`bit = section + 1`).
+    #[must_use]
+    pub fn section(&self, layer: LightLayer, section: usize) -> SectionLight {
+        let bit = section + 1;
+        if bit >= 64 {
+            return SectionLight::Absent;
+        }
+        let (light_mask, empty_mask) = self.masks(layer);
+        if empty_mask & (1u64 << bit) != 0 {
+            return SectionLight::Empty;
+        }
+        if light_mask & (1u64 << bit) == 0 {
+            return SectionLight::Absent;
+        }
+        // The arrays are in increasing bit order among the bits the mask sets.
+        let index = (0..bit).filter(|i| light_mask & (1u64 << i) != 0).count();
+        match self.arrays(layer).get(index) {
+            Some(array) => SectionLight::Array(array.clone()),
+            None => SectionLight::Absent,
+        }
+    }
+
+    /// The light nibble of `layer` at the world block `(x, y, z)`, as the payload states it.
+    ///
+    /// `None` when the section is [`SectionLight::Absent`]: the packet does not state a value for
+    /// that cell, so a client keeps the light it already had.
+    #[must_use]
+    pub fn cell(&self, layer: LightLayer, min_y: i32, x: i32, y: i32, z: i32) -> Option<u8> {
+        let section = (y - min_y).div_euclid(16);
+        let section = usize::try_from(section).ok()?;
+        let (lx, ly, lz) = (
+            x.rem_euclid(16) as usize,
+            y.rem_euclid(16) as usize,
+            z.rem_euclid(16) as usize,
+        );
+        match self.section(layer, section) {
+            SectionLight::Array(array) => {
+                let index = ((ly << 4) | lz) << 4 | lx;
+                let byte = *array.get(index >> 1)?;
+                Some((byte >> ((index & 1) * 4)) & 0x0F)
+            }
+            SectionLight::Empty => Some(0),
+            SectionLight::Absent => None,
+        }
+    }
+
+    /// A digest of everything the payload says about one layer: the arrays, in order.
+    ///
+    /// Two sends of the same world state have the same digest; a difference is a real difference
+    /// in what the client was told, not a formatting one.
+    #[must_use]
+    pub fn digest(&self, layer: LightLayer) -> u64 {
+        let mut digest = 0xcbf29ce484222325u64;
+        let (light_mask, empty_mask) = self.masks(layer);
+        for byte in light_mask.to_be_bytes() {
+            digest = fnv1a_byte(digest, byte);
+        }
+        for byte in empty_mask.to_be_bytes() {
+            digest = fnv1a_byte(digest, byte);
+        }
+for array in self.arrays(layer) {
+            for byte in array {
+                digest = fnv1a_byte(digest, *byte);
+            }
+        }
+        digest
+    }
+}
+
+fn fnv1a_byte(digest: u64, byte: u8) -> u64 {
+    (digest ^ u64::from(byte)).wrapping_mul(0x100000001b3)
+}
+
 /// Decoding of a single captured packet.
 ///
 /// The accessors above collect packets of one kind; these decode one packet each, which is what
@@ -456,6 +617,129 @@ impl CapturedPacket {
         }
         Ok(block_entities)
     }
+
+    /// The heightmaps `LEVEL_CHUNK_WITH_LIGHT` carried, read the way a client reads them.
+    ///
+    /// The order on the wire is the writer's (`ChunkHeightmaps::write_to`): a map size, then per
+    /// map an index, the long count and the big-endian longs.
+    pub fn chunk_heightmaps(&self) -> Result<Vec<ChunkHeightmap>, String> {
+        let mut slice = &self.payload[..];
+        slice
+            .get_i32()
+            .map_err(|err| format!("failed to decode chunk x: {err}"))?;
+        slice
+            .get_i32()
+            .map_err(|err| format!("failed to decode chunk z: {err}"))?;
+        read_heightmaps(&mut slice)
+    }
+
+    /// The light `LEVEL_CHUNK_WITH_LIGHT` carried, decoded from the payload's tail: the four
+    /// masks and the section arrays of both layers, in the order a client reads them.
+    ///
+    /// The packet is `x, z`, the heightmaps, the section data, the block entity list, then
+    /// `LightData` — the same walk [`CapturedPacket::chunk_block_entities`] makes, continued past
+    /// the list.
+    pub fn chunk_light(&self) -> Result<ChunkLight, String> {
+        let mut slice = &self.payload[..];
+        slice
+            .get_i32()
+            .map_err(|err| format!("failed to decode chunk x: {err}"))?;
+        slice
+            .get_i32()
+            .map_err(|err| format!("failed to decode chunk z: {err}"))?;
+
+        read_heightmaps(&mut slice)?;
+
+        let sections = slice
+            .get_var_int()
+            .map_err(|err| format!("failed to decode the section data length: {err}"))?
+            .0;
+        let sections = usize::try_from(sections).map_err(|err| err.to_string())?;
+        take(&mut slice, sections)?;
+
+        let count = slice
+            .get_var_int()
+            .map_err(|err| format!("failed to decode the block entity count: {err}"))?
+            .0;
+        let count = usize::try_from(count).map_err(|err| err.to_string())?;
+        for _ in 0..count {
+            take(&mut slice, 1)?;
+            take(&mut slice, 2)?;
+            slice
+                .get_var_int()
+                .map_err(|err| format!("failed to decode a block entity type: {err}"))?;
+            skip_nbt(&mut slice)?;
+        }
+
+        let read_bitset = |slice: &mut &[u8], what: &str| {
+            BitSet::decode_with_version(slice, &CURRENT_MC_VERSION)
+                .map(|set| set.as_u64())
+                .map_err(|err| format!("failed to decode the {what} mask: {err}"))
+        };
+        let sky_light_mask = read_bitset(&mut slice, "sky light")?;
+        let block_light_mask = read_bitset(&mut slice, "block light")?;
+        let empty_sky_light_mask = read_bitset(&mut slice, "empty sky light")?;
+        let empty_block_light_mask = read_bitset(&mut slice, "empty block light")?;
+
+        let read_arrays = |slice: &mut &[u8], what: &str| -> Result<Vec<Vec<u8>>, String> {
+            let count = slice
+                .get_var_int()
+                .map_err(|err| format!("failed to decode the {what} array count: {err}"))?
+                .0;
+            let count = usize::try_from(count).map_err(|err| err.to_string())?;
+            let mut arrays = Vec::with_capacity(count.min(64));
+            for _ in 0..count {
+                let length = slice
+                    .get_var_int()
+                    .map_err(|err| format!("failed to decode a {what} array length: {err}"))?
+                    .0;
+                let length = usize::try_from(length).map_err(|err| err.to_string())?;
+                arrays.push(take(slice, length)?.to_vec());
+            }
+            Ok(arrays)
+        };
+        let sky_light_arrays = read_arrays(&mut slice, "sky light")?;
+        let block_light_arrays = read_arrays(&mut slice, "block light")?;
+
+        Ok(ChunkLight {
+            sky_light_mask,
+            block_light_mask,
+            empty_sky_light_mask,
+            empty_block_light_mask,
+            sky_light_arrays,
+            block_light_arrays,
+        })
+    }
+}
+
+/// The heightmaps at the front of a chunk payload, leaving `slice` at the section data.
+fn read_heightmaps(slice: &mut &[u8]) -> Result<Vec<ChunkHeightmap>, String> {
+    let count = slice
+        .get_var_int()
+        .map_err(|err| format!("failed to decode the heightmap count: {err}"))?
+        .0;
+    let mut maps = Vec::with_capacity(usize::try_from(count).unwrap_or(0).min(8));
+    for _ in 0..count {
+        let index = slice
+            .get_var_int()
+            .map_err(|err| format!("failed to decode a heightmap index: {err}"))?
+            .0;
+        let longs = slice
+            .get_var_int()
+            .map_err(|err| format!("failed to decode a heightmap length: {err}"))?
+            .0;
+        let longs = usize::try_from(longs).map_err(|err| err.to_string())?;
+        let mut data = Vec::with_capacity(longs);
+        for _ in 0..longs {
+            data.push(
+                slice
+                    .get_i64_be()
+                    .map_err(|err| format!("failed to decode a heightmap long: {err}"))?,
+            );
+        }
+        maps.push(ChunkHeightmap { index, data });
+    }
+    Ok(maps)
 }
 
 /// Takes `count` bytes, or fails without consuming anything.
@@ -522,7 +806,10 @@ fn skip_nbt_payload(slice: &mut &[u8], tag_type: u8) -> Result<(), String> {
             Ok(())
         }
         10 => {
-            // A compound: tag type, body, until an end tag.
+            // A compound: per entry a tag type, the entry **name**, then its body, until an end
+            // tag. The name is what the old reader forgot: without it the body is read at the
+            // name's bytes, which is how a block entity list came to "end early" or hit a byte
+            // that is not a tag type as soon as a chunk carried one.
             loop {
                 let inner = slice
                     .get_u8()
@@ -530,6 +817,8 @@ fn skip_nbt_payload(slice: &mut &[u8], tag_type: u8) -> Result<(), String> {
                 if inner == 0 {
                     return Ok(());
                 }
+                let name = read_u16(slice, "compound entry name length")?;
+                take(slice, usize::from(name))?;
                 skip_nbt_payload(slice, inner)?;
             }
         }

@@ -107,6 +107,92 @@ mod tests {
         }
     }
 
+    /// **A plugin block entity rides a chunk only with its client tag.**
+    ///
+    /// `v1_18::write_chunk_data` sends a plugin entity as its `PluginClientData` and sends nothing
+    /// when the saved tag has no such compound. So the saved form has to keep the wrapper: a
+    /// pending entry that holds the update tag instead (which is what `World::update_block_entity`
+    /// wrote into the chunk before this was fixed) reaches a joining client as no block entity at
+    /// all, and the save data must not travel either way.
+    #[test]
+    fn a_plugin_block_entity_rides_the_chunk_with_its_client_tag() {
+        use crate::block::entities::plugin::{CLIENT_DATA_KEY, SAVE_DATA_KEY};
+        use pumpkin_nbt::compound::NbtCompound;
+        use pumpkin_util::math::position::BlockPos;
+        use pumpkin_util::math::vector3::Vector3;
+
+        fn holds(buf: &[u8], needle: &[u8]) -> bool {
+            buf.windows(needle.len()).any(|window| window == needle)
+        }
+
+        let entity_type =
+            pumpkin_data::block_entity_registry::register_plugin_block_entity_type(
+                "chunk_data_test:turned",
+                Vec::new(),
+            )
+            .expect("register the test block entity type");
+        let pos = BlockPos(Vector3::new(1, 64, 1));
+
+        let mut save_data = NbtCompound::new();
+        save_data.put_string("marker", "save_marker".to_string());
+        let mut client_data = NbtCompound::new();
+        client_data.put_string("marker", "client_marker".to_string());
+
+        let with_client_tag = ChunkData::empty(0, 0);
+        let mut saved = NbtCompound::new();
+        saved.put_string("id", entity_type.key.to_string());
+        saved.put_int("x", pos.0.x);
+        saved.put_int("y", pos.0.y);
+        saved.put_int("z", pos.0.z);
+        saved.put_compound(SAVE_DATA_KEY, save_data.clone());
+        saved.put_compound(CLIENT_DATA_KEY, client_data);
+        with_client_tag
+            .pending_block_entities
+            .lock()
+            .unwrap()
+            .insert(pos, saved);
+
+        let mut buf = Vec::new();
+        CChunkData(&with_client_tag)
+            .write_packet_data(&mut buf, &JavaMinecraftVersion::V_26_3)
+            .expect("the chunk serializes");
+        assert!(
+            holds(&buf, b"client_marker"),
+            "the client tag of the plugin entity has to ride the chunk"
+        );
+        assert!(
+            !holds(&buf, b"save_marker"),
+            "the save data of a plugin block entity stays on the server"
+        );
+        assert!(
+            !holds(&buf, b"PluginClientData"),
+            "the client gets the contents of the client tag, not the wrapper"
+        );
+
+        // The same entity without one is not sent: that is the branch that hid the rail curves.
+        let without_client_tag = ChunkData::empty(0, 0);
+        let mut saved = NbtCompound::new();
+        saved.put_string("id", entity_type.key.to_string());
+        saved.put_int("x", pos.0.x);
+        saved.put_int("y", pos.0.y);
+        saved.put_int("z", pos.0.z);
+        saved.put_compound(SAVE_DATA_KEY, save_data);
+        without_client_tag
+            .pending_block_entities
+            .lock()
+            .unwrap()
+            .insert(pos, saved);
+
+        let mut buf = Vec::new();
+        CChunkData(&without_client_tag)
+            .write_packet_data(&mut buf, &JavaMinecraftVersion::V_26_3)
+            .expect("the chunk serializes");
+        assert!(
+            !holds(&buf, b"client_marker") && !holds(&buf, b"save_marker"),
+            "an entity without a client tag is not sent"
+        );
+    }
+
     /// **What the client is told about a section that is uniformly lit.**
     ///
     /// The empty mask means "all zeros" (`ClientPacketListener.readSectionList` stores a

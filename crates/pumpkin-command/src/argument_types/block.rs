@@ -120,23 +120,18 @@ fn with_property(
     name: &str,
     value: &str,
 ) -> Option<&'static BlockState> {
-    let mut props: Vec<(&'static str, Cow<'_, str>)> = block
-        .properties(state.id)?
-        .to_props()
-        .into_iter()
-        .map(|prop| (prop.key_str(), Cow::Borrowed(prop.value_str())))
-        .collect();
+    // `state_property_pairs`, not `to_props`: a block registered at runtime may carry property
+    // names the closed vanilla `Property` enum cannot hold (`receiver`, `double_face`, ...), and
+    // those have to stay addressable by name like any other.
+    let mut props: Vec<(&'static str, Cow<'_, str>)> =
+        pumpkin_data::block_registry::state_property_pairs(block, state)
+            .into_iter()
+            .map(|(name, value)| (name, Cow::Borrowed(value)))
+            .collect();
     let slot = props.iter_mut().find(|(prop, _)| *prop == name)?;
     slot.1 = Cow::Borrowed(value);
     block.states.iter().find(|candidate| {
-        let Some(candidate_props) = block.properties(candidate.id) else {
-            return false;
-        };
-        let candidate_props: Vec<(&'static str, &'static str)> = candidate_props
-            .to_props()
-            .into_iter()
-            .map(|prop| (prop.key_str(), prop.value_str()))
-            .collect();
+        let candidate_props = pumpkin_data::block_registry::state_property_pairs(block, candidate);
         candidate_props.len() == props.len()
             && props.iter().all(|(prop, want)| {
                 candidate_props
@@ -236,6 +231,88 @@ mod test {
             &mut reader,
             BlockStateArgumentType,
             &super::INVALID_BLOCK_STATE_ERROR_TYPE
+        );
+    }
+
+    /// The string-pair accessor must not change what a *vanilla* block answers: for every state of
+    /// a vanilla block it has to be the registry's own `to_props`, pair for pair. This is the pin
+    /// that a command can still only accept exactly what it accepted before.
+    #[test]
+    fn vanilla_property_pairs_match_the_registry_answer() {
+        use pumpkin_data::block_registry::state_property_pairs;
+        for block in [&pumpkin_data::Block::OAK_STAIRS, &pumpkin_data::Block::OAK_LOG] {
+            for state in block.states {
+                let from_trait: Vec<(&'static str, &'static str)> = block
+                    .properties(state.id)
+                    .expect("a state of a vanilla block has properties")
+                    .to_props()
+                    .into_iter()
+                    .map(|prop| (prop.key_str(), prop.value_str()))
+                    .collect();
+                let mut from_pairs = state_property_pairs(block, state);
+                let mut from_trait_sorted = from_trait;
+                from_pairs.sort_unstable();
+                from_trait_sorted.sort_unstable();
+                assert_eq!(from_pairs, from_trait_sorted);
+            }
+        }
+    }
+
+    /// A block registered at runtime may carry a property name the vanilla `Property` enum cannot
+    /// represent. The command argument has to accept it like any vanilla one.
+    #[test]
+    fn a_runtime_property_is_addressable_by_name() {
+        use pumpkin_data::block_registry::{
+            BlockDrops, BlockRegistration, PropertyDefinition, PropertyKind, ShapeDefinition,
+        };
+        let block = pumpkin_data::Block::register_dynamic(BlockRegistration {
+            key: "test_block:custom_prop_holder".to_string(),
+            properties: vec![
+                PropertyDefinition {
+                    name: "facing".to_string(),
+                    kind: PropertyKind::Enum(
+                        ["north", "south"].into_iter().map(str::to_string).collect(),
+                    ),
+                },
+                PropertyDefinition {
+                    name: "custom_flag".to_string(),
+                    kind: PropertyKind::Bool,
+                },
+            ],
+            default_state: vec![
+                ("facing".to_string(), "north".to_string()),
+                ("custom_flag".to_string(), "false".to_string()),
+            ],
+            hardness: 1.0,
+            blast_resistance: 1.0,
+            requires_correct_tool: false,
+            sound_type: "stone".to_string(),
+            luminance: 0,
+            can_occlude: true,
+            replaceable: false,
+            map_color: 0,
+            collision_shape: ShapeDefinition::FullCube,
+            selection_shape: ShapeDefinition::FullCube,
+            shape_rules: Vec::new(),
+            piston_behavior: pumpkin_data::block_state::PistonBehavior::Normal,
+            connect_rules: Vec::new(),
+            drops: BlockDrops::Nothing,
+            tags: Vec::new(),
+        })
+        .expect("a fresh key registers");
+
+        let mut reader = StringReader::new("test_block:custom_prop_holder[custom_flag=true]");
+        let state = <BlockStateArgumentType as ArgumentType<crate::source::DummySource>>::parse(
+            &BlockStateArgumentType,
+            &mut reader,
+        )
+        .expect("the runtime property parses");
+        let props = pumpkin_data::block_registry::state_property_pairs(block, state);
+        assert!(
+            props
+                .iter()
+                .any(|(name, value)| *name == "custom_flag" && *value == "true"),
+            "custom_flag has to be true, got {props:?}"
         );
     }
 }

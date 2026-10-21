@@ -23,9 +23,13 @@ pub struct PlayerInteractEntityEvent {
     pub target: Arc<dyn EntityBase>,
 
     /// The type of interaction (Interact, Attack, or `InteractAt`).
+    ///
+    /// 26.1+ only carries `Interact`: that protocol has a single interact packet with no type
+    /// field, and a left click arrives as its own packet.
     pub action: ActionType,
 
-    /// The position on the entity that was clicked (only for `InteractAt`).
+    /// The position on the entity that was clicked, when the packet carried one: up to 26.0 only
+    /// `InteractAt` did, and every 26.1+ interact packet does.
     pub target_position: Option<Vector3<f64>>,
 
     /// Whether the player was sneaking during the interaction.

@@ -16,9 +16,18 @@ use tokio_util::{sync::CancellationToken, task::TaskTracker};
 /// Joins a running server as a protocol-777 client and writes every packet it receives to
 /// `--trace` as one JSON line per packet (`src/client_trace.rs`), so a test harness in another
 /// repository can observe a server it did not boot itself.
+///
+/// `--light-at x,y,z` (repeatable) additionally writes the sky and block light of that cell out of
+/// every chunk packet that contains it (`kind":"chunk_light_cell"`), with the section kind the
+/// value came from; `--min-y` is the dimension's minimum Y (default `-64`, the overworld), which
+/// the chunk packet does not carry and which maps a cell to its light section. Every chunk packet
+/// also gets a `chunk_light` line (masks plus a digest of the arrays) and a `chunk_heightmap` line
+/// per heightmap, so two sends can be compared byte for byte without dumping 2 KiB per section.
+/// A chunk payload this reader cannot walk gets a `chunk_undecodable` line with the reason
+/// instead of silence, and `--dump-chunks <dir>` writes every chunk payload out as raw bytes.
 const CLIENT_USAGE: &str =
     "usage: pumpkin-tester client --addr <host:port> --name <name> --trace <path> \
-     [--neoforge] [--mirror]";
+     [--neoforge] [--mirror] [--light-at <x,y,z>]... [--min-y <y>] [--dump-chunks <dir>]";
 
 #[expect(
     clippy::print_stderr,
@@ -30,6 +39,9 @@ fn parse_client_options(args: &[String]) -> Option<ClientOptions> {
     let mut trace = None;
     let mut neoforge = false;
     let mut mirror = false;
+    let mut light_at = Vec::new();
+    let mut min_y = -64;
+    let mut dump_chunks = None;
 
     let mut index = 0;
     while index < args.len() {
@@ -65,6 +77,47 @@ fn parse_client_options(args: &[String]) -> Option<ClientOptions> {
                 trace = Some(PathBuf::from(value));
                 index += 2;
             }
+            "--light-at" => {
+                let Some(value) = args.get(index + 1) else {
+                    eprintln!("--light-at needs x,y,z\n{CLIENT_USAGE}");
+                    return None;
+                };
+                match parse_block_position(value) {
+                    Some(position) => light_at.push(position),
+                    None => {
+                        eprintln!("--light-at {value}: expected x,y,z");
+                        return None;
+                    }
+                }
+                index += 2;
+            }
+            "--min-y" => {
+                let Some(value) = args.get(index + 1) else {
+                    eprintln!("--min-y needs a value\n{CLIENT_USAGE}");
+                    return None;
+                };
+                match value.parse::<i32>() {
+                    Ok(parsed) => min_y = parsed,
+                    Err(err) => {
+                        eprintln!("--min-y {value}: {err}");
+                        return None;
+                    }
+                }
+                index += 2;
+            }
+            "--dump-chunks" => {
+                let Some(value) = args.get(index + 1) else {
+                    eprintln!("--dump-chunks needs a directory\n{CLIENT_USAGE}");
+                    return None;
+                };
+                let dir = PathBuf::from(value);
+                if let Err(err) = std::fs::create_dir_all(&dir) {
+                    eprintln!("--dump-chunks {value}: {err}");
+                    return None;
+                }
+                dump_chunks = Some(dir);
+                index += 2;
+            }
             "--neoforge" => {
                 neoforge = true;
                 index += 1;
@@ -89,12 +142,27 @@ fn parse_client_options(args: &[String]) -> Option<ClientOptions> {
             trace,
             neoforge,
             mirror,
+            light_at,
+            min_y,
+            dump_chunks,
         }),
         _ => {
             eprintln!("{CLIENT_USAGE}");
             None
         }
     }
+}
+
+/// `x,y,z`, the form `--light-at` takes.
+fn parse_block_position(value: &str) -> Option<(i32, i32, i32)> {
+    let mut parts = value.split(',');
+    let x = parts.next()?.trim().parse().ok()?;
+    let y = parts.next()?.trim().parse().ok()?;
+    let z = parts.next()?.trim().parse().ok()?;
+    if parts.next().is_some() {
+        return None;
+    }
+    Some((x, y, z))
 }
 
 async fn run_all_suites(server: &Arc<Server>, addr: SocketAddr) -> Result<Vec<String>, String> {

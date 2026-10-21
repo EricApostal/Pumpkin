@@ -82,9 +82,10 @@ impl JavaClient {
                             player.attack(&event.target);
                         }
                         ActionType::Interact | ActionType::InteractAt => {
-                            if event.action == ActionType::InteractAt
-                                && let Some(pos) = interact.target_position
-                            {
+                            // The at-event is about the click position, so it fires whenever the
+                            // packet carried one: up to 26.0 only `InteractAt` does, and from 26.1
+                            // on every interact packet does (the merged packet has no type).
+                            if let Some(pos) = interact.target_position {
                                 let mut at_event = crate::plugin::api::events::player::player_interact_at_entity::PlayerInteractAtEntityEvent::new(
                                     player.clone(),
                                     entity_id.0,

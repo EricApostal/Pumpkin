@@ -38,7 +38,7 @@ use tokio::io::{AsyncReadExt, BufWriter};
 use tokio::net::tcp::OwnedWriteHalf;
 
 use crate::bot::send_framed_packet;
-use crate::packet_capture::{CapturedPacket, PacketCapture};
+use crate::packet_capture::{CapturedPacket, ChunkLight, LightLayer, PacketCapture, SectionLight};
 use crate::recorder::ConnectedBot;
 
 /// How often the socket is drained into the trace file.
@@ -64,6 +64,34 @@ pub struct ClientOptions {
     ///
     /// Implies `--neoforge`; against a server without the handshake it is a plain join.
     pub mirror: bool,
+    /// World block positions whose chunk light is written out as a `chunk_light_cell` line, so a
+    /// specific cell's sky/block light can be read out of the payload without decoding the whole
+    /// section array by hand.
+    pub light_at: Vec<(i32, i32, i32)>,
+    /// The world's minimum Y (`-64` for the overworld), which the chunk packet does not carry: a
+    /// client knows it from the dimension, and it is what maps a cell to its light section.
+    pub min_y: i32,
+    /// A directory to write every chunk packet's payload bytes into, one file per column
+    /// (`chunk_<x>_<z>.bin`, the payload without its packet id) — the bytes a decode can be
+    /// debugged against.
+    pub dump_chunks: Option<PathBuf>,
+}
+
+impl ClientOptions {
+    /// The defaults a caller that only cares about the packet trace gets.
+    #[must_use]
+    pub fn new(addr: SocketAddr, name: String, trace: PathBuf) -> Self {
+        Self {
+            addr,
+            name,
+            trace,
+            neoforge: false,
+            mirror: false,
+            light_at: Vec::new(),
+            min_y: -64,
+            dump_chunks: None,
+        }
+    }
 }
 
 /// The state the trace needs across drains: how much is written, and whether a bundle is open.
@@ -119,13 +147,13 @@ pub async fn run(options: ClientOptions) -> Result<(), String> {
                 Ok(_) => {}
             },
             () = tokio::time::sleep(DRAIN_INTERVAL) => {
-                drain(&capture, writer, &mut file, &mut state, &name).await?;
+                drain(&capture, writer, &mut file, &mut state, &name, &options).await?;
             }
         }
     };
 
     tokio::time::sleep(CLOSE_GRACE).await;
-    drain(&capture, writer, &mut file, &mut state, &name).await?;
+    drain(&capture, writer, &mut file, &mut state, &name, &options).await?;
     eprintln!(
         "client '{name}': joined {} ({stop}), wrote {} trace line(s) to {}",
         options.addr,
@@ -164,6 +192,7 @@ async fn drain(
     file: &mut std::fs::File,
     state: &mut TraceState,
     name: &str,
+    options: &ClientOptions,
 ) -> Result<(), String> {
     let mut text = String::new();
     let mut keep_alives = Vec::new();
@@ -176,7 +205,7 @@ async fn drain(
                 keep_alives.push(keep_alive);
             }
             let before = text.len();
-            write_packet_lines(&mut text, packet, name, &mut state.in_bundle);
+            write_packet_lines(&mut text, packet, name, &mut state.in_bundle, options);
             if text.len() == before {
                 // A packet of a kind this trace decodes, whose payload did not decode. The
                 // client still received it, so it gets the catch-all rather than vanishing
@@ -231,6 +260,7 @@ fn write_packet_lines(
     packet: &CapturedPacket,
     name: &str,
     in_bundle: &mut bool,
+    options: &ClientOptions,
 ) {
     if packet.id == CBundleDelimiter::to_id(CURRENT_MC_VERSION) {
         let kind = if *in_bundle { "bundle_end" } else { "bundle_start" };
@@ -312,26 +342,128 @@ fn write_packet_lines(
         finish(&mut line, bundled);
         text.push_str(&line);
 
+        if let Some(dir) = &options.dump_chunks {
+            let path = dir.join(format!("chunk_{x}_{z}.bin"));
+            if let Err(error) = std::fs::write(&path, &packet.payload[..]) {
+                let mut line = prefix(name);
+                let _ = write!(line, ",\"kind\":\"chunk_dump_failed\",\"chunk\":[{x},{z}],\
+                     \"error\":\"{error}\"");
+                finish(&mut line, bundled);
+                text.push_str(&line);
+            }
+        }
+
         // A joining client gets a block entity's client data inside the chunk packet, so what the
         // column carried has to be visible: otherwise a relogin's state cannot be compared with
         // what the present client was shown.
-        let Ok(block_entities) = packet.chunk_block_entities() else {
-            return;
-        };
-        for block_entity in block_entities {
+        //
+        // A payload this reader cannot walk is a line of its own, not silence: a client that
+        // cannot read the list reads the light that follows it at the wrong offset, so "the light
+        // data was missing" and "the payload was malformed" have to stay distinguishable.
+        match packet.chunk_block_entities() {
+            Ok(block_entities) => {
+                for block_entity in block_entities {
+                    let mut line = prefix(name);
+                    let _ = write!(
+                        line,
+                        ",\"kind\":\"chunk_block_entity\",\"chunk\":[{x},{z}],\"pos\":[{},{},{}],\
+                         \"type\":{},\"nbt\":\"{}\"",
+                        block_entity.pos.0.x,
+                        block_entity.pos.0.y,
+                        block_entity.pos.0.z,
+                        block_entity.type_id,
+                        hex::encode(&block_entity.nbt)
+                    );
+                    finish(&mut line, bundled);
+                    text.push_str(&line);
+                }
+            }
+            Err(error) => {
+                let mut line = prefix(name);
+                let _ = write!(line, ",\"kind\":\"chunk_undecodable\",\"chunk\":[{x},{z}],\
+                     \"part\":\"block_entities\",\"error\":\"");
+                write_json_string(&mut line, &error);
+                let _ = write!(line, "\"");
+                finish(&mut line, bundled);
+                text.push_str(&line);
+            }
+        }
+
+        // The light and the heightmaps the column carried. A relogin's chunk is the only time a
+        // client hears the server's light for a chunk, so it has to be readable: the masks and a
+        // digest of the arrays say whether two sends agree byte for byte, and `--light-at` reads
+        // a named cell out of the payload.
+        if let Ok(light) = packet.chunk_light() {
             let mut line = prefix(name);
             let _ = write!(
                 line,
-                ",\"kind\":\"chunk_block_entity\",\"chunk\":[{x},{z}],\"pos\":[{},{},{}],\
-                 \"type\":{},\"nbt\":\"{}\"",
-                block_entity.pos.0.x,
-                block_entity.pos.0.y,
-                block_entity.pos.0.z,
-                block_entity.type_id,
-                hex::encode(&block_entity.nbt)
+                ",\"kind\":\"chunk_light\",\"chunk\":[{x},{z}],\
+                 \"sky_light_mask\":{},\"block_light_mask\":{},\
+                 \"empty_sky_light_mask\":{},\"empty_block_light_mask\":{},\
+                 \"sky_light_arrays\":{},\"block_light_arrays\":{},\
+                 \"sky_light_digest\":\"{:016x}\",\"block_light_digest\":\"{:016x}\"",
+                light.sky_light_mask,
+                light.block_light_mask,
+                light.empty_sky_light_mask,
+                light.empty_block_light_mask,
+                light.sky_light_arrays.len(),
+                light.block_light_arrays.len(),
+                light.digest(LightLayer::Sky),
+                light.digest(LightLayer::Block),
             );
             finish(&mut line, bundled);
             text.push_str(&line);
+
+            for (cell_x, cell_y, cell_z) in &options.light_at {
+                if cell_x.div_euclid(16) != x || cell_z.div_euclid(16) != z {
+                    continue;
+                }
+                let mut line = prefix(name);
+                let _ = write!(
+                    line,
+                    ",\"kind\":\"chunk_light_cell\",\"chunk\":[{x},{z}],\"at\":[{cell_x},{cell_y},{cell_z}]"
+                );
+                write_cell_light(&mut line, &light, options.min_y, *cell_x, *cell_y, *cell_z);
+                finish(&mut line, bundled);
+                text.push_str(&line);
+            }
+        } else if let Err(error) = packet.chunk_light() {
+            let mut line = prefix(name);
+            let _ = write!(line, ",\"kind\":\"chunk_undecodable\",\"chunk\":[{x},{z}],\
+                 \"part\":\"light\",\"error\":\"");
+            write_json_string(&mut line, &error);
+            let _ = write!(line, "\"");
+            finish(&mut line, bundled);
+            text.push_str(&line);
+        }
+        if let Ok(heightmaps) = packet.chunk_heightmaps() {
+            for heightmap in heightmaps {
+                let mut line = prefix(name);
+                let _ = write!(
+                    line,
+                    ",\"kind\":\"chunk_heightmap\",\"chunk\":[{x},{z}],\"heightmap\":{},\
+                     \"longs\":{},\"digest\":\"{:016x}\"",
+                    heightmap.index,
+                    heightmap.data.len(),
+                    heightmap.digest(),
+                );
+                for (cell_x, _cell_y, cell_z) in &options.light_at {
+                    if cell_x.div_euclid(16) != x || cell_z.div_euclid(16) != z {
+                        continue;
+                    }
+                    let _ = write!(
+                        line,
+                        ",\"height_at\":{}",
+                        heightmap.height_at(
+                            options.min_y,
+                            cell_x.rem_euclid(16) as usize,
+                            cell_z.rem_euclid(16) as usize,
+                        )
+                    );
+                }
+                finish(&mut line, bundled);
+                text.push_str(&line);
+            }
         }
         return;
     } else if packet.id == CUnloadChunk::to_id(CURRENT_MC_VERSION) {
@@ -361,6 +493,35 @@ fn prefix(name: &str) -> String {
     write_json_string(&mut line, name);
     line.push('"');
     line
+}
+
+/// Appends the sky and block light of one cell as the payload states them, with the kind of
+/// section each value came from (a section no mask mentions states nothing, and a client keeps
+/// the light it already had for it).
+fn write_cell_light(
+    line: &mut String,
+    light: &ChunkLight,
+    min_y: i32,
+    x: i32,
+    y: i32,
+    z: i32,
+) {
+    for (name, layer) in [("sky", LightLayer::Sky), ("block", LightLayer::Block)] {
+        let section = usize::try_from((y - min_y).div_euclid(16)).unwrap_or(usize::MAX);
+        let kind = match light.section(layer, section) {
+            SectionLight::Array(_) => "array",
+            SectionLight::Empty => "empty",
+            SectionLight::Absent => "absent",
+        };
+        match light.cell(layer, min_y, x, y, z) {
+            Some(value) => {
+                let _ = write!(line, ",\"{name}\":{value},\"{name}_from\":\"{kind}\"");
+            }
+            None => {
+                let _ = write!(line, ",\"{name}\":null,\"{name}_from\":\"{kind}\"");
+            }
+        }
+    }
 }
 
 /// Ends the object, marking packets that arrived inside a bundle.

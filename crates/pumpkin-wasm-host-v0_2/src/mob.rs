@@ -230,7 +230,9 @@ impl CustomWasmGoal {
                     GoalCall::Stop => instance.func_handle_ai_goal_stop(),
                 }
             };
-            if let Err(error) = plugin
+            // Plugin-attribution (`plugin/perf.rs`): one host→guest call per AI goal callback.
+            let started = pumpkin_core::plugin::perf::start();
+            let result = plugin
                 .store
                 .call_guest(move |mut guest| {
                     Box::pin(async move {
@@ -256,8 +258,9 @@ impl CustomWasmGoal {
                             .await
                     })
                 })
-                .await
-            {
+                .await;
+            pumpkin_core::plugin::perf::record("ai-goal", started);
+            if let Err(error) = result {
                 tracing::error!(goal_id, %error, "Wasm AI goal callback failed");
             }
         };

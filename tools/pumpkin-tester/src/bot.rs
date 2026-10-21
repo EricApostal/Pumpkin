@@ -58,7 +58,21 @@ pub const PACKET_TIMEOUT: Duration = Duration::from_secs(10);
 /// (`crates/pumpkin-core/src/net/java/pending.rs`), so the bot writes it that way.
 const BRAND_CHANNEL: &str = "minecraft:brand";
 /// What the bot reports as its brand, so the server logs it as a `NeoForge` client.
-const CLIENT_BRAND: &[u8] = b"neoforge";
+const CLIENT_BRAND: &str = "neoforge";
+
+/// The brand payload: vanilla's `BrandPayload` is a `VarInt` length and then the UTF-8 bytes.
+///
+/// The length has to be the *byte* length: a server that reads it with that codec reports
+/// `Packet ... was larger than I expected, found 1 bytes extra` when it is one too small, which is
+/// what a bare `neoforge` with the wrong count turns into. Building the payload from the name
+/// keeps the two from drifting.
+fn client_brand_payload() -> Vec<u8> {
+    let mut payload = Vec::with_capacity(CLIENT_BRAND.len() + 1);
+    payload.push(u8::try_from(CLIENT_BRAND.len()).unwrap_or(0));
+    payload.extend_from_slice(CLIENT_BRAND.as_bytes());
+    payload
+}
+
 /// The ping id of the `NeoForge` query handshake (`neoforge_session.rs` pings with `0`).
 const NEOFORGE_PING_ID: i32 = 0;
 /// How many connections a mirroring bot may spend learning a server's channels before it gives up.
@@ -337,13 +351,13 @@ impl HeadlessBot {
     /// This is what makes a server whose mods run in another process automatable: this process has
     /// no declaration to read, and a `NeoForge` server announces only the channels it listens on
     /// and asks an empty query, so the set it will accept has to come from the server one attempt
-    /// at a time. `attempts` bounds that, so a refusal that is not about channels (a real mod
-    /// mismatch, a policy) fails with the server's own message instead of looping.
+    /// at a time. `MIRRORING_ATTEMPTS` bounds that, so a refusal that is not about channels (a real
+    /// mod mismatch, a policy) fails with the server's own message instead of looping.
     pub async fn connect_and_join_neoforge_mirroring(
         addr: SocketAddr,
         name: &str,
-        attempts: u32,
     ) -> Result<Self, String> {
+        let attempts = MIRRORING_ATTEMPTS;
         let mut mirror = MirroredChannels::default();
         let mut last = String::new();
         for _ in 0..attempts {
@@ -413,10 +427,11 @@ impl HeadlessBot {
                             &mirror.query().encode(),
                         )
                         .await?;
-                        self.send_packet(&SConfigPong {
-                            id: NEOFORGE_PING_ID,
-                        })
-                        .await?;
+                        // The pong is **not** sent with the answer: it belongs to the ping that
+                        // follows the query, and the ping handler below sends it. A vanilla server
+                        // starts its configuration tasks on a pong (`handlePong` ->
+                        // `runConfiguration`), so a second one runs them twice and the second run
+                        // dies on "Task neoforge:sync_registries has not finished yet".
                     }
                     neoforge_channels::MODDED_NETWORK_SETUP_FAILED => {
                         let learned = mirror.learn(slice)?;
@@ -513,7 +528,7 @@ impl HeadlessBot {
             // The negotiation was accepted, so the play phase is `NeoForge`.
             neoforge_channels::MODDED_NETWORK => self.neoforge = true,
             BRAND_CHANNEL => {
-                self.send_config_payload(BRAND_CHANNEL, CLIENT_BRAND).await?;
+                self.send_config_payload(BRAND_CHANNEL, &client_brand_payload()).await?;
             }
             neoforge_channels::FROZEN_REGISTRY => {
                 self.neoforge_handshake.frozen_registries.push(data.to_vec());
@@ -542,9 +557,18 @@ impl HeadlessBot {
                 )
                 .await?;
             }
-            // The flags it received are the ones it has.
+            // An empty acknowledgement (`ExtensibleEnumAcknowledgePayload` is a unit codec): the
+            // step exists so the server learns that the client's enum values are the ones it sent,
+            // and a server that never sends the check (Pumpkin) never sees this arm.
+            neoforge_channels::EXTENSIBLE_ENUM_DATA => {
+                self.send_config_payload(neoforge_channels::EXTENSIBLE_ENUM_ACK, &[])
+                    .await?;
+            }
+            // An empty acknowledgement, like the enum one: `FeatureFlagAcknowledgePayload` is a
+            // unit codec, so echoing the flags it received back leaves a byte the server refuses
+            // the packet for ("found 1 bytes extra").
             neoforge_channels::FEATURE_FLAGS => {
-                self.send_config_payload(neoforge_channels::FEATURE_FLAGS_ACK, data)
+                self.send_config_payload(neoforge_channels::FEATURE_FLAGS_ACK, &[])
                     .await?;
             }
             _ => {}

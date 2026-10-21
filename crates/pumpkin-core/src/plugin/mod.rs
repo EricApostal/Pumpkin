@@ -26,6 +26,7 @@ pub mod loader;
 ///
 /// Plugins can request these permissions in their metadata to access specific
 /// host features.
+pub mod perf;
 pub mod permissions;
 
 use crate::{LOGGER_IMPL, server::Server};
@@ -82,29 +83,18 @@ fn dispatch_deferred_events() {
     }
     let _guard = DeferredDispatchGuard;
 
-    // TEMPORARY DRAINDBG: how much the queue held when a dispatch drained it.
-    let mut drained = 0usize;
     loop {
         let deferred = DEFERRED_EVENTS
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .pop_front();
         let Some(mut deferred) = deferred else {
-            break;
+            return;
         };
-        drained += 1;
         deferred
             .server
             .plugin_manager
             .fire_blocking_dyn(&deferred.server, deferred.event_name, &mut *deferred.event);
-    }
-    if drained > 0 {
-        tracing::warn!(
-            DRAINDBG = "dispatch_deferred_events",
-            drained,
-            tid = ?std::thread::current().id(),
-            "DRAINDBG drained deferred events"
-        );
     }
 }
 
@@ -1358,39 +1348,14 @@ impl PluginManager {
         // Process blocking handlers first
         for handler in handlers {
             if handler.is_blocking() {
-                // TEMPORARY DRAINDBG: per-handler dispatch cost.
-                let started = std::time::Instant::now();
                 handler.handle_blocking_dyn(server, event).await;
-                let micros = started.elapsed().as_micros();
-                if micros > 5000 {
-                    tracing::warn!(
-                        DRAINDBG = "fire_dyn",
-                        event_name,
-                        blocking = true,
-                        micros,
-                        "DRAINDBG slow blocking handler"
-                    );
-                }
             }
         }
 
         // Process non-blocking handlers
         for handler in handlers {
             if !handler.is_blocking() {
-                // TEMPORARY DRAINDBG: per-handler dispatch cost.
-                let started = std::time::Instant::now();
                 handler.handle_dyn(server, event).await;
-                let micros = started.elapsed().as_micros();
-                if micros > 5000 {
-                    tracing::warn!(
-                        DRAINDBG = "fire_dyn",
-                        event_name,
-                        blocking = false,
-                        micros,
-                        tid = ?std::thread::current().id(),
-                        "DRAINDBG slow handler"
-                    );
-                }
             }
         }
     }
@@ -1434,28 +1399,11 @@ impl PluginManager {
         }
 
         if tokio::runtime::Handle::try_current().is_ok() {
-            // TEMPORARY DRAINDBG: whole-dispatch cost on the caller's thread.
-            let started = std::time::Instant::now();
             tokio::task::block_in_place(|| {
                 server
                     .runtime
                     .block_on(self.fire_dyn(server, event_name, event));
             });
-            let micros = started.elapsed().as_micros();
-            if micros > 5000 {
-                tracing::warn!(
-                    DRAINDBG = "fire_blocking_dyn",
-                    event_name,
-                    handlers = self
-                        .handlers
-                        .load()
-                        .get(event_name)
-                        .map_or(0, Vec::len),
-                    micros,
-                    tid = ?std::thread::current().id(),
-                    "DRAINDBG slow dispatch"
-                );
-            }
         } else {
             server
                 .runtime

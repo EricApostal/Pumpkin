@@ -293,10 +293,13 @@ impl WasmPluginEventHandler {
         server: Arc<Server>,
         event: Box<dyn PendingWasmEvent>,
         class: AdmissionClass,
+        kind: &'static str,
     ) -> wasmtime::Result<Box<dyn Any + Send>> {
         let handler_id = self.handler_id;
         let function = self.plugin.instance::<crate::Plugin>().func_handle_event();
-        self.plugin
+        let started = pumpkin_core::plugin::perf::start();
+        let result = self
+            .plugin
             .store
             .call_guest_in(class, move |mut guest| {
                 Box::pin(async move {
@@ -321,7 +324,9 @@ impl WasmPluginEventHandler {
                     })
                 })
             })
-            .await
+            .await;
+        pumpkin_core::plugin::perf::record(kind, started);
+        result
     }
 }
 
@@ -338,7 +343,10 @@ impl<E: Payload + ToFromWasmEvent + Clone + 'static> EventHandler<E> for WasmPlu
         Box::pin(async {
             let class = admission_class(event.dispatch_class());
             let pending = Box::new(NotifiedEvent(event.clone()));
-            if let Err(error) = self.dispatch(server.clone(), pending, class).await {
+            if let Err(error) = self
+                .dispatch(server.clone(), pending, class, E::get_name_static())
+                .await
+            {
                 tracing::error!(handler_id = self.handler_id, %error, "Wasm event handler failed");
             }
         })
@@ -352,7 +360,10 @@ impl<E: Payload + ToFromWasmEvent + Clone + 'static> EventHandler<E> for WasmPlu
         Box::pin(async {
             let class = admission_class(event.dispatch_class());
             let pending = Box::new(BlockingEvent(event.clone()));
-            match self.dispatch(server.clone(), pending, class).await {
+            match self
+                .dispatch(server.clone(), pending, class, E::get_name_static())
+                .await
+            {
                 Ok(updated_event) => {
                     if let Ok(updated_event) = updated_event.downcast::<E>() {
                         *event = *updated_event;

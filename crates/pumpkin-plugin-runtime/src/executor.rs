@@ -727,8 +727,6 @@ where
             )));
         }
         let (result, receiver) = oneshot::channel();
-        // TEMPORARY DRAINDBG.
-        let guest_call_started = std::time::Instant::now();
         let inherited_context = self.shared.policy.inherited_context();
         let (context, root_admission) = if let Some(context) = inherited_context {
             tracing::trace!(
@@ -800,17 +798,6 @@ where
         let result = self
             .receive_result(receiver, "Wasm plugin guest call did not complete")
             .await;
-        // TEMPORARY DRAINDBG: the guest-call round trip a dispatch waits for.
-        let micros = guest_call_started.elapsed().as_micros();
-        if micros > 5000 {
-            tracing::warn!(
-                DRAINDBG = "call_guest_in",
-                outermost,
-                micros,
-                tid = ?std::thread::current().id(),
-                "DRAINDBG slow guest call"
-            );
-        }
         if outermost && !is_running_guest_call() {
             notify_guest_call_return();
         }
@@ -906,8 +893,6 @@ where
         // `spawn_blocking` returns, and a callback that finds no scope is queued on the driver,
         // which cannot run it while the outer guest call is suspended here.
         let (mut registration, mut reentry) = self.shared.reentry.register(context);
-        // TEMPORARY DRAINDBG.
-        let pump_started = std::time::Instant::now();
         let (result, receiver) = oneshot::channel();
         if let Err(error) = self.shared.spawner.spawn_blocking(Box::new(move || {
             let output = catch_unwind(AssertUnwindSafe(|| sync_scope(context, operation)))
@@ -921,16 +906,6 @@ where
         }
 
         let output = pump_reentrant_jobs(accessor, &mut reentry, receiver).await;
-        // TEMPORARY DRAINDBG: how long the host operation plus the callbacks it fired took.
-        let micros = pump_started.elapsed().as_micros();
-        if micros > 5000 {
-            tracing::warn!(
-                DRAINDBG = "pump_blocking_accessor",
-                micros,
-                tid = ?std::thread::current().id(),
-                "DRAINDBG slow blocking operation"
-            );
-        }
         registration.close();
         reentry.close();
         while let Ok(job) = reentry.try_recv() {
@@ -1068,20 +1043,7 @@ where
         if jobs_open {
             tokio::select! {
                 job = jobs.recv() => match job {
-                    Some(job) => {
-                        // TEMPORARY DRAINDBG.
-                        let started = std::time::Instant::now();
-                        job.run_concurrent(accessor).await?;
-                        let micros = started.elapsed().as_micros();
-                        if micros > 5000 {
-                            tracing::warn!(
-                                DRAINDBG = "pump_reentrant_jobs",
-                                micros,
-                                tid = ?std::thread::current().id(),
-                                "DRAINDBG slow reentrant job"
-                            );
-                        }
-                    }
+                    Some(job) => job.run_concurrent(accessor).await?,
                     None => jobs_open = false,
                 },
                 output = &mut result => {
@@ -1348,23 +1310,9 @@ fn control_result(message: Option<&ControlMessage>) -> wasmtime::Result<()> {
 /// would still look like it runs inside a guest call.
 async fn drive_marked<R>(driver: impl Future<Output = R>, admission_id: u64) -> R {
     let mut driver = std::pin::pin!(driver);
-    // TEMPORARY DRAINDBG: how long the driver goes unpolled, i.e. whether a queued job waits for
-    // the driver to be scheduled or for the guest call itself to execute.
-    let mut last_poll = std::time::Instant::now();
     poll_fn(|cx| {
-        let gap = last_poll.elapsed();
-        if gap.as_millis() > 5 {
-            tracing::warn!(
-                DRAINDBG = "drive_marked",
-                gap_micros = gap.as_micros(),
-                tid = ?std::thread::current().id(),
-                "DRAINDBG driver not polled for a while"
-            );
-        }
         let _driving = DrivingAdmissionGuard::enter(admission_id);
-        let output = driver.as_mut().poll(cx);
-        last_poll = std::time::Instant::now();
-        output
+        driver.as_mut().poll(cx)
     })
     .await
 }

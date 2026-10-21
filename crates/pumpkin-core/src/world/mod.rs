@@ -401,13 +401,21 @@ impl World {
         let dragon_fight = (dimension.minecraft_name == Dimension::THE_END.minecraft_name)
             .then(|| std::sync::Mutex::new(dragon_fight::DragonFight::new()));
 
+        // In the dimension folder, not `root_folder`: every dimension of a world shares the same
+        // root folder (`server/mod.rs` loads them all with `world_path`), so a single file there
+        // made the three dimensions overwrite each other's world custom data -- and each of them
+        // read back whichever dimension happened to save last.
         let custom_data_path = level
             .level_folder
-            .root_folder
+            .dim_folder
             .join("pumpkin_custom_data.nbt");
         let custom_data = if custom_data_path.exists()
             && let Ok(bytes) = std::fs::read(&custom_data_path)
-            && let Ok(nbt) = pumpkin_nbt::Nbt::read_unnamed(
+            // `Nbt::read`, not `read_unnamed`: `save` writes the file with `Nbt::write`, which
+            // stores the (empty) name of the root compound. `read_unnamed` expected no name, so it
+            // read that name's `0x00, 0x00` length as a TAG_End and returned an empty compound --
+            // everything a plugin had stored on the world was silently lost on the next start.
+            && let Ok(nbt) = pumpkin_nbt::Nbt::read(
                 &mut pumpkin_nbt::deserializer::NbtReadHelperJava::new(&mut std::io::Cursor::new(
                     bytes,
                 )),
@@ -694,17 +702,30 @@ impl World {
         };
 
         for block_entity in block_entities {
-            let mut nbt = NbtCompound::new();
-            block_entity.write_internal(&mut nbt);
-            if let Some(custom_data) = self
-                .custom_block_entity_data
-                .get(&block_entity.get_position())
-                && !custom_data.is_empty()
-            {
-                nbt.put_compound("PumpkinCustomData", custom_data.clone());
-            }
-            self.add_block_entity_nbt(block_entity.get_position(), &nbt);
+            self.add_block_entity_saved_form(&block_entity);
         }
+    }
+
+    /// Writes the saved form of a live entity into the block entity data of its chunk.
+    ///
+    /// The saved form (`BlockEntity::write_internal`: `id`, position and the entity's whole save
+    /// data) is **not** the tag a client is told (`BlockEntity::chunk_data_nbt`, the update tag).
+    /// This one is what survives a restart, and it is also what the chunk packet is built from, so
+    /// what goes in here must never be the update tag. For a plugin block entity the update tag is
+    /// just its client data; writing that in place of the saved form dropped the
+    /// `PluginData`/`PluginClientData` wrapper, and `net/java/chunk_data/v1_18.rs` sends a plugin
+    /// entity only when the wrapper is there - a joining client then got no block entity at all.
+    fn add_block_entity_saved_form(&self, block_entity: &Arc<dyn BlockEntity>) {
+        let mut nbt = NbtCompound::new();
+        block_entity.write_internal(&mut nbt);
+        if let Some(custom_data) = self
+            .custom_block_entity_data
+            .get(&block_entity.get_position())
+            && !custom_data.is_empty()
+        {
+            nbt.put_compound("PumpkinCustomData", custom_data.clone());
+        }
+        self.add_block_entity_nbt(block_entity.get_position(), &nbt);
     }
 
     /// Broadcasts an entity status update / event to all players tracking the specified entity,
@@ -6461,34 +6482,25 @@ impl World {
     pub fn add_block_entity(&self, block_entity: Arc<dyn BlockEntity>) {
         let block_pos = block_entity.get_position();
         let chunk_pos = block_pos.chunk_position();
-        let block_entity_nbt = block_entity.chunk_data_nbt();
-        let entity_id = block_entity.resource_location().to_string();
 
-        if let Some(nbt) = &block_entity_nbt {
-            let bytes = pumpkin_nbt::Nbt::from(nbt.clone()).write_unnamed();
+        if let Some(nbt) = block_entity.chunk_data_nbt() {
+            let bytes = pumpkin_nbt::Nbt::from(nbt).write_unnamed();
             self.broadcast_to_chunk(
                 chunk_pos,
                 &CBlockEntityData::new(
-                    block_entity.get_position(),
+                    block_pos,
                     VarInt(block_entity.get_id() as i32),
                     bytes.as_ref().into(),
                 ),
             );
         }
 
+        self.add_block_entity_saved_form(&block_entity);
+
         self.block_entities
             .entry(chunk_pos)
             .or_default()
             .insert(block_pos, block_entity);
-
-        if let Some(nbt) = block_entity_nbt {
-            let mut full_nbt = nbt;
-            full_nbt.put_string("id", entity_id);
-            full_nbt.put_int("x", block_pos.0.x);
-            full_nbt.put_int("y", block_pos.0.y);
-            full_nbt.put_int("z", block_pos.0.z);
-            self.add_block_entity_nbt(block_pos, &full_nbt);
-        }
 
         self.level.read_chunk_sync(&chunk_pos, |chunk| {
             chunk.mark_dirty(true);
@@ -6631,29 +6643,26 @@ impl World {
         self.announce_plugin_block_entities(chunk_pos);
     }
 
+    /// Sends the update tag of a block entity to the players watching its chunk and refreshes the
+    /// saved form in the chunk (see [`Self::add_block_entity_saved_form`]).
     pub fn update_block_entity(&self, block_entity: &Arc<dyn BlockEntity>) {
         let block_pos = block_entity.get_position();
         let chunk_pos = block_pos.chunk_position();
-        let block_entity_nbt = block_entity.chunk_data_nbt();
 
-        if let Some(nbt) = &block_entity_nbt {
-            let bytes = pumpkin_nbt::Nbt::from(nbt.clone()).write_unnamed();
+        if let Some(nbt) = block_entity.chunk_data_nbt() {
+            let bytes = pumpkin_nbt::Nbt::from(nbt).write_unnamed();
             self.broadcast_to_chunk(
                 chunk_pos,
                 &CBlockEntityData::new(
-                    block_entity.get_position(),
+                    block_pos,
                     VarInt(block_entity.get_id() as i32),
                     bytes.as_ref().into(),
                 ),
             );
-            let mut full_nbt = nbt.clone();
-            full_nbt.put_string("id", block_entity.resource_location().to_string());
-            let pos = block_entity.get_position();
-            full_nbt.put_int("x", pos.0.x);
-            full_nbt.put_int("y", pos.0.y);
-            full_nbt.put_int("z", pos.0.z);
-            self.add_block_entity_nbt(block_pos, &full_nbt);
         }
+
+        self.add_block_entity_saved_form(block_entity);
+
         self.level.read_chunk_sync(&chunk_pos, |chunk| {
             chunk.mark_dirty(true);
         });
@@ -7187,7 +7196,7 @@ impl World {
                 let custom_data_path = self
                     .level
                     .level_folder
-                    .root_folder
+                    .dim_folder
                     .join("pumpkin_custom_data.nbt");
                 let nbt = pumpkin_nbt::Nbt::from(custom_data.clone());
                 let _ = std::fs::write(custom_data_path, nbt.write());

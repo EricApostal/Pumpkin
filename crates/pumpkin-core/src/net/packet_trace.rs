@@ -27,9 +27,10 @@ use std::io::Write as _;
 use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
 use std::sync::{Mutex, OnceLock};
 
+use pumpkin_protocol::codec::item_stack_seralizer::ItemStackSerializer;
 use pumpkin_protocol::java::client::play::{
     CBlockEntityData, CBlockUpdate, CBundleDelimiter, CChunkData, CCustomPayload, CMultiBlockUpdate,
-    CSpawnEntity, CUnloadChunk,
+    COpenScreen, CSetContainerContent, CSpawnEntity, CUnloadChunk,
 };
 use pumpkin_protocol::packet::MultiVersionJavaPacket;
 use pumpkin_protocol::ser::{NetworkReadExt, NetworkReadSliceExt, ReadingError};
@@ -239,6 +240,59 @@ fn decode_and_write(sink: &mut Sink, client: u64, version: JavaMinecraftVersion,
         line.push_str("\",\"data\":\"");
         line.push_str(&hex::encode(reader));
         line.push('"');
+    } else if id == COpenScreen::to_id(version) {
+        let (Ok(container), Ok(menu_type)) = (reader.get_var_int(), reader.get_var_int()) else {
+            return;
+        };
+        // The title is a component: a reader that needs it reads the packet, the trace only has
+        // to say which screen the client was told to open.
+        let _ = write!(
+            line,
+            ",\"kind\":\"open_screen\",\"container\":{},\"menu_type\":{}",
+            container.0, menu_type.0
+        );
+    } else if id == CSetContainerContent::to_id(version) {
+        let Ok(container) = reader.get_container_id(&version) else {
+            return;
+        };
+        let (Ok(state), Ok(count)) = (
+            reader.get_var_int(),
+            if version >= JavaMinecraftVersion::V_1_17_1 {
+                reader.get_var_int()
+            } else {
+                reader.get_i16_be().map(|count| pumpkin_protocol::VarInt(i32::from(count)))
+            },
+        ) else {
+            return;
+        };
+        if !(0..=4096).contains(&count.0) {
+            return;
+        }
+        // The slot index is the whole point of tracing this packet: a menu whose layout differs
+        // from the client's shows a stack under the wrong index. Empty slots are left out.
+        let _ = write!(
+            line,
+            ",\"kind\":\"set_container_content\",\"container\":{},\"state\":{},\"slots\":{},\"filled\":[",
+            container.0, state.0, count.0
+        );
+        let mut first = true;
+        for index in 0..count.0 {
+            let Ok(stack) = ItemStackSerializer::read_with_version(&mut reader, &version) else {
+                return;
+            };
+            if stack.0.item_count == 0 {
+                continue;
+            }
+            if first {
+                first = false;
+            } else {
+                line.push(',');
+            }
+            let _ = write!(line, "{{\"slot\":{index},\"item\":\"");
+            write_json_string(&mut line, stack.0.item.registry_key);
+            let _ = write!(line, "\",\"count\":{}}}", stack.0.item_count);
+        }
+        line.push(']');
     } else if id == CSpawnEntity::to_id(version) {
         let Some(spawn) = read_spawn_entity(&mut reader, &version) else {
             return;
