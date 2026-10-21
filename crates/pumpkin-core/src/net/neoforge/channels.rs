@@ -26,6 +26,8 @@ pub const CONFIG_FILE: &str = "neoforge:config_file";
 pub const SPLIT: &str = "neoforge:split";
 /// Play phase, sent before the recipes.
 pub const RECIPE_CONTENT: &str = "neoforge:recipe_content";
+/// The auxiliary light of a chunk (`AuxiliaryLightDataPayload`), sent with the chunk itself.
+pub const AUXILIARY_LIGHT_DATA: &str = "neoforge:auxiliary_light_data";
 
 /// The channels usable before any negotiation (`BUILTIN_PAYLOADS`).
 pub const BUILTIN: [&str; 7] = [
@@ -120,7 +122,7 @@ pub fn own_registrations(phase: Phase) -> Vec<QueryComponent> {
             own(CONFIG_FILE, Some(Clientbound)),
             own("neoforge:advanced_add_entity", Some(Clientbound)),
             own("neoforge:advanced_open_screen", Some(Clientbound)),
-            own("neoforge:auxiliary_light_data", Some(Clientbound)),
+            own(AUXILIARY_LIGHT_DATA, Some(Clientbound)),
             own("neoforge:registry_data_map_sync", Some(Clientbound)),
             own("neoforge:advanced_container_set_data", Some(Clientbound)),
             own(RECIPE_CONTENT, Some(Clientbound)),

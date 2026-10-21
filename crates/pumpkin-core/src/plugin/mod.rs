@@ -68,9 +68,7 @@ pub fn install_guest_call_probe(probe: fn() -> bool) {
 
 /// Whether a plugin guest call is running on this thread right now.
 fn in_guest_call() -> bool {
-    GUEST_CALL_PROBE
-        .get()
-        .is_some_and(|probe| probe())
+    GUEST_CALL_PROBE.get().is_some_and(|probe| probe())
 }
 
 /// Dispatches the plugin events that were deferred out of guest calls, oldest first.
@@ -91,10 +89,11 @@ fn dispatch_deferred_events() {
         let Some(mut deferred) = deferred else {
             return;
         };
-        deferred
-            .server
-            .plugin_manager
-            .fire_blocking_dyn(&deferred.server, deferred.event_name, &mut *deferred.event);
+        deferred.server.plugin_manager.fire_blocking_dyn(
+            &deferred.server,
+            deferred.event_name,
+            &mut *deferred.event,
+        );
     }
 }
 

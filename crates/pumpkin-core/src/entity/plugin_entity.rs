@@ -446,9 +446,7 @@ impl EntityBase for PluginEntity {
                 "Entity {} of plugin type '{}' ({:?} client) is spawned without spawn data: it is \
                  sent as a plain add-entity packet and a client that needs the data will not \
                  render it",
-                entity.entity_id,
-                self.plugin_type.key,
-                flavour
+                entity.entity_id, self.plugin_type.key, flavour
             );
         } else if flavour == ConnectionFlavour::NeoForge && spawn_data_len == 0 {
             warn!(

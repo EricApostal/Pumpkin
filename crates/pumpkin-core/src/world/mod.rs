@@ -2449,9 +2449,9 @@ impl World {
             let block = Block::from_state_id(state.id);
             let mut collided = false;
 
-            if let Some(shapes) = crate::block::blocks::dynamic::entity_collision_shapes(
-                self, &pos, state, entity,
-            ) {
+            if let Some(shapes) =
+                crate::block::blocks::dynamic::entity_collision_shapes(self, &pos, state, entity)
+            {
                 // A plugin shape that depends on the entity, like a cart assembler that lets
                 // minecarts pass through.
                 for shape in shapes {

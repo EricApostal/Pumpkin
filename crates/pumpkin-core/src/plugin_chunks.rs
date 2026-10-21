@@ -171,12 +171,9 @@ pub fn release_owner(owner: &str) {
 /// The chunks are gone with the world, so only the bookkeeping is dropped.
 pub fn release_world(world: &World) {
     let uuid = world.uuid;
-    registry().tickets.retain(|_, ticket| {
-        ticket
-            .world
-            .upgrade()
-            .is_some_and(|held| held.uuid != uuid)
-    });
+    registry()
+        .tickets
+        .retain(|_, ticket| ticket.world.upgrade().is_some_and(|held| held.uuid != uuid));
 }
 
 /// Returns whether `owner` holds `ticket`.
@@ -449,8 +446,8 @@ mod tests {
     /// A world with no server and no players: enough to check that a ticketed chunk serves block
     /// and block entity calls.
     fn test_world() -> Arc<World> {
-        use pumpkin_config::world::LevelConfig;
         use crate::block::registry::BlockRegistry;
+        use pumpkin_config::world::LevelConfig;
         use pumpkin_data::dimension::Dimension;
         use pumpkin_world::level::Level;
         use pumpkin_world::world_info::LevelData;
@@ -475,19 +472,19 @@ mod tests {
     /// the chunk that is loaded there.
     #[tokio::test]
     async fn a_ticketed_chunk_serves_blocks_and_block_entities_without_a_player() {
-        use pumpkin_world::world::BlockFlags;
         use pumpkin_data::Block;
         use pumpkin_util::math::position::BlockPos;
+        use pumpkin_world::world::BlockFlags;
 
         let world = test_world();
         let chunk_pos = Vector2::new(625, 625);
         let ticket = add_force_ticket(&world, "test-plugin", chunk_pos);
 
         // The chunk system does not run in this test, so place the chunk like a loaded one.
-        world
-            .level
-            .loaded_chunks
-            .insert(chunk_pos, pumpkin_world::chunk::ChunkData::empty_sync(625, 625));
+        world.level.loaded_chunks.insert(
+            chunk_pos,
+            pumpkin_world::chunk::ChunkData::empty_sync(625, 625),
+        );
 
         {
             let loading = world

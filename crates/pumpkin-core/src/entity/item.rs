@@ -521,10 +521,8 @@ impl ItemEntity {
         // Asked with the item: a block whose shape depends on the entity (a crushing wheel
         // controller lets the item it crushes through) must not count as solid, or the item is
         // pushed out of it every tick instead of sinking in.
-        let no_physics = !world.is_space_empty_for(
-            bounding_box.expand(-1.0e-7, -1.0e-7, -1.0e-7),
-            Some(self),
-        );
+        let no_physics =
+            !world.is_space_empty_for(bounding_box.expand(-1.0e-7, -1.0e-7, -1.0e-7), Some(self));
 
         entity.no_physics.store(no_physics, Ordering::Relaxed);
 

@@ -17,6 +17,7 @@
 //! This module has the encoders and the decisions, which do not touch a connection. The part that
 //! is driven by the packets of a connection is `net::java::neoforge_session`.
 
+pub mod auxiliary_light;
 pub mod buf;
 pub mod channels;
 pub mod declaration;

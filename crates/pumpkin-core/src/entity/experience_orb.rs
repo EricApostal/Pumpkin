@@ -75,10 +75,11 @@ impl EntityBase for ExperienceOrbEntity {
 
         let mut velo = original_velo;
 
-        let no_physics = !self.entity.world.load().is_space_empty_for(
-            bounding_box.expand(-1.0e-7, -1.0e-7, -1.0e-7),
-            Some(self),
-        );
+        let no_physics = !self
+            .entity
+            .world
+            .load()
+            .is_space_empty_for(bounding_box.expand(-1.0e-7, -1.0e-7, -1.0e-7), Some(self));
         self.entity.no_physics.store(no_physics, Ordering::Relaxed);
         // TODO: isSubmergedIn
         if !no_physics {

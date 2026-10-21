@@ -346,6 +346,11 @@ impl ChunkSender {
             }
 
             client.try_enqueue_packet(chunk.payload.clone());
+            // The chunk's auxiliary light travels with the chunk (`PlayerChunkSender.sendChunk`),
+            // and the client replaces the whole map of the chunk with it.
+            if let ClientPlatform::Java(java_client) = client {
+                java_client.try_send_auxiliary_light(chunk.position.x, chunk.position.y);
+            }
 
             self.pending_chunks.remove(&chunk.position);
             self.sent_chunks.insert(chunk.position);

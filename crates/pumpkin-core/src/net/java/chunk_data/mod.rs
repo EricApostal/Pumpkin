@@ -125,12 +125,11 @@ mod tests {
             buf.windows(needle.len()).any(|window| window == needle)
         }
 
-        let entity_type =
-            pumpkin_data::block_entity_registry::register_plugin_block_entity_type(
-                "chunk_data_test:turned",
-                Vec::new(),
-            )
-            .expect("register the test block entity type");
+        let entity_type = pumpkin_data::block_entity_registry::register_plugin_block_entity_type(
+            "chunk_data_test:turned",
+            Vec::new(),
+        )
+        .expect("register the test block entity type");
         let pos = BlockPos(Vector3::new(1, 64, 1));
 
         let mut save_data = NbtCompound::new();

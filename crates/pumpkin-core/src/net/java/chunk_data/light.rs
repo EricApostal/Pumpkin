@@ -286,8 +286,8 @@ mod tests {
             engine.block_light = vec![LightContainer::new_empty(0); 3].into_boxed_slice();
         }
 
-        let light = light_data_from_chunk(&chunk, JavaMinecraftVersion::V_26_3)
-            .expect("light data builds");
+        let light =
+            light_data_from_chunk(&chunk, JavaMinecraftVersion::V_26_3).expect("light data builds");
 
         assert_eq!(
             section_light_from_payload(

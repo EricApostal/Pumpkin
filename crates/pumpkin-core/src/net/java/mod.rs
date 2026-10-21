@@ -379,6 +379,22 @@ impl JavaClient {
         }
     }
 
+    /// Sends the auxiliary light of one chunk (`neoforge:auxiliary_light_data`) to a `NeoForge`
+    /// client.
+    ///
+    /// `NeoForge` sends it with every chunk it sends (`PlayerChunkSender.sendChunk`), and the client
+    /// replaces the chunk's whole map with it, so it belongs immediately after the chunk packet of
+    /// the same chunk. A client of any other flavour does not know the channel and gets nothing.
+    pub fn try_send_auxiliary_light(&self, chunk_x: i32, chunk_z: i32) {
+        if self.flavour.load() != ConnectionFlavour::NeoForge {
+            return;
+        }
+        if let Some(packet) = crate::net::neoforge::auxiliary_light::packet_bytes(chunk_x, chunk_z)
+        {
+            self.try_enqueue_packet(packet);
+        }
+    }
+
     pub async fn send_chunks(&self, chunks: &[SyncChunk]) {
         let player = self.player.load_full();
         let Some(player) = player.as_ref() else {
@@ -402,8 +418,10 @@ impl JavaClient {
         }
 
         let (tx, rx) = oneshot::channel();
+        let neoforge = self.flavour.load() == ConnectionFlavour::NeoForge;
         rayon::spawn(move || {
             let mut serialized = Vec::with_capacity(valid_chunks.len());
+            let mut chunk_count = 0usize;
             for chunk in valid_chunks {
                 let mut buf = Vec::with_capacity(32 * 1024);
                 if let Err(err) = buf.write_var_int(&VarInt(CChunkData::to_id(CURRENT_MC_VERSION)))
@@ -418,15 +436,23 @@ impl JavaClient {
                     continue;
                 }
                 serialized.push(Bytes::from(buf));
+                chunk_count += 1;
+                // The chunk's auxiliary light goes with the chunk, as `PlayerChunkSender.sendChunk`
+                // sends it on `NeoForge`.
+                if neoforge
+                    && let Some(light) =
+                        crate::net::neoforge::auxiliary_light::packet_bytes(chunk.x, chunk.z)
+                {
+                    serialized.push(light);
+                }
             }
-            let _ = tx.send(serialized);
+            let _ = tx.send((serialized, chunk_count));
         });
 
-        let Ok(serialized) = rx.await else {
+        let Ok((serialized, chunk_count)) = rx.await else {
             return;
         };
-        let sent_count = serialized.len();
-        if sent_count == 0 {
+        if chunk_count == 0 {
             return;
         }
 
@@ -437,7 +463,7 @@ impl JavaClient {
             self.send_packet_now_data(chunk_data).await;
         }
 
-        self.send_packet(&CChunkBatchEnd::new(sent_count as u16))
+        self.send_packet(&CChunkBatchEnd::new(chunk_count as u16))
             .await;
     }
 
@@ -532,13 +558,17 @@ impl JavaClient {
     /// Every send path funnels through here, which is also where the opt-in packet trace taps
     /// the connection ([`packet_trace`]).
     fn queue_outgoing(&self, packet: OutgoingPacket, packet_len: usize) -> bool {
-        if packet_trace::active() && let OutgoingPacket::Data { data, .. } = &packet {
+        if packet_trace::active()
+            && let OutgoingPacket::Data { data, .. } = &packet
+        {
             packet_trace::on_outgoing(self.id, self.version.load(), data);
         }
         match self.outgoing_packet_queue_send.send(packet) {
             Ok(()) => true,
             Err(err) => {
-                if packet_trace::active() && let OutgoingPacket::Data { data, .. } = &err.0 {
+                if packet_trace::active()
+                    && let OutgoingPacket::Data { data, .. } = &err.0
+                {
                     packet_trace::on_dropped(self.id, data);
                 }
                 decrement_pending_bytes(&self.pending_bytes, packet_len);

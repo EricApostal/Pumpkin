@@ -224,10 +224,7 @@ fn write_ingredient(w: &mut Writer, ingredient: &OwnedRecipeIngredient) -> bool 
             } else {
                 format!("minecraft:{tag}")
             };
-            if !pumpkin_data::dynamic_tag::tag_exists(
-                pumpkin_data::tag::RegistryKey::Item,
-                &tag,
-            ) {
+            if !pumpkin_data::dynamic_tag::tag_exists(pumpkin_data::tag::RegistryKey::Item, &tag) {
                 return false;
             }
             w.var_int(0);

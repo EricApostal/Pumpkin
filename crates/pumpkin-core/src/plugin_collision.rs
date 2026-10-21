@@ -115,7 +115,9 @@ impl CollisionBoxRegistry {
 
     #[must_use]
     pub fn is_empty(&self, id: Uuid) -> bool {
-        self.worlds.get(&id).is_none_or(|entry| entry.by_owner.is_empty())
+        self.worlds
+            .get(&id)
+            .is_none_or(|entry| entry.by_owner.is_empty())
     }
 
     #[must_use]
@@ -129,7 +131,8 @@ impl CollisionBoxRegistry {
 
     /// Drops the entries of worlds that no longer exist.
     pub fn prune(&mut self) {
-        self.worlds.retain(|_, entry| entry.world.strong_count() > 0);
+        self.worlds
+            .retain(|_, entry| entry.world.strong_count() > 0);
     }
 }
 
@@ -293,7 +296,10 @@ mod tests {
     use uuid::Uuid;
 
     fn boxed(min: [f64; 3], max: [f64; 3]) -> BoundingBox {
-        BoundingBox::new(Vector3::new(min[0], min[1], min[2]), Vector3::new(max[0], max[1], max[2]))
+        BoundingBox::new(
+            Vector3::new(min[0], min[1], min[2]),
+            Vector3::new(max[0], max[1], max[2]),
+        )
     }
 
     #[test]

@@ -27,14 +27,14 @@ use std::io::Write as _;
 use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
 use std::sync::{Mutex, OnceLock};
 
+use pumpkin_protocol::ServerPacket;
 use pumpkin_protocol::codec::item_stack_seralizer::ItemStackSerializer;
 use pumpkin_protocol::java::client::play::{
-    CBlockEntityData, CBlockUpdate, CBundleDelimiter, CChunkData, CCustomPayload, CMultiBlockUpdate,
-    COpenScreen, CSetContainerContent, CSpawnEntity, CUnloadChunk,
+    CBlockEntityData, CBlockUpdate, CBundleDelimiter, CChunkData, CCustomPayload,
+    CMultiBlockUpdate, COpenScreen, CSetContainerContent, CSpawnEntity, CUnloadChunk,
 };
 use pumpkin_protocol::packet::MultiVersionJavaPacket;
 use pumpkin_protocol::ser::{NetworkReadExt, NetworkReadSliceExt, ReadingError};
-use pumpkin_protocol::ServerPacket;
 use pumpkin_util::version::JavaMinecraftVersion;
 use tracing::{error, warn};
 
@@ -118,7 +118,9 @@ pub fn on_outgoing(client: u64, version: JavaMinecraftVersion, data: &[u8]) {
     let Some(sink) = SINK.get() else {
         return;
     };
-    let mut sink = sink.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let mut sink = sink
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     decode_and_write(&mut sink, client, version, data);
 }
 
@@ -134,7 +136,9 @@ pub fn on_dropped(client: u64, data: &[u8]) {
     let Ok(packet_id) = reader.get_var_int() else {
         return;
     };
-    let mut sink = sink.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let mut sink = sink
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     let tick = TICK.load(Ordering::Relaxed);
     let mut line = String::with_capacity(64);
     let _ = write!(
@@ -260,7 +264,9 @@ fn decode_and_write(sink: &mut Sink, client: u64, version: JavaMinecraftVersion,
             if version >= JavaMinecraftVersion::V_1_17_1 {
                 reader.get_var_int()
             } else {
-                reader.get_i16_be().map(|count| pumpkin_protocol::VarInt(i32::from(count)))
+                reader
+                    .get_i16_be()
+                    .map(|count| pumpkin_protocol::VarInt(i32::from(count)))
             },
         ) else {
             return;
@@ -341,10 +347,7 @@ struct SpawnEntity {
 }
 
 /// Reads as much of `CAddEntity` as the trace needs, following its writer's version gates.
-fn read_spawn_entity(
-    reader: &mut &[u8],
-    version: &JavaMinecraftVersion,
-) -> Option<SpawnEntity> {
+fn read_spawn_entity(reader: &mut &[u8], version: &JavaMinecraftVersion) -> Option<SpawnEntity> {
     let entity_id = reader.get_var_int().ok()?.0;
     if *version >= JavaMinecraftVersion::V_1_9 {
         // The entity UUID: not reported, but it sits between the id and the type.

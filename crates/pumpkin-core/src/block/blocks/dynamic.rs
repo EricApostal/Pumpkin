@@ -13,14 +13,14 @@ use crate::entity::player::Player;
 use crate::plugin::Payload;
 use crate::plugin::block::{
     CustomBlockAttackEvent, CustomBlockBrokenEvent, CustomBlockCanPlaceEvent,
-    CustomBlockCloneItemEvent, CustomBlockCollisionShapeEvent,
-    CustomBlockComparatorOutputEvent, CustomBlockCondition, CustomBlockConditionEvent,
-    CustomBlockEntityCollisionEvent, CustomBlockEntityStepEvent, CustomBlockFireSpreadEvent,
-    CustomBlockLandedEvent, CustomBlockNeighborUpdateEvent, CustomBlockPhysicsEvent,
-    CustomBlockPhysicsKind, CustomBlockPlacedEvent, CustomBlockPlayerWillDestroyEvent,
-    CustomBlockRandomTickEvent, CustomBlockRedstonePowerEvent, CustomBlockScheduledTickEvent,
-    CustomBlockShapeEvent, CustomBlockSoundTypeEvent, CustomBlockStateReplacedEvent,
-    CustomBlockUpdateShapeEvent, CustomBlockUseEvent, CustomBlockUseResult,
+    CustomBlockCloneItemEvent, CustomBlockCollisionShapeEvent, CustomBlockComparatorOutputEvent,
+    CustomBlockCondition, CustomBlockConditionEvent, CustomBlockEntityCollisionEvent,
+    CustomBlockEntityStepEvent, CustomBlockFireSpreadEvent, CustomBlockLandedEvent,
+    CustomBlockNeighborUpdateEvent, CustomBlockPhysicsEvent, CustomBlockPhysicsKind,
+    CustomBlockPlacedEvent, CustomBlockPlayerWillDestroyEvent, CustomBlockRandomTickEvent,
+    CustomBlockRedstonePowerEvent, CustomBlockScheduledTickEvent, CustomBlockShapeEvent,
+    CustomBlockSoundTypeEvent, CustomBlockStateReplacedEvent, CustomBlockUpdateShapeEvent,
+    CustomBlockUseEvent, CustomBlockUseResult,
 };
 use crate::server::Server;
 use crate::world::World;
@@ -104,9 +104,9 @@ impl BlockBehaviour for DynamicBlock {
         let entity = args.player.get_entity();
         // The placement rules that look at a neighbour (`neighbour-shaft`) read these.
         let neighbour = |direction: BlockDirection| {
-            let (block, state_id) =
-                args.world
-                    .get_block_and_state_id(&args.position.offset(direction.to_offset()));
+            let (block, state_id) = args
+                .world
+                .get_block_and_state_id(&args.position.offset(direction.to_offset()));
             PlacementNeighbour { block, state_id }
         };
         // `TrackBlock.getStateForPlacement`: the neighbour along the axis has a solid top and the
@@ -191,7 +191,9 @@ impl BlockBehaviour for DynamicBlock {
             new_state_index: new_index,
         };
         server.plugin_manager.fire_blocking(&server, &mut event);
-        if event.new_state_index != new_index && u32::from(event.new_state_index) < info.state_count() {
+        if event.new_state_index != new_index
+            && u32::from(event.new_state_index) < info.state_count()
+        {
             state_id(args.block, event.new_state_index)
         } else {
             connected
