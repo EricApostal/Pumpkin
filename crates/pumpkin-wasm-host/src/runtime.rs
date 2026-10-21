@@ -14,13 +14,6 @@ use pumpkin_wasm_host_common::{
     state::PluginHostState,
 };
 
-/// The floor for each store's GC heap (see the `gc_heap_initial_size` call below). Wasmtime's
-/// copying collector collects when the nursery — half the heap's capacity — runs out, and the
-/// capacity only ever grows, so in steady state the nursery settles at about one live heap's
-/// worth: a plugin that allocates per tick then pays a whole collection on one tick out of every
-/// few. A floor keeps the heap far above that and makes those collections rare.
-const GC_HEAP_INITIAL_SIZE: u64 = 128 * 1024 * 1024;
-
 #[derive(Clone, Copy, Default)]
 struct SocketPolicy {
     tcp_connect: bool,
@@ -137,24 +130,6 @@ impl PluginRuntime {
         config.wasm_exceptions(true);
         config.wasm_function_references(true);
         config.collector(wasmtime::Collector::Copying);
-        // The copying collector's nursery is half of the GC heap's *capacity*, and the capacity
-        // only grows when a collection cannot free enough: in steady state the nursery ends up
-        // about one live heap's worth, so a plugin's per-tick allocations refill it within a few
-        // ticks and every one of those ticks pays the whole collection as a stall (measured: a
-        // ~7ms stall every ~9 ticks with an idle 17MB plugin, i.e. the P95 tail of an idle tick).
-        // The heap never shrinks, so giving it a floor makes those collections rare instead of
-        // constant.
-        // TEMPORARY (IdleP95Tail): sweep the floor without rebuilding.
-        let gc_heap_mb: u64 = std::env::var("PUMPKIN_GC_HEAP_MB")
-            .ok()
-            .and_then(|v| v.trim().parse().ok())
-            .unwrap_or(GC_HEAP_INITIAL_SIZE / (1024 * 1024));
-        tracing::warn!("GC heap floor = {gc_heap_mb} MiB (PUMPKIN_GC_HEAP_MB sweep knob)");
-        config.gc_heap_initial_size(gc_heap_mb * 1024 * 1024);
-        // Grow the heap in place inside its reservation instead of reallocating it: a moving
-        // heap allocates a new region for every growth and keeps the old one resident, so a
-        // server that grows its heap ends up with gigabytes of touched-but-dead mappings.
-        config.gc_heap_may_move(false);
 
         let engine = Engine::new(&config).map_err(PluginInitError::EngineCreationFailed)?;
 
