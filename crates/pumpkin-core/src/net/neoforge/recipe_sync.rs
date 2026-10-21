@@ -151,29 +151,34 @@ pub fn extra_types() -> Vec<String> {
         .collect()
 }
 
-/// The registry extras for the registry synchronisation: `(registry key, all entries)` for the
-/// recipe type and serializer registries, empty when no plugin type is synced.
+/// The registry extras for the registry synchronisation: `(registry key, vanilla entries, plugin
+/// entries)` for the recipe type and serializer registries, empty when no plugin type is synced.
+///
+/// The plugin entries are gated like every other plugin entry (`registries::syncable`): a recipe
+/// type of a mod the client does not have would be an unknown key, and the client disconnects on
+/// those.
 #[must_use]
-pub fn registry_extras() -> Vec<(String, Vec<String>)> {
+pub fn registry_extras() -> Vec<(&'static str, Vec<String>, Vec<String>)> {
     let extras = extra_types();
     if extras.is_empty() {
         return Vec::new();
     }
-    let with_vanilla = |vanilla: &[&str]| -> Vec<String> {
+    let vanilla = |vanilla: &[&str]| -> Vec<String> {
         vanilla
             .iter()
             .map(|name| format!("minecraft:{name}"))
-            .chain(extras.iter().cloned())
             .collect()
     };
     vec![
         (
-            RECIPE_TYPE_REGISTRY.to_string(),
-            with_vanilla(&VANILLA_RECIPE_TYPES),
+            RECIPE_TYPE_REGISTRY,
+            vanilla(&VANILLA_RECIPE_TYPES),
+            extras.clone(),
         ),
         (
-            RECIPE_SERIALIZER_REGISTRY.to_string(),
-            with_vanilla(&VANILLA_RECIPE_SERIALIZERS),
+            RECIPE_SERIALIZER_REGISTRY,
+            vanilla(&VANILLA_RECIPE_SERIALIZERS),
+            extras,
         ),
     ]
 }

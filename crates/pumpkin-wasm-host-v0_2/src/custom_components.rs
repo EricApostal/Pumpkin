@@ -92,9 +92,9 @@ impl Host for PluginHostState {
             .iter()
             .any(|p| p == permissions::REGISTRY_COMPONENTS)
         {
-            return Ok(Err(format!(
-                "registering data component types needs the '{}' permission",
-                permissions::REGISTRY_COMPONENTS
+            return Ok(Err(self.missing_permission(
+                "registering data component types",
+                permissions::REGISTRY_COMPONENTS,
             )));
         }
         let codec = match parse_codec(&codec) {

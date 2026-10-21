@@ -98,9 +98,9 @@ fn to_declaration(declaration: WitDeclaration) -> Declaration {
 impl Host for PluginHostState {
     fn declare(&mut self, declaration: WitDeclaration) -> wasmtime::Result<Result<(), String>> {
         if !self.permissions.iter().any(|p| p == permissions::NEOFORGE) {
-            return Ok(Err(format!(
-                "declaring NeoForge content needs the '{}' permission",
-                permissions::NEOFORGE
+            return Ok(Err(self.missing_permission(
+                "declaring NeoForge content",
+                permissions::NEOFORGE,
             )));
         }
         let owner = owner(self);
@@ -124,9 +124,9 @@ impl Host for PluginHostState {
         types: Vec<String>,
     ) -> wasmtime::Result<Result<(), String>> {
         if !self.permissions.iter().any(|p| p == permissions::NEOFORGE) {
-            return Ok(Err(format!(
-                "declaring NeoForge content needs the '{}' permission",
-                permissions::NEOFORGE
+            return Ok(Err(self.missing_permission(
+                "declaring NeoForge content",
+                permissions::NEOFORGE,
             )));
         }
         Ok(recipe_sync::declare_synced_types(&owner(self), &types))
@@ -139,9 +139,9 @@ impl Host for PluginHostState {
         content: Vec<u8>,
     ) -> wasmtime::Result<Result<(), String>> {
         if !self.permissions.iter().any(|p| p == permissions::NEOFORGE) {
-            return Ok(Err(format!(
-                "updating NeoForge config files needs the '{}' permission",
-                permissions::NEOFORGE
+            return Ok(Err(self.missing_permission(
+                "updating NeoForge config files",
+                permissions::NEOFORGE,
             )));
         }
         if let Err(message) =

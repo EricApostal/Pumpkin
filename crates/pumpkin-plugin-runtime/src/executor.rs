@@ -75,6 +75,7 @@ struct ShutdownStoreCall<F, R> {
     call: F,
     result: oneshot::Sender<wasmtime::Result<R>>,
     context: ReentryContext,
+    outcome: Arc<ShutdownOutcome>,
 }
 
 impl<T, F, R> StoreJob<T> for ShutdownStoreCall<F, R>
@@ -88,6 +89,7 @@ where
             call,
             result,
             context,
+            outcome,
         } = *self;
         let future = call(accessor);
         Box::pin(async move {
@@ -97,9 +99,11 @@ where
                     Ok(())
                 }
                 Err(error) => {
-                    let message = error.to_string();
+                    // The Store is torn down either way and the failure already goes to the
+                    // caller that asked for the shutdown, so it is not a driver failure.
+                    outcome.record(&error);
                     let _ = result.send(Err(error));
-                    Err(wasmtime::Error::msg(message))
+                    Ok(())
                 }
             }
         })
@@ -566,9 +570,44 @@ impl<T> Drop for ReentryRegistration<T> {
     }
 }
 
+/// What the shutdown request did to a Store, shared between the driver and the
+/// caller that asked for it.
+///
+/// A Store being torn down has no meaningful "driver failure" left to report, so a
+/// finalizer that traps is the caller's error, not a driver failure. The message is
+/// kept here because the Store's event loop can surface the trap before the
+/// finalizer can report it over its own channel.
+#[derive(Default)]
+struct ShutdownOutcome {
+    requested: AtomicBool,
+    error: StdMutex<Option<String>>,
+}
+
+impl ShutdownOutcome {
+    fn requested(&self) -> bool {
+        self.requested.load(Ordering::Acquire)
+    }
+
+    fn record(&self, error: &wasmtime::Error) {
+        let mut slot = self
+            .error
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        slot.get_or_insert_with(|| format!("{error:#}"));
+    }
+
+    fn error(&self) -> Option<String> {
+        self.error
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone()
+    }
+}
+
 struct StoreShared<T, P> {
     sender: mpsc::Sender<StoreMessage<T>>,
     accepting: Arc<AtomicBool>,
+    shutdown: Arc<ShutdownOutcome>,
     guest_call_failure: Arc<GuestCallFailure>,
     send_gate: Mutex<()>,
     lifecycle: Arc<Lifecycle>,
@@ -1086,10 +1125,12 @@ where
         let (control, control_receiver) = mpsc::unbounded_channel();
         let lifecycle = Lifecycle::new();
         let accepting = Arc::new(AtomicBool::new(true));
+        let shutdown = Arc::new(ShutdownOutcome::default());
         let guest_call_failure = Arc::new(GuestCallFailure::default());
         let shared = Arc::new(StoreShared {
             sender,
             accepting: Arc::clone(&accepting),
+            shutdown: Arc::clone(&shutdown),
             guest_call_failure,
             send_gate: Mutex::new(()),
             lifecycle: Arc::clone(&lifecycle),
@@ -1116,8 +1157,11 @@ where
                     control_receiver,
                     Arc::clone(&task_guard.lifecycle),
                     ready_sender,
-                    policy_name,
-                    admission_id,
+                    DriverConfig {
+                        policy_name,
+                        admission_id,
+                        shutdown,
+                    },
                 )
                 .await;
                 task_guard.disarm();
@@ -1236,6 +1280,7 @@ where
                 call,
                 result,
                 context,
+                outcome: Arc::clone(&self.handle.shared.shutdown),
             }),
             root_admission,
         });
@@ -1244,6 +1289,13 @@ where
         let result = receiver.await;
         let mut join = self.driver_join();
         let terminal = join.wait().await;
+        if result.is_err() {
+            // The finalizer could not report over its channel because the Store's event loop
+            // surfaced its trap first; hand the caller that trap instead of a generic error.
+            if let Some(error) = self.handle.shared.shutdown.error() {
+                return Err(wasmtime::Error::msg(error));
+            }
+        }
         reconcile_shutdown_result(result, terminal)
     }
 }
@@ -1317,6 +1369,13 @@ async fn drive_marked<R>(driver: impl Future<Output = R>, admission_id: u64) -> 
     .await
 }
 
+/// What a driver reports and checks while it runs, independent of its Store.
+struct DriverConfig {
+    policy_name: &'static str,
+    admission_id: u64,
+    shutdown: Arc<ShutdownOutcome>,
+}
+
 #[allow(clippy::too_many_lines)]
 async fn run_driver<T>(
     mut store: Store<T>,
@@ -1324,12 +1383,17 @@ async fn run_driver<T>(
     mut control: mpsc::UnboundedReceiver<ControlMessage>,
     lifecycle: Arc<Lifecycle>,
     ready: oneshot::Sender<()>,
-    policy_name: &'static str,
-    admission_id: u64,
+    config: DriverConfig,
 ) where
     T: Send + 'static,
 {
+    let DriverConfig {
+        policy_name,
+        admission_id,
+        shutdown,
+    } = config;
     let loop_lifecycle = Arc::clone(&lifecycle);
+    let shutdown_for_loop = Arc::clone(&shutdown);
     let result = drive_marked(
         store.run_concurrent(async move |accessor| -> wasmtime::Result<()> {
             loop_lifecycle.transition(DriverState::Accepting);
@@ -1366,6 +1430,9 @@ async fn run_driver<T>(
                                     job,
                                     root_admission,
                                 } => {
+                                    shutdown_for_loop
+                                        .requested
+                                        .store(true, Ordering::Release);
                                     while active_calls.next().await.is_some() {}
                                     loop_lifecycle.transition(DriverState::Stopping);
                                     let result = job.run(accessor).await;
@@ -1404,6 +1471,9 @@ async fn run_driver<T>(
                         job,
                         root_admission,
                     } => {
+                        shutdown_for_loop
+                            .requested
+                            .store(true, Ordering::Release);
                         loop_lifecycle.transition(DriverState::Draining);
                         receiver.close();
                         while active_calls.next().await.is_some() {}
@@ -1422,9 +1492,17 @@ async fn run_driver<T>(
     drop(store);
 
     match result {
+        // Once shutdown was requested the Store is gone either way, so a trap on the way out
+        // is the caller's error, not a driver failure: report it to the caller and stop.
+        _ if shutdown.requested() => {
+            if let Ok(Err(error)) | Err(error) = &result {
+                shutdown.record(error);
+            }
+            lifecycle.transition(DriverState::Stopped);
+        }
         Ok(Ok(())) => lifecycle.transition(DriverState::Stopped),
         Ok(Err(error)) | Err(error) => {
-            let error = Arc::new(DriverError::new(error.to_string()));
+            let error = Arc::new(DriverError::new(format!("{error:#}")));
             tracing::error!(
                 %error,
                 wasm_plugin_policy = policy_name,
@@ -1483,7 +1561,7 @@ fn panic_message(payload: &(dyn Any + Send)) -> String {
 #[cfg(test)]
 #[allow(clippy::expect_used)]
 mod tests {
-    use std::sync::Arc;
+    use std::sync::{Arc, atomic::AtomicBool};
 
     use tokio::{
         sync::{mpsc, oneshot},
@@ -1491,7 +1569,9 @@ mod tests {
     };
     use wasmtime::{Config, Engine, Store};
 
-    use super::{ControlMessage, DriverState, Lifecycle, run_driver};
+    use super::{
+        ControlMessage, DriverConfig, DriverState, Lifecycle, ShutdownOutcome, run_driver,
+    };
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn submission_close_waits_for_owner_control() {
@@ -1511,8 +1591,11 @@ mod tests {
             control_receiver,
             Arc::clone(&lifecycle),
             ready_sender,
-            "test",
-            1,
+            DriverConfig {
+                policy_name: "test",
+                admission_id: 1,
+                shutdown: Arc::new(ShutdownOutcome::default()),
+            },
         ));
 
         timeout(Duration::from_secs(10), async {

@@ -581,10 +581,104 @@ pub async fn init_plugin(
         permissions: metadata.permissions,
     };
 
-    store
-        .data_mut()
-        .permissions
-        .clone_from(&metadata.permissions);
+    install_declared_permissions(store.data_mut(), &metadata);
 
     Ok((plugin, store, metadata))
+}
+
+/// Installs the permissions the guest declared in the metadata it exports.
+///
+/// This runs in `init_plugin`, after `get-metadata` and before the store reaches
+/// the loader, so the first host call `on_load` makes already sees the declared
+/// list. `on_load` replaces it with the same list minus the permissions the server
+/// blocks; both go through [`PluginHostState::set_declared_permissions`].
+///
+/// It cannot run earlier: `init-plugin` is what builds the guest's plugin object
+/// (`register_plugin!` in `pumpkin-plugin-api` constructs it there), so the metadata
+/// does not exist before that call. Nothing may register anything from
+/// `init-plugin` for the same reason — the declared permissions are not installed
+/// until it returns.
+fn install_declared_permissions(state: &mut PluginHostState, metadata: &PluginMetadata) {
+    state.set_declared_permissions(&metadata.permissions);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::pumpkin::plugin::custom_components::{CodecOp, Host as CustomComponentsHost};
+    use pumpkin_core::plugin::permissions;
+
+    fn metadata_declaring(declared: &[&str]) -> PluginMetadata {
+        PluginMetadata {
+            name: "permission-plumbing-test".to_string(),
+            version: "0.1.0".to_string(),
+            authors: Vec::new(),
+            description: String::new(),
+            dependencies: Vec::new(),
+            permissions: declared.iter().map(|p| (*p).to_string()).collect(),
+        }
+    }
+
+    fn register_component(state: &mut PluginHostState, key: &str) -> Result<u32, String> {
+        state
+            .register_data_component_type(key.to_string(), false, vec![CodecOp::VarInt])
+            .expect("the host call itself cannot fail")
+    }
+
+    /// The failure this guards: a plugin declares `registry.components`, the host
+    /// stores the declared list in `init_plugin`, and the first thing `on_load`
+    /// does is register a data component type. If the store is still empty when
+    /// that call arrives, the registration is rejected exactly like a plugin that
+    /// never declared the permission.
+    #[test]
+    fn declared_permission_reaches_the_store_before_on_load() {
+        let mut state = PluginHostState::new();
+        install_declared_permissions(
+            &mut state,
+            &metadata_declaring(&[permissions::REGISTRY_COMPONENTS]),
+        );
+
+        assert_eq!(state.permissions, [permissions::REGISTRY_COMPONENTS]);
+        assert!(
+            register_component(&mut state, "permission_plumbing_test:declared").is_ok(),
+            "the declared permission must be visible to the registration call"
+        );
+    }
+
+    /// A rejection names what the guest actually exported, so a `.wasm` built
+    /// before its sources declared the permission is told apart from a plugin that
+    /// declares nothing.
+    #[test]
+    fn a_rejection_names_the_permissions_the_guest_declared() {
+        let mut state = PluginHostState::new();
+        install_declared_permissions(
+            &mut state,
+            &metadata_declaring(&[permissions::REGISTRY_ITEMS]),
+        );
+
+        let error = register_component(&mut state, "permission_plumbing_test:undeclared")
+            .expect_err("without the permission the registration is rejected");
+        assert!(error.contains(permissions::REGISTRY_COMPONENTS), "{error}");
+        assert!(
+            error.contains(permissions::REGISTRY_ITEMS),
+            "the error must name what the plugin declared: {error}"
+        );
+    }
+
+    /// The list is replaced, not extended: nothing from an earlier load of the
+    /// same store survives into the next one.
+    #[test]
+    fn installing_permissions_replaces_the_previous_list() {
+        let mut state = PluginHostState::new();
+        install_declared_permissions(
+            &mut state,
+            &metadata_declaring(&[permissions::REGISTRY_ITEMS]),
+        );
+        install_declared_permissions(
+            &mut state,
+            &metadata_declaring(&[permissions::REGISTRY_COMPONENTS]),
+        );
+
+        assert_eq!(state.permissions, [permissions::REGISTRY_COMPONENTS]);
+    }
 }

@@ -3,35 +3,38 @@ use thiserror::Error;
 
 use crate::{concurrent_store::LegacyStore, scheduler::TaskScheduler};
 
+// The `{0:#}` (alternate) formatting below is load-bearing: `wasmtime::Error`
+// prints only its outermost message with plain `Display` — for a trap that is
+// just the wasm backtrace frame dump. The reason the guest actually trapped
+// (the root cause, e.g. "wasm trap: wasm `unreachable` instruction executed")
+// and the frames wasmtime wrapped around it only show up in the error's
+// `source()` chain, which `{:#}` appends colon-separated.
+// See `wasmtime_core::error::Error::fmt` / `WasmBacktrace`'s docs.
 #[derive(Error, Debug)]
 pub enum PluginInitError {
-    #[error("Engine creation failed: {0}")]
+    #[error("Engine creation failed: {0:#}")]
     EngineCreationFailed(wasmtime::Error),
-    #[error("Failed to setup linker: {0}")]
+    #[error("Failed to setup linker: {0:#}")]
     LinkerSetupFailed(wasmtime::Error),
     #[error("Could not identify the plugin API version (does not export pumpkin:plugin/metadata?)")]
     UnknownApiVersion(),
     #[error("Plugin is built against an unsupported version of the API: {0}")]
     UnsupportedApiVersion(String),
-    #[error("Plugin was built against a different iteration of the API: {0}")]
+    #[error("Plugin was built against a different iteration of the API: {0:#}")]
     ApiMismatch(wasmtime::Error),
     #[error("Failed to read plugin file: {0}")]
     FileReadFailed(std::io::Error),
-    #[error("Failed to load plugin as component: {0}")]
+    #[error("Failed to load plugin as component: {0:#}")]
     ComponentNewFailed(wasmtime::Error),
-    #[error("Failed to create cache data for plugin: {0}")]
-    ComponentCacheSerializeFailed(wasmtime::Error),
-    #[error("Failed to write cache file for plugin: {0}")]
-    ComponentCacheWriteFailed(std::io::Error),
-    #[error("Failed to instantiate plugin: {0}")]
+    #[error("Failed to instantiate plugin: {0:#}")]
     InstantiationFailed(wasmtime::Error),
-    #[error("Calling `init_plugin` failed: {0}")]
+    #[error("Calling `init_plugin` failed: {0:#}")]
     CallInitPluginFailed(wasmtime::Error),
-    #[error("Calling `get_metadata` failed: {0}")]
+    #[error("Calling `get_metadata` failed: {0:#}")]
     CallGetMetadataFailed(wasmtime::Error),
     #[error("Failed to get absolute path: {0}")]
     PathResolutionFailed(std::io::Error),
-    #[error("Failed to create cache: {0}")]
+    #[error("Failed to create cache: {0:#}")]
     CacheCreationFailed(wasmtime::Error),
 }
 

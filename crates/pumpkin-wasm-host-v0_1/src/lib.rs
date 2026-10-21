@@ -416,8 +416,7 @@ pub async fn init_plugin(
 
     store
         .data_mut()
-        .permissions
-        .clone_from(&metadata.permissions);
+        .set_declared_permissions(&metadata.permissions);
 
     Ok((plugin, store, metadata))
 }

@@ -383,6 +383,9 @@ impl PendingConnection {
             (channels::MODDED_NETWORK_QUERY, Stage::PreBrand) => {
                 match ModdedNetworkQuery::decode(data) {
                     Ok(query) => {
+                        // What the client registered names the mods whose packet extensions apply
+                        // to it, see `pumpkin_protocol::mods`.
+                        self.mods.add_channels(query.channel_ids());
                         state.query = Some(query);
                         self.neoforge_resolve(false).await;
                     }

@@ -356,7 +356,11 @@ pub fn write_packet<P: ClientPacket + ?Sized>(
         return Err(WritingError::UnsupportedVersion(*version));
     }
     write.write_var_int(&VarInt(version_number))?;
-    packet.write_packet_data(write, version)
+    packet.write_packet_data(&mut write, version)?;
+    // A packet that a mod of this connection extends gets its extra fields from the table
+    // (`crate::mods`), after the vanilla payload. A packet no mod extends, and every packet of a
+    // connection without mods, is written exactly as before.
+    crate::mods::write_extensions(version_number, version, &mut write)
 }
 
 pub fn serialize_packet<P: ClientPacket + ?Sized>(

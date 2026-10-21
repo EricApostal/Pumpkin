@@ -334,9 +334,13 @@ xxhash-rust = { version = "0.8", default-features = false, features = [
     "xxh64",
 ] }
 
-# Temporary pin to the approved implementation of Component Model sync reentry:
-# https://github.com/bytecodealliance/wasmtime/commit/f6b3140dbb1d9b436ef523d14740292c956b0364
-wasmtime = { git = "https://github.com/bytecodealliance/wasmtime", rev = "f6b3140dbb1d9b436ef523d14740292c956b0364", default-features = false, features = [
+# Wasmtime 49.0.4. The previous pin (f6b3140d, 2026-09-01) predates the fix for
+# GHSA-hw8m-q44c-ggrf ("Rooting for GC values live across `try_call` may be
+# missing, causing GC heap corruption"), which is exactly the stale-GC-ref
+# abort we observed in plugin `onLoad`. Affected: >=47.0.0,<48.0.4,>=49.0.0,<49.0.2.
+# Patched: 48.0.4 / 49.0.2. We take 49.0.4 for the follow-up GC fixes too.
+# https://github.com/bytecodealliance/wasmtime/releases/tag/v49.0.4
+wasmtime = { git = "https://github.com/bytecodealliance/wasmtime", rev = "2c2970205fe05d6bbf15b9bff6f1e67874b2db5c", default-features = false, features = [
     "runtime",
     "component-model",
     "component-model-async",
@@ -352,11 +356,11 @@ wasmtime = { git = "https://github.com/bytecodealliance/wasmtime", rev = "f6b314
     # single-threaded and a cold start spends ~158 s there (PerfMeasure).
     "parallel-compilation",
 ] }
-wasmtime-wasi = { git = "https://github.com/bytecodealliance/wasmtime", rev = "f6b3140dbb1d9b436ef523d14740292c956b0364", default-features = false, features = [
+wasmtime-wasi = { git = "https://github.com/bytecodealliance/wasmtime", rev = "2c2970205fe05d6bbf15b9bff6f1e67874b2db5c", default-features = false, features = [
     "p2",
     "p3",
 ] }
-wasmtime-wasi-http = { git = "https://github.com/bytecodealliance/wasmtime", rev = "f6b3140dbb1d9b436ef523d14740292c956b0364", default-features = false, features = [
+wasmtime-wasi-http = { git = "https://github.com/bytecodealliance/wasmtime", rev = "2c2970205fe05d6bbf15b9bff6f1e67874b2db5c", default-features = false, features = [
     "p2",
     "p3",
     "default-send-request",

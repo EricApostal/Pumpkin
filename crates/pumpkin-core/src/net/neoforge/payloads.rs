@@ -173,6 +173,18 @@ pub struct ModdedNetworkQuery {
 }
 
 impl ModdedNetworkQuery {
+    /// The ids of everything the client registered, whatever the protocol and the direction.
+    ///
+    /// This answer is the other half of what a mod's presence is read from, next to the
+    /// `minecraft:register` lists: a client that answers the query reports its payloads of both
+    /// phases, its play ones included, which the channel lists may not carry yet.
+    pub fn channel_ids(&self) -> impl Iterator<Item = &str> {
+        self.components
+            .values()
+            .flatten()
+            .map(|component| component.id.as_str())
+    }
+
     #[must_use]
     pub fn encode(&self) -> Vec<u8> {
         let mut w = Writer::new();

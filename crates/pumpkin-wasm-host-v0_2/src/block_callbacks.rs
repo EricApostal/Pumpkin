@@ -130,9 +130,9 @@ impl Host for PluginHostState {
             .iter()
             .any(|p| p == permissions::REGISTRY_BLOCKS)
         {
-            return Ok(Err(format!(
-                "setting block callbacks needs the '{}' permission",
-                permissions::REGISTRY_BLOCKS
+            return Ok(Err(self.missing_permission(
+                "setting block callbacks",
+                permissions::REGISTRY_BLOCKS,
             )));
         }
         let callbacks = from_wit_flags(callbacks);

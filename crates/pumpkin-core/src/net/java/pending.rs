@@ -9,7 +9,8 @@ use crossbeam::atomic::AtomicCell;
 use pumpkin_config::networking::compression::CompressionInfo;
 use pumpkin_data::packet::CURRENT_MC_VERSION;
 use pumpkin_protocol::{
-    ClientPacket, ConnectionFlavour, ConnectionState, PacketDecodeError, RawPacket, ServerPacket,
+    ClientPacket, ConnectionFlavour, ConnectionState, ModSet, PacketDecodeError, RawPacket,
+    ServerPacket,
     codec::var_int::VarInt,
     java::{
         client::config::CConfigDisconnect,
@@ -82,6 +83,10 @@ pub struct PendingConnection {
     /// [`ConnectionHandle::set_flavour`](super::plugin_session::ConnectionHandle::set_flavour)
     /// and read from the session when it ends (see `end_plugin_session`).
     pub flavour: ConnectionFlavour,
+    /// The mods this connection negotiated, for the packet extensions that apply to it, gathered
+    /// while the connection is configured (see [`ModSet`] and `pumpkin_protocol::mods`). Copied to
+    /// the [`JavaClient`](super::JavaClient) that continues the connection.
+    pub mods: ModSet,
     pub packet_limiter: PacketRateLimiter,
     pub verify_token: Option<[u8; 4]>,
     pub vine_challenge: Option<[u8; 16]>,
@@ -122,6 +127,7 @@ impl PendingConnection {
             config: None,
             brand: None,
             flavour: ConnectionFlavour::Vanilla,
+            mods: ModSet::NONE,
             packet_limiter,
             login_started: false,
             login_success_sent: false,
@@ -691,6 +697,11 @@ impl PendingConnection {
 
     pub async fn handle_plugin_message(&mut self, plugin_message: SPluginMessage<'_>) {
         debug!("Handling plugin message");
+        // A channel list is the client telling us which mods it has, and it decides the packet
+        // extensions the rest of the connection gets. This runs before the payload is handed on, so
+        // it sees every list — including the ones the `NeoForge` handshake consumes.
+        self.mods
+            .apply_channel_list(plugin_message.channel, plugin_message.data);
         if plugin_message.channel.starts_with(BRAND_CHANNEL_PREFIX) {
             debug!("Got a client brand");
             match core::str::from_utf8(plugin_message.data) {

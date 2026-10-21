@@ -55,10 +55,7 @@ fn check_worldgen_permission(state: &PluginHostState, what: &str) -> Result<(), 
     {
         Ok(())
     } else {
-        Err(format!(
-            "{what} needs the '{}' permission",
-            permissions::REGISTRY_WORLDGEN
-        ))
+        Err(state.missing_permission(what, permissions::REGISTRY_WORLDGEN))
     }
 }
 

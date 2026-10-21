@@ -46,9 +46,9 @@ fn permission_error(state: &PluginHostState) -> Option<String> {
         .iter()
         .any(|p| p == permissions::CONTAINERS))
     .then(|| {
-        format!(
-            "item handlers and plugin inventories need the '{}' permission",
-            permissions::CONTAINERS
+        state.missing_permission(
+            "item handlers and plugin inventories",
+            permissions::CONTAINERS,
         )
     })
 }

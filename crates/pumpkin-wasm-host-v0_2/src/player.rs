@@ -3419,10 +3419,14 @@ impl pumpkin::plugin::player::HostJavaPlayerWithStore<PluginHostState>
             .client
             .java()
             .ok_or_else(|| wasmtime::Error::msg("Not a java player"))?;
-        if let Some(bytes) = crate::generated_packets::serialize_java_packet(
-            &packet,
-            pumpkin_data::packet::CURRENT_MC_VERSION,
-        ) {
+        // In the encoding of *this* connection: a packet of it that a mod of the client extends
+        // gets the mod's fields, exactly as a packet the host sends itself (`pumpkin_protocol::mods`).
+        if let Some(bytes) = client.encoding().scope(|| {
+            crate::generated_packets::serialize_java_packet(
+                &packet,
+                pumpkin_data::packet::CURRENT_MC_VERSION,
+            )
+        }) {
             client.send_packet_now_data(bytes).await;
         }
         Ok(())

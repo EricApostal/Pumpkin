@@ -58,6 +58,17 @@ impl ConnectedBot {
         Self::from_bot(HeadlessBot::connect_and_join_neoforge_mirroring(addr, name).await?)
     }
 
+    /// Joins as a **NeoForge** client whose channel set is given instead of derived, so a set
+    /// copied from a mod's own registration can be put on the wire as-is.
+    pub async fn join_neoforge_with(
+        addr: std::net::SocketAddr,
+        name: &str,
+        query: pumpkin_core::net::neoforge::payloads::ModdedNetworkQuery,
+        announced: Vec<String>,
+    ) -> Result<Self, String> {
+        Self::from_bot(HeadlessBot::connect_and_join_neoforge_with(addr, name, query, announced).await?)
+    }
+
     fn from_bot(bot: HeadlessBot) -> Result<Self, String> {
         let neoforge = bot.neoforge;
         let HeadlessBot { reader, writer, .. } = bot;

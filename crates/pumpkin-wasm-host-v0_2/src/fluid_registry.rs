@@ -27,9 +27,9 @@ impl Host for PluginHostState {
             .iter()
             .any(|p| p == permissions::REGISTRY_FLUIDS)
         {
-            return Ok(Err(format!(
-                "registering fluids needs the '{}' permission",
-                permissions::REGISTRY_FLUIDS
+            return Ok(Err(self.missing_permission(
+                "registering fluids",
+                permissions::REGISTRY_FLUIDS,
             )));
         }
         if Fluid::is_dynamic_registry_frozen() {
@@ -80,9 +80,9 @@ impl Host for PluginHostState {
             .iter()
             .any(|p| p == permissions::REGISTRY_FLUIDS)
         {
-            return Ok(Err(format!(
-                "registering fluid tags needs the '{}' permission",
-                permissions::REGISTRY_FLUIDS
+            return Ok(Err(self.missing_permission(
+                "registering fluid tags",
+                permissions::REGISTRY_FLUIDS,
             )));
         }
         if Fluid::is_dynamic_registry_frozen() {

@@ -198,6 +198,41 @@ impl PluginHostState {
         }
     }
 
+    /// Installs the permissions a plugin declared in its metadata.
+    ///
+    /// Every host call that needs a permission reads this list, so it must be
+    /// installed before the guest export that makes the call runs: the metadata is
+    /// read and the list set in `init_plugin`, and `on_load` replaces it with the
+    /// configured permissions minus the blocked ones before `on-load` is called.
+    ///
+    /// The list is replaced whole, never appended to, so nothing carries over from
+    /// an earlier load of the same store.
+    pub fn set_declared_permissions(&mut self, declared: &[String]) {
+        self.permissions.clear();
+        self.permissions.extend_from_slice(declared);
+    }
+
+    /// The error for a host call the plugin's declared permissions do not allow.
+    ///
+    /// The declared list is part of the message on purpose. A plugin whose sources
+    /// declare the permission but whose `.wasm` was built before that change exports
+    /// the older list, and the host rejects the call exactly like a plugin that never
+    /// declared it. Naming what the guest actually exported tells the two apart:
+    /// `declares ["registry.items", ...]` is a stale binary, an empty list is a
+    /// plugin that declares nothing.
+    #[must_use]
+    pub fn missing_permission(&self, what: &str, needed: &str) -> String {
+        let declared = if self.permissions.is_empty() {
+            "no permissions".to_string()
+        } else {
+            format!("{:?}", self.permissions)
+        };
+        format!(
+            "{what} needs the '{needed}' permission, but the plugin declares {declared}. \
+             A plugin whose sources declare it was built before that change; rebuild its .wasm."
+        )
+    }
+
     /// get a **borrowed** (or **owned**) [`Resource`]'s value from the resource table
     pub fn get<T: FromResource>(&self, res: &Resource<T>) -> wasmtime::Result<&T::Internal> {
         Ok(self.resource_table.get(&Resource::new_borrow(res.rep()))?)

@@ -52,9 +52,9 @@ fn permission_error(state: &PluginHostState) -> Option<String> {
         .iter()
         .any(|p| p == permissions::CONTAINERS))
     .then(|| {
-        format!(
-            "fluid handlers and plugin tanks need the '{}' permission",
-            permissions::CONTAINERS
+        state.missing_permission(
+            "fluid handlers and plugin tanks",
+            permissions::CONTAINERS,
         )
     })
 }

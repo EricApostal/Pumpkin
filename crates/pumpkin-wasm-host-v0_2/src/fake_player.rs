@@ -42,12 +42,7 @@ fn permission_error(state: &PluginHostState) -> Option<String> {
         .permissions
         .iter()
         .any(|p| p == permissions::FAKE_PLAYERS))
-    .then(|| {
-        format!(
-            "fake players need the '{}' permission",
-            permissions::FAKE_PLAYERS
-        )
-    })
+    .then(|| state.missing_permission("fake players", permissions::FAKE_PLAYERS))
 }
 
 fn plugin_of(

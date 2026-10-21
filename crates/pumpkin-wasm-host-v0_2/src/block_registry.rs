@@ -151,10 +151,7 @@ fn check_block_permission(state: &PluginHostState) -> Result<(), String> {
     {
         Ok(())
     } else {
-        Err(format!(
-            "registering blocks needs the '{}' permission",
-            permissions::REGISTRY_BLOCKS
-        ))
+        Err(state.missing_permission("registering blocks", permissions::REGISTRY_BLOCKS))
     }
 }
 

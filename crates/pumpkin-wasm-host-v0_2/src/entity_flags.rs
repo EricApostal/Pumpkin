@@ -14,11 +14,8 @@ fn unknown_key(key: &str) -> String {
     format!("unknown entity flag '{key}'")
 }
 
-fn permission_error() -> String {
-    format!(
-        "entity flags need the '{}' permission",
-        permissions::ENTITY_FLAGS
-    )
+fn permission_error(state: &PluginHostState) -> String {
+    state.missing_permission("entity flags", permissions::ENTITY_FLAGS)
 }
 
 const fn internal_pose(pose: EntityPose) -> InternalEntityPose {
@@ -67,7 +64,7 @@ impl Host for PluginHostState {
             .iter()
             .any(|p| p == permissions::ENTITY_FLAGS)
         {
-            return Ok(Err(permission_error()));
+            return Ok(Err(permission_error(self)));
         }
         let entity = self.get(&entity)?;
         Ok(set_flag(entity.get_entity(), &key, value))
@@ -83,7 +80,7 @@ impl Host for PluginHostState {
             .iter()
             .any(|p| p == permissions::ENTITY_FLAGS)
         {
-            return Ok(Err(permission_error()));
+            return Ok(Err(permission_error(self)));
         }
         let entity = self.get(&entity)?;
         Ok(get_flag(entity.get_entity(), &key))
@@ -100,7 +97,7 @@ impl Host for PluginHostState {
             .iter()
             .any(|p| p == permissions::ENTITY_FLAGS)
         {
-            return Ok(Err(permission_error()));
+            return Ok(Err(permission_error(self)));
         }
         let player = self.get(&player)?;
         Ok(set_flag(&player.living_entity.entity, &key, value))
@@ -116,7 +113,7 @@ impl Host for PluginHostState {
             .iter()
             .any(|p| p == permissions::ENTITY_FLAGS)
         {
-            return Ok(Err(permission_error()));
+            return Ok(Err(permission_error(self)));
         }
         let player = self.get(&player)?;
         Ok(get_flag(&player.living_entity.entity, &key))
@@ -132,7 +129,7 @@ impl Host for PluginHostState {
             .iter()
             .any(|p| p == permissions::ENTITY_FLAGS)
         {
-            return Ok(Err(permission_error()));
+            return Ok(Err(permission_error(self)));
         }
         if size.is_some_and(|(width, height)| !(width > 0.0 && height > 0.0)) {
             return Ok(Err("the size must be positive".to_string()));
@@ -154,7 +151,7 @@ impl Host for PluginHostState {
             .iter()
             .any(|p| p == permissions::ENTITY_FLAGS)
         {
-            return Ok(Err(permission_error()));
+            return Ok(Err(permission_error(self)));
         }
         if reach.is_some_and(|(x, y, z)| !(x >= 0.0 && y >= 0.0 && z >= 0.0)) {
             return Ok(Err("the reach must not be negative".to_string()));
@@ -178,7 +175,7 @@ impl Host for PluginHostState {
             .iter()
             .any(|p| p == permissions::ENTITY_FLAGS)
         {
-            return Ok(Err(permission_error()));
+            return Ok(Err(permission_error(self)));
         }
         let entity = self.get(&entity)?;
         let entity = entity.get_entity();

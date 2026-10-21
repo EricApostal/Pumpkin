@@ -42,9 +42,9 @@ impl Host for PluginHostState {
             .iter()
             .any(|p| p == permissions::REGISTRY_BLOCK_ENTITIES)
         {
-            return Ok(Err(format!(
-                "registering block entity types needs the '{}' permission",
-                permissions::REGISTRY_BLOCK_ENTITIES
+            return Ok(Err(self.missing_permission(
+                "registering block entity types",
+                permissions::REGISTRY_BLOCK_ENTITIES,
             )));
         }
         Ok(
@@ -96,9 +96,9 @@ impl Host for PluginHostState {
             .iter()
             .any(|p| p == permissions::REGISTRY_BLOCK_ENTITIES)
         {
-            return Ok(Err(format!(
-                "ticking block entity types needs the '{}' permission",
-                permissions::REGISTRY_BLOCK_ENTITIES
+            return Ok(Err(self.missing_permission(
+                "ticking block entity types",
+                permissions::REGISTRY_BLOCK_ENTITIES,
             )));
         }
         let Some(entity_type) = plugin_block_entity_type_by_key(&type_key) else {

@@ -325,9 +325,14 @@ impl HostPlayerInventory for PluginHostState {
 
         player.inventory().set_stack(slot, stack.clone());
 
-        // Sync to client
+        // Sync to client. `CONTAINER_SET_SLOT` for the player's menu addresses `InventoryMenu`
+        // slots: the hotbar is 36..=44 and the off hand 45, not the inventory index.
+        let menu_slot = match hand {
+            pumpkin_util::Hand::Right => 36 + i16::from(player.inventory().get_selected_slot()),
+            pumpkin_util::Hand::Left => 45,
+        };
         let stack_serializer = ItemStackSerializer::from(stack);
-        let packet = CSetContainerSlot::new(0, 0, slot as i16, &stack_serializer);
+        let packet = CSetContainerSlot::new(0, 0, menu_slot, &stack_serializer);
         player.send_client_packet(&packet).await;
 
         Ok(())

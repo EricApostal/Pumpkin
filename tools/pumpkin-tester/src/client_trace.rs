@@ -19,13 +19,18 @@
 //! is visible instead of being inferred from adjacency. Decoding is
 //! [`crate::packet_capture`]'s — the same code the integration tests assert through.
 
+use std::collections::BTreeMap;
 use std::fmt::Write as _;
 use std::io::Write as _;
 use std::net::SocketAddr;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+use pumpkin_core::net::neoforge::{
+    channels as neoforge_channels,
+    payloads::{Flow, ModdedNetworkQuery, Phase, QueryComponent},
+};
 use pumpkin_data::packet::CURRENT_MC_VERSION;
 use pumpkin_protocol::java::client::play::{
     CBlockEntityData, CBlockUpdate, CBundleDelimiter, CChunkData, CCustomPayload, CMultiBlockUpdate,
@@ -64,6 +69,14 @@ pub struct ClientOptions {
     ///
     /// Implies `--neoforge`; against a server without the handshake it is a plain join.
     pub mirror: bool,
+    /// The payload channels this client has, as a JSON file (see [`load_query`]): what a real
+    /// modded client would answer the `neoforge:register` query with. Implies `--neoforge` and
+    /// takes precedence over `--mirror`.
+    ///
+    /// This is how a client set copied from a mod's own registration is put on the wire without
+    /// the bot learning it from refusals: the server's answer then says whether *that* set is
+    /// accepted.
+    pub query: Option<PathBuf>,
     /// World block positions whose chunk light is written out as a `chunk_light_cell` line, so a
     /// specific cell's sky/block light can be read out of the payload without decoding the whole
     /// section array by hand.
@@ -87,6 +100,7 @@ impl ClientOptions {
             trace,
             neoforge: false,
             mirror: false,
+            query: None,
             light_at: Vec::new(),
             min_y: -64,
             dump_chunks: None,
@@ -109,7 +123,10 @@ struct TraceState {
 )]
 pub async fn run(options: ClientOptions) -> Result<(), String> {
     let name = options.name.clone();
-    let mut bot = if options.mirror {
+    let mut bot = if let Some(query) = options.query.as_deref() {
+        let (query, announced) = load_query(query)?;
+        ConnectedBot::join_neoforge_with(options.addr, &options.name, query, announced).await?
+    } else if options.mirror {
         ConnectedBot::join_neoforge_mirroring(options.addr, &options.name).await?
     } else if options.neoforge {
         ConnectedBot::join_neoforge(options.addr, &options.name).await?
@@ -161,6 +178,97 @@ pub async fn run(options: ClientOptions) -> Result<(), String> {
         options.trace.display()
     );
     Ok(())
+}
+
+/// Reads the payload channels of the mods a client has installed from `path`, and derives what it
+/// announces with `minecraft:register`.
+///
+/// The file lists only the **mods'** channels; NeoForge's own registrations are added, because
+/// every `NeoForge` client has them (that is what makes the file the same manifest a plugin
+/// declares):
+///
+/// ```json
+/// {
+///   "channels": [
+///     {"id": "mymod:sync", "version": "2", "phase": "play", "flow": "serverbound", "optional": false}
+///   ]
+/// }
+/// ```
+///
+/// `flow` is `clientbound`, `serverbound` or absent (both directions), `phase` is `play` when
+/// absent, and `optional` defaults to `false` — which is how a mod's registration differs from
+/// NeoForge's own.
+///
+/// The announced list is every configuration channel the client can receive (`clientbound` or
+/// both), which is how a `NeoForge` client builds it: the three channels the registry
+/// synchronisation needs are among them, so a set that leaves them out is refused before the
+/// negotiation, exactly as a real client would be.
+fn load_query(path: &Path) -> Result<(ModdedNetworkQuery, Vec<String>), String> {
+    let text = std::fs::read_to_string(path)
+        .map_err(|err| format!("cannot read the query file {}: {err}", path.display()))?;
+    let parsed: serde_json::Value = serde_json::from_str(&text)
+        .map_err(|err| format!("{} is not valid JSON: {err}", path.display()))?;
+    let mut components: BTreeMap<Phase, Vec<QueryComponent>> = BTreeMap::new();
+    for phase in [Phase::Configuration, Phase::Play] {
+        components.insert(phase, neoforge_channels::own_registrations(phase));
+    }
+    let channels = parsed
+        .get("channels")
+        .and_then(serde_json::Value::as_array)
+        .ok_or_else(|| format!("{} has no 'channels' array", path.display()))?;
+    for entry in channels {
+        let id = entry
+            .get("id")
+            .and_then(serde_json::Value::as_str)
+            .ok_or_else(|| "a channel has no id".to_string())?;
+        let version = entry
+            .get("version")
+            .and_then(serde_json::Value::as_str)
+            .ok_or_else(|| format!("channel {id} has no version"))?;
+        let phase = match entry.get("phase").and_then(serde_json::Value::as_str) {
+            None | Some("play") => Phase::Play,
+            Some("configuration") => Phase::Configuration,
+            Some(other) => {
+                return Err(format!(
+                    "channel {id} has phase '{other}', expected configuration or play"
+                ));
+            }
+        };
+        let flow = match entry.get("flow").and_then(serde_json::Value::as_str) {
+            None => None,
+            Some("clientbound") => Some(Flow::Clientbound),
+            Some("serverbound") => Some(Flow::Serverbound),
+            Some(other) => {
+                return Err(format!(
+                    "channel {id} has flow '{other}', expected clientbound or serverbound"
+                ));
+            }
+        };
+        let optional = entry
+            .get("optional")
+            .and_then(serde_json::Value::as_bool)
+            .unwrap_or(false);
+        let list = components.entry(phase).or_default();
+        if list.iter().any(|component| component.id == id) {
+            return Err(format!("channel {id} is listed twice"));
+        }
+        list.push(QueryComponent {
+            id: id.to_string(),
+            version: version.to_string(),
+            flow,
+            optional,
+        });
+    }
+    let query = ModdedNetworkQuery { components };
+    let announced = query
+        .components
+        .get(&Phase::Configuration)
+        .into_iter()
+        .flatten()
+        .filter(|component| component.flow != Some(Flow::Serverbound))
+        .map(|component| component.id.clone())
+        .collect();
+    Ok((query, announced))
 }
 
 /// Resolves when the process is asked to stop, so the tail of the trace is still written.

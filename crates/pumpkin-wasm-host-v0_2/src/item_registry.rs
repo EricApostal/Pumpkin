@@ -25,10 +25,7 @@ fn check_item_registration_allowed(state: &PluginHostState) -> Result<(), String
         .iter()
         .any(|p| p == permissions::REGISTRY_ITEMS)
     {
-        return Err(format!(
-            "registering items needs the '{}' permission",
-            permissions::REGISTRY_ITEMS
-        ));
+        return Err(state.missing_permission("registering items", permissions::REGISTRY_ITEMS));
     }
     if Item::is_dynamic_registry_frozen() {
         return Err("items can only be registered before players connect".to_string());

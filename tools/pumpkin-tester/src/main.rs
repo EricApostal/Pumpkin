@@ -27,7 +27,8 @@ use tokio_util::{sync::CancellationToken, task::TaskTracker};
 /// instead of silence, and `--dump-chunks <dir>` writes every chunk payload out as raw bytes.
 const CLIENT_USAGE: &str =
     "usage: pumpkin-tester client --addr <host:port> --name <name> --trace <path> \
-     [--neoforge] [--mirror] [--light-at <x,y,z>]... [--min-y <y>] [--dump-chunks <dir>]";
+     [--neoforge] [--mirror] [--query <channels.json>] [--light-at <x,y,z>]... [--min-y <y>] \
+     [--dump-chunks <dir>]";
 
 #[expect(
     clippy::print_stderr,
@@ -39,6 +40,7 @@ fn parse_client_options(args: &[String]) -> Option<ClientOptions> {
     let mut trace = None;
     let mut neoforge = false;
     let mut mirror = false;
+    let mut query: Option<PathBuf> = None;
     let mut light_at = Vec::new();
     let mut min_y = -64;
     let mut dump_chunks = None;
@@ -122,6 +124,16 @@ fn parse_client_options(args: &[String]) -> Option<ClientOptions> {
                 neoforge = true;
                 index += 1;
             }
+            "--query" => {
+                let Some(value) = args.get(index + 1) else {
+                    eprintln!("--query needs a path\n{CLIENT_USAGE}");
+                    return None;
+                };
+                // Supplying the client's own channel set is the `NeoForge` handshake.
+                neoforge = true;
+                query = Some(PathBuf::from(value));
+                index += 2;
+            }
             "--mirror" => {
                 // Mirroring is the `NeoForge` handshake derived from the server, so it implies it.
                 neoforge = true;
@@ -142,6 +154,7 @@ fn parse_client_options(args: &[String]) -> Option<ClientOptions> {
             trace,
             neoforge,
             mirror,
+            query,
             light_at,
             min_y,
             dump_chunks,

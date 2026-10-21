@@ -2301,20 +2301,48 @@ mod tests {
             .expect_err("finalizer failure should fail shutdown");
         assert!(shutdown_error.to_string().contains("finalizer failed"));
 
-        let retained = match store.state() {
-            DriverState::Failed(error) => error,
-            state => panic!("expected a failed driver, got {state:?}"),
-        };
-        assert!(retained.to_string().contains("finalizer failed"));
+        // The finalizer's failure is the caller's, not the driver's: a throwing
+        // `onUnload` must not be reported as a stopped store driver.
+        assert_eq!(store.state(), DriverState::Stopped);
 
         let mut join = store.driver_join();
-        let joined = join.wait().await.expect_err("driver join should fail");
-        assert_eq!(joined, retained);
+        join.wait().await.expect("the driver stopped as asked");
 
         let call_error = handle
             .call(|_| Box::pin(async move { Ok(()) }))
             .await
-            .expect_err("future calls should retain the driver failure");
-        assert!(call_error.to_string().contains("finalizer failed"));
+            .expect_err("a stopped store accepts no more work");
+        assert!(
+            call_error.to_string().contains("driver has stopped")
+                || call_error.to_string().contains("shutting down"),
+            "{call_error}"
+        );
+    }
+
+    /// A finalizer that traps the guest (`onUnload` throwing) still leaves the
+    /// driver stopped, not failed.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn trapping_finalizer_stops_driver_without_failing_it() {
+        let spawner = Arc::new(TestSpawner {
+            runtime: tokio::runtime::Handle::current(),
+        });
+        let store = LegacyStore::start(test_store(), LegacySyncReentry::new(), spawner)
+            .await
+            .expect("start test Store driver");
+
+        let error = store
+            .shutdown(|_| {
+                Box::pin(async move {
+                    Err::<(), _>(wasmtime::Error::msg(
+                        "error while executing at wasm backtrace:\n    0: M!dispose",
+                    ))
+                })
+            })
+            .await
+            .expect_err("a trapping finalizer should fail shutdown");
+        assert!(error.to_string().contains("wasm backtrace"), "{error}");
+        assert_eq!(store.state(), DriverState::Stopped);
+        let mut join = store.driver_join();
+        join.wait().await.expect("the driver stopped as asked");
     }
 }

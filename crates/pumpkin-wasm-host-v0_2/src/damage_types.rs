@@ -21,9 +21,9 @@ impl Host for PluginHostState {
             .iter()
             .any(|p| p == permissions::REGISTRY_DAMAGE_TYPES)
         {
-            return Ok(Err(format!(
-                "registering damage types needs the '{}' permission",
-                permissions::REGISTRY_DAMAGE_TYPES
+            return Ok(Err(self.missing_permission(
+                "registering damage types",
+                permissions::REGISTRY_DAMAGE_TYPES,
             )));
         }
         let key = definition.key;

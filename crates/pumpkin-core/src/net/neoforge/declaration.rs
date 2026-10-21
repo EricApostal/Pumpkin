@@ -359,7 +359,10 @@ pub fn current() -> Option<Arc<Aggregate>> {
     {
         return Some(Arc::clone(&cached.aggregate));
     }
-    let mut aggregate = Aggregate::build(&declarations, registries::host_registries());
+    let mut aggregate = Aggregate::build(
+        &declarations,
+        registries::host_registries(&registries::Vouched::from_declarations(&declarations)),
+    );
     // The datapack entries plugins registered through the host need no declaration.
     aggregate
         .datapack_entries
@@ -437,6 +440,22 @@ impl Aggregate {
                 }
             }
             for extra in &declaration.registries {
+                if registries::Vouched::is_host_numbered(&extra.key) {
+                    // Naming one of these is the vouch that lets the host send the mod's entries
+                    // in it (`Vouched::from_declarations`); the entries themselves come from the
+                    // host's dynamic registry, in the ids it assigned. A list here adds nothing,
+                    // and a snapshot built from the list alone would lack the vanilla entries.
+                    if !extra.entries.is_empty() {
+                        warn!(
+                            "The NeoForge declaration of {} lists {} entries of {}, which the host \
+                             numbers: the registered ones are sent, the listed ones are ignored",
+                            declaration.mod_info.id,
+                            extra.entries.len(),
+                            extra.key
+                        );
+                    }
+                    continue;
+                }
                 if let Some(existing) = registries.iter_mut().find(|r| r.key == extra.key) {
                     for entry in &extra.entries {
                         if !existing.entries.contains(entry) {
@@ -641,6 +660,65 @@ mod tests {
     }
 
     #[test]
+    fn declaring_a_mod_vouches_for_nothing_by_itself() {
+        // A partial port declares its payload channels so a client that has the mod negotiates
+        // them; the content it registered is a separate claim. Only naming a registry in the
+        // declaration vouches for the mod's entries in it (`registries.rs`).
+        let d = declaration("moda").validated().unwrap();
+        assert!(
+            registries::Vouched::from_declarations(&[d]).is_empty(),
+            "declaring a mod must not vouch for its content"
+        );
+    }
+
+    #[test]
+    fn a_declaration_cannot_build_a_host_numbered_snapshot_alone() {
+        // The snapshot replaces the client's registry, so it has to carry the vanilla entries
+        // too. A registry the host numbers is built from the host's dynamic registry; a declared
+        // list alone must never become a snapshot.
+        let mut d = declaration("moda");
+        d.registries.push(RegistryDecl {
+            key: registries::ITEM.into(),
+            entries: vec!["moda:gem".into()],
+        });
+        let aggregate = Aggregate::build(&[d.validated().unwrap()], Vec::new());
+        assert!(
+            aggregate
+                .registries
+                .iter()
+                .all(|registry| registry.key != registries::ITEM)
+        );
+        assert!(aggregate.registry_payloads.is_empty());
+    }
+
+    #[test]
+    fn a_mods_own_registry_needs_the_declaration_to_name_it() {
+        // A registry no vanilla key exists for is not one the host numbers: the client only has
+        // it if the mod creates it, so the declaration has to say so.
+        let d = declaration("moda").validated().unwrap();
+        let vouched = registries::Vouched::from_declarations(&[d]);
+        pumpkin_data::extra_registry::register_owned_registry("moda:thing").unwrap();
+        pumpkin_data::extra_registry::add_owned_registry_entry("moda:thing", "moda:one").unwrap();
+        assert!(
+            !registries::host_registries(&vouched)
+                .iter()
+                .any(|r| r.key == "moda:thing"),
+            "an unnamed registry must not be sent"
+        );
+        let mut d = declaration("moda");
+        d.registries.push(RegistryDecl {
+            key: "moda:thing".into(),
+            entries: vec!["moda:one".into()],
+        });
+        let vouched = registries::Vouched::from_declarations(&[d.validated().unwrap()]);
+        let thing = registries::host_registries(&vouched)
+            .into_iter()
+            .find(|r| r.key == "moda:thing")
+            .expect("naming the registry syncs it");
+        assert_eq!(thing.entries, ["moda:one"]);
+    }
+
+    #[test]
     fn aggregation_merges_all_plugins() {
         let mut a = declaration("moda");
         a.channels.push(channel(
@@ -696,15 +774,11 @@ mod tests {
         assert!(play.contains(&"neoforge:recipe_content"));
 
         assert_eq!(aggregate.registries.len(), 2);
+        // The host numbers `minecraft:item`: the declaration names it to vouch for the mod's
+        // entries, and the entries sent are the host's (the declared list is not a snapshot).
         assert_eq!(
             aggregate.registries[0].entries,
-            [
-                "minecraft:air",
-                "minecraft:stone",
-                "moda:gem",
-                "moda:ore",
-                "modb:tool"
-            ]
+            ["minecraft:air", "minecraft:stone"]
         );
         assert_eq!(aggregate.registries[1].key, "modb:thing");
         assert_eq!(aggregate.registry_payloads.len(), 2);

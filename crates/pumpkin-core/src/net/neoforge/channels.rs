@@ -2,8 +2,10 @@
 
 use super::payloads::{Flow, Phase, QueryComponent};
 
-pub const MINECRAFT_REGISTER: &str = "minecraft:register";
-pub const MINECRAFT_UNREGISTER: &str = "minecraft:unregister";
+// The two channel lists as the mod mechanism knows them (`pumpkin_protocol::mods` uses them to
+// learn which mods a connection has), so there is one definition of each name.
+pub const MINECRAFT_REGISTER: &str = pumpkin_protocol::mods::MINECRAFT_REGISTER;
+pub const MINECRAFT_UNREGISTER: &str = pumpkin_protocol::mods::MINECRAFT_UNREGISTER;
 /// The query (what the client registered), and the empty one the server sends first.
 pub const MODDED_NETWORK_QUERY: &str = "neoforge:register";
 /// The negotiated channels.

@@ -14,7 +14,10 @@ use pumpkin_data::mob_effect_registry::{plugin_mob_effects, vanilla_mob_effect_k
 use pumpkin_data::particle::Particle;
 use pumpkin_data::sound::Sound;
 
-use super::{declaration::DatapackEntryDecl, registries::SyncedRegistry};
+use super::{
+    declaration::DatapackEntryDecl,
+    registries::{SyncedRegistry, Vouched, syncable},
+};
 
 pub const SOUND_EVENT: &str = "minecraft:sound_event";
 pub const PARTICLE_TYPE: &str = "minecraft:particle_type";
@@ -47,10 +50,11 @@ fn push(
     key: &str,
     vanilla: impl FnOnce() -> Vec<String>,
     plugin: Vec<String>,
+    vouched: &Vouched,
 ) {
-    if plugin.is_empty() {
+    let Some(plugin) = syncable(key, plugin, vouched) else {
         return;
-    }
+    };
     let mut entries = vanilla();
     entries.extend(plugin);
     out.push(SyncedRegistry {
@@ -59,9 +63,9 @@ fn push(
     });
 }
 
-/// The synced registries of this module that contain plugin entries.
+/// The synced registries of this module that contain plugin entries the declarations vouch for.
 #[must_use]
-pub fn registries() -> Vec<SyncedRegistry> {
+pub fn registries(vouched: &Vouched) -> Vec<SyncedRegistry> {
     let mut out = Vec::new();
     push(
         &mut out,
@@ -73,6 +77,7 @@ pub fn registries() -> Vec<SyncedRegistry> {
                 .collect()
         },
         plugin_sounds().iter().map(|s| s.key.to_string()).collect(),
+        vouched,
     );
     push(
         &mut out,
@@ -87,6 +92,7 @@ pub fn registries() -> Vec<SyncedRegistry> {
             .iter()
             .map(|p| p.key.to_string())
             .collect(),
+        vouched,
     );
     push(
         &mut out,
@@ -96,6 +102,7 @@ pub fn registries() -> Vec<SyncedRegistry> {
             .iter()
             .map(|e| e.key.to_string())
             .collect(),
+        vouched,
     );
     push(
         &mut out,
@@ -110,6 +117,7 @@ pub fn registries() -> Vec<SyncedRegistry> {
             .iter()
             .map(|d| d.key.to_string())
             .collect(),
+        vouched,
     );
     push(
         &mut out,
@@ -124,13 +132,15 @@ pub fn registries() -> Vec<SyncedRegistry> {
             .iter()
             .map(|t| t.key.to_string())
             .collect(),
+        vouched,
     );
-    // Plugin owned registries are sent whole.
+    // A registry a plugin owns is sent whole, once the plugin vouches for it: its key is not one
+    // the client has unless the mod registers it, so an unvouched one would be refused.
     for registry in plugin_owned_registries() {
-        if !registry.entries.is_empty() {
+        if let Some(entries) = syncable(&registry.key, registry.entries, vouched) {
             out.push(SyncedRegistry {
                 key: registry.key,
-                entries: registry.entries,
+                entries,
             });
         }
     }
@@ -190,7 +200,42 @@ mod tests {
         )
         .unwrap();
 
-        let all = registries();
+        // Other tests of the crate register into the same global registries, so vouch for every
+        // namespace present: a voucher only covers its own namespace, and the entries of a
+        // registry have to be a prefix of the host's.
+        let mut vouched = Vouched::default();
+        for (registry, entries) in [
+            (
+                SOUND_EVENT,
+                plugin_sounds()
+                    .iter()
+                    .map(|s| s.key.to_string())
+                    .collect::<Vec<_>>(),
+            ),
+            (
+                PARTICLE_TYPE,
+                plugin_particles()
+                    .iter()
+                    .map(|p| p.key.to_string())
+                    .collect(),
+            ),
+            (
+                MAP_DECORATION_TYPE,
+                plugin_map_decorations()
+                    .iter()
+                    .map(|d| d.key.to_string())
+                    .collect(),
+            ),
+        ] {
+            for entry in entries {
+                if let Some((namespace, _)) = entry.split_once(':') {
+                    vouched.vouch(registry, namespace);
+                }
+            }
+        }
+        vouched.vouch("core_extra_test:fan", "core_extra_test");
+
+        let all = registries(&vouched);
         let find = |key: &str| all.iter().find(|r| r.key == key).expect(key);
         let sounds = find(SOUND_EVENT);
         assert_eq!(

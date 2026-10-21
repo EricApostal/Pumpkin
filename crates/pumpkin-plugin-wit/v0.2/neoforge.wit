@@ -63,10 +63,20 @@ interface neoforge {
     /// Entries a plugin adds to a synced registry, after the entries the host knows (vanilla and
     /// the ones registered through the registry interfaces). For a registry the host does not
     /// know, the entries are the whole registry in id order.
+    ///
+    /// Naming a registry is the vouch that its content may be sent: the host sends the entries of
+    /// the mod itself (the id of `mod-info`) in a registry it numbers, and, for a registry it does
+    /// not number, the ones listed in `entries`. Declaring the mod alone vouches for nothing —
+    /// that is how a partial port announces its payload channels without advertising the names it
+    /// has not confirmed against the client's mod (the client disconnects on a key it does not
+    /// have). Name a registry only when the set of entries the plugin registers in it is complete
+    /// and every name matches the client's mod; for a registry the host numbers (`minecraft:block`,
+    /// `minecraft:item`, ...) `entries` is ignored, the host's dynamic registry is the list.
     record synced-registry {
         /// Registry key, `minecraft:block` or `mymod:thing`.
         key: string,
-        /// Entry keys in registration order.
+        /// Entry keys in registration order, all in the namespace of `mod-info`'s id. Only used
+        /// for a registry the host does not number.
         entries: list<string>,
     }
 

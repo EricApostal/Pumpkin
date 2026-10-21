@@ -60,9 +60,9 @@ impl Host for PluginHostState {
             .iter()
             .any(|p| p == permissions::REGISTRY_BLOCKS)
         {
-            return Ok(Err(format!(
-                "setting block placement rules needs the '{}' permission",
-                permissions::REGISTRY_BLOCKS
+            return Ok(Err(self.missing_permission(
+                "setting block placement rules",
+                permissions::REGISTRY_BLOCKS,
             )));
         }
         let count = rules.len();

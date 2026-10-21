@@ -1042,20 +1042,21 @@ impl World {
         recipients_by_version: BTreeMap<JavaMinecraftVersion, Vec<&JavaClient>>,
     ) {
         for (version, recipients) in recipients_by_version {
-            // One serialization per flavour of the recipients, nearly always only the vanilla one.
-            let mut encoded: Vec<(pumpkin_protocol::ConnectionFlavour, bytes::Bytes)> =
+            // One serialization per encoding of the recipients (flavour and negotiated mods),
+            // nearly always only the vanilla one.
+            let mut encoded: Vec<(pumpkin_protocol::PacketEncoding, bytes::Bytes)> =
                 Vec::with_capacity(1);
             for recipient in recipients {
-                let flavour = recipient.flavour.load();
-                if let Some((_, packet_data)) = encoded.iter().find(|(known, _)| *known == flavour)
+                let encoding = recipient.encoding();
+                if let Some((_, packet_data)) = encoded.iter().find(|(known, _)| *known == encoding)
                 {
                     recipient.try_enqueue_packet(packet_data.clone());
                     continue;
                 }
-                match JavaClient::serialize_packet_for_flavour(packet, version, flavour) {
+                match JavaClient::serialize_packet_for_encoding(packet, version, encoding) {
                     Ok(packet_data) => {
                         recipient.try_enqueue_packet(packet_data.clone());
-                        encoded.push((flavour, packet_data));
+                        encoded.push((encoding, packet_data));
                     }
                     Err(pumpkin_protocol::ser::WritingError::UnsupportedVersion(_)) => break,
                     Err(err) => {

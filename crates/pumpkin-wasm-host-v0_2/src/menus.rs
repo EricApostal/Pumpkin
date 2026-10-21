@@ -27,9 +27,9 @@ impl Host for PluginHostState {
             .iter()
             .any(|p| p == permissions::REGISTRY_MENUS)
         {
-            return Ok(Err(format!(
-                "registering menu types needs the '{}' permission",
-                permissions::REGISTRY_MENUS
+            return Ok(Err(self.missing_permission(
+                "registering menu types",
+                permissions::REGISTRY_MENUS,
             )));
         }
         Ok(match register_plugin_menu_type(&key) {

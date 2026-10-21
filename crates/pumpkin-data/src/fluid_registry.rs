@@ -259,7 +259,7 @@ pub struct FluidRegistry {
     /// Ids of the fluids that are the flowing variant of a still fluid.
     linked: HashSet<u16>,
     /// Still fluids whose `flowing-variant` was not registered yet: the key they wait for.
-    pending_variants: Vec<(&'static str, &'static DynamicFluidInfo)>,
+    pending_variants: Vec<(String, &'static DynamicFluidInfo)>,
 }
 
 impl FluidRegistry {
@@ -281,7 +281,7 @@ impl FluidRegistry {
     pub fn freeze(&mut self) -> Result<(), FluidRegistrationError> {
         self.frozen = true;
         match self.pending_variants.first() {
-            Some((key, _)) => Err(FluidRegistrationError::UnknownFluid((*key).to_string())),
+            Some((key, _)) => Err(FluidRegistrationError::UnknownFluid(key.clone())),
             None => Ok(()),
         }
     }
@@ -348,7 +348,7 @@ impl FluidRegistry {
         let awaited = self
             .pending_variants
             .iter()
-            .any(|(key, _)| *key == registration.key.as_str());
+            .any(|(key, _)| key == &registration.key);
         if awaited {
             let key = registration.key.as_str();
             let holds_still_block = registration
@@ -366,7 +366,7 @@ impl FluidRegistry {
             if self
                 .pending_variants
                 .iter()
-                .any(|(pending, _)| *pending == key)
+                .any(|(pending, _)| pending == key)
             {
                 return Err(FluidRegistrationError::VariantInUse(key.to_string()));
             }
@@ -476,7 +476,7 @@ impl FluidRegistry {
             let mut waiting = Vec::new();
             let mut rest = Vec::new();
             for entry in self.pending_variants.drain(..) {
-                if entry.0 == fluid_key.as_str() {
+                if entry.0 == fluid_key {
                     waiting.push(entry)
                 } else {
                     rest.push(entry)
@@ -488,9 +488,13 @@ impl FluidRegistry {
                 let _ = info.still_variant.set(still.fluid);
                 self.linked.insert(id as u16);
             }
-        } else if let Some(key) = flowing_key {
-            let key: &'static str = Box::leak(key.into_boxed_str());
-            self.pending_variants.push((key, info));
+        } else if flowing_variant.is_none() {
+            // The variant registered after this fluid: wait for it. When it was already there
+            // (found above), linking happened above and nothing may stay pending -- `freeze`
+            // reports every leftover entry as an unregistered fluid.
+            if let Some(key) = flowing_key {
+                self.pending_variants.push((key, info));
+            }
         }
         Ok(fluid)
     }
@@ -963,6 +967,37 @@ mod tests {
                 "test_family:flowing_goo".to_string()
             )),
         );
+        // Nothing is waiting: the variant registered first, so the still fluid linked to it
+        // immediately and must not have left a pending entry behind.
+        assert_eq!(registry.freeze(), Ok(()));
+    }
+
+    /// Both orders of a still/flowing pair close cleanly. A still fluid whose variant is
+    /// already registered used to also queue the variant as pending, and `freeze` then
+    /// reported the pair's own flowing fluid as unknown.
+    #[test]
+    fn a_fluid_pair_closes_cleanly_in_either_order() {
+        let pair = |registry: &mut FluidRegistry, still_first: bool| {
+            let mut still = registration("test_pair:goo");
+            still.flowing_variant = Some("test_pair:flowing_goo".to_string());
+            let (still, flowing) = if still_first {
+                let still = registry.register(still).unwrap();
+                let flowing = registry.register(registration("test_pair:flowing_goo")).unwrap();
+                (still, flowing)
+            } else {
+                let flowing = registry.register(registration("test_pair:flowing_goo")).unwrap();
+                let still = registry.register(still).unwrap();
+                (still, flowing)
+            };
+            let info = registry.get_info(still.id).unwrap();
+            assert!(info.flowing_variant() == Some(flowing));
+            assert!(registry.get_info(flowing.id).unwrap().still_variant.get() == Some(&still));
+            assert_eq!(registry.freeze(), Ok(()));
+        };
+        let mut still_first = FluidRegistry::new();
+        pair(&mut still_first, true);
+        let mut flowing_first = FluidRegistry::new();
+        pair(&mut flowing_first, false);
     }
 
     #[test]

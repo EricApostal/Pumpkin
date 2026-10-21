@@ -73,8 +73,6 @@ fn client_brand_payload() -> Vec<u8> {
     payload
 }
 
-/// The ping id of the `NeoForge` query handshake (`neoforge_session.rs` pings with `0`).
-const NEOFORGE_PING_ID: i32 = 0;
 /// How many connections a mirroring bot may spend learning a server's channels before it gives up.
 ///
 /// A refusal reveals one class of mismatch at a time, so a server with a mod set this process
@@ -484,10 +482,13 @@ impl HeadlessBot {
         .await?;
         self.send_config_payload(neoforge_channels::MODDED_NETWORK_QUERY, &query.encode())
             .await?;
-        self.send_packet(&SConfigPong {
-            id: NEOFORGE_PING_ID,
-        })
-        .await?;
+        // The pong is **not** sent here: it belongs to the ping that follows the query, and the
+        // loop below answers that one. A `NeoForge` server starts its configuration task chain on
+        // a pong (`ServerConfigurationPacketListenerImpl.handlePong` -> `runConfiguration`), so an
+        // eager one plus the answer to the server's own ping runs the chain twice and the second
+        // run dies on "Task neoforge:sync_registries has not finished yet" — which is exactly what
+        // a Java `NeoForge` server does to a client that answers its query with a known channel
+        // set (`--query`), while a mirroring client never sends the eager one.
 
         let plugin_id = CPluginMessage::to_id(CURRENT_MC_VERSION);
         let ping_id = CConfigPing::to_id(CURRENT_MC_VERSION);
@@ -512,6 +513,36 @@ impl HeadlessBot {
                 })
                 .await?;
             } else if pkt.id == finish_config_id {
+                // A real client ends its configuration with the two channel lists of the phase it
+                // is entering: `minecraft:unregister` of what it no longer receives, then
+                // `minecraft:register` of its *play* channels
+                // (`ClientConfigurationPacketListenerImpl.handleConfigurationFinished`). It is the
+                // only place a client tells the server which mods it has while playing (the query
+                // answer is the other one, and only a `NeoForge` server asks it), so a client with
+                // a mod that has play-phase payloads has to announce them here.
+                let play: Vec<String> = query
+                    .components
+                    .get(&Phase::Play)
+                    .map(|components| {
+                        components
+                            .iter()
+                            .filter(|component| component.flow != Some(Flow::Serverbound))
+                            .map(|component| component.id.clone())
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                if !play.is_empty() {
+                    self.send_config_payload(
+                        neoforge_channels::MINECRAFT_UNREGISTER,
+                        &encode_register_channels(announced),
+                    )
+                    .await?;
+                    self.send_config_payload(
+                        neoforge_channels::MINECRAFT_REGISTER,
+                        &encode_register_channels(&play),
+                    )
+                    .await?;
+                }
                 self.send_packet(&SAcknowledgeFinishConfig).await?;
                 break;
             }

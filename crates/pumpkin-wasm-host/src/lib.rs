@@ -41,7 +41,7 @@ impl Plugin for WasmPluginHandle {
         Box::pin(async move {
             runtime::on_unload(&self.0, context)
                 .await
-                .map_err(|err| err.to_string())
+                .map_err(|err| format!("{err:#}"))
                 .flatten()
         })
     }

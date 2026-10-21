@@ -532,7 +532,18 @@ impl PluginManager {
         self.loaders.read().await.clone()
     }
 
-    /// Helper for topological sort of plugins based on dependencies
+    /// Helper for topological sort of plugins based on dependencies.
+    ///
+    /// The load order is not just a scheduling detail: the host numbers every registry entry a
+    /// plugin registers `vanilla count + registration index`, and that numbering is what the
+    /// registry sync puts on the wire (see `net::neoforge::registries`). So the same set of
+    /// plugins has to load in the same order on every start, or the same world would number its
+    /// blocks and items differently after a restart.
+    ///
+    /// The order is therefore a function of the plugin set alone — names and declared
+    /// dependencies — never of the order the filesystem returned: plugins and their dependencies
+    /// are visited by name, and a duplicate name (which would make the winner depend on the
+    /// directory order) is rejected.
     fn topological_sort(plugins: &[(String, Vec<String>)]) -> Result<Vec<String>, String> {
         fn visit(
             name: &str,
@@ -550,7 +561,9 @@ impl PluginManager {
             if !visited.contains(name) {
                 current_path.insert(name.to_string());
                 if let Some(deps) = deps_map.get(name) {
-                    for dep in *deps {
+                    let mut deps = deps.to_vec();
+                    deps.sort();
+                    for dep in &deps {
                         if !plugin_names.contains(dep) {
                             return Err(format!("Plugin {name} depends on missing plugin: {dep}"));
                         }
@@ -570,7 +583,16 @@ impl PluginManager {
         let deps_map: HashMap<String, &Vec<String>> =
             plugins.iter().map(|(n, d)| (n.clone(), d)).collect();
 
-        for (name, _) in plugins {
+        let mut ordered: Vec<&(String, Vec<String>)> = plugins.iter().collect();
+        ordered.sort_by(|a, b| a.0.cmp(&b.0));
+        let mut seen = HashSet::with_capacity(ordered.len());
+        for (name, _) in &ordered {
+            if !seen.insert(name.as_str()) {
+                return Err(format!("Duplicate plugin name: {name}"));
+            }
+        }
+
+        for (name, _) in ordered {
             visit(
                 name,
                 &deps_map,
@@ -1208,7 +1230,11 @@ impl PluginManager {
         plugin.context.unregister_commands();
 
         if let Some(instance) = plugin.instance.take() {
-            instance.on_unload(plugin.context.clone()).await.ok();
+            // A plugin's cleanup must not take the server down with it: report the failure
+            // and carry on unloading.
+            if let Err(error) = instance.on_unload(plugin.context.clone()).await {
+                error!("Plugin {name} failed to unload: {error}");
+            }
         }
 
         // A plugin that is gone must not keep chunks loaded or collision boxes in the world.
@@ -1444,36 +1470,130 @@ impl PluginManager {
 mod tests {
     use super::*;
 
+    fn plugin(name: &str, deps: &[&str]) -> (String, Vec<String>) {
+        (
+            name.to_string(),
+            deps.iter().map(ToString::to_string).collect(),
+        )
+    }
+
     #[tokio::test]
     async fn topological_sort() {
         let plugins = vec![
-            ("A".to_string(), vec!["B".to_string()]),
-            ("B".to_string(), vec!["C".to_string()]),
-            ("C".to_string(), vec![]),
+            plugin("A", &["B"]),
+            plugin("B", &["C"]),
+            plugin("C", &[]),
         ];
         let sorted = PluginManager::topological_sort(&plugins).unwrap();
         assert_eq!(sorted, vec!["C", "B", "A"]);
 
         let plugins_complex = vec![
-            ("A".to_string(), vec!["B".to_string(), "C".to_string()]),
-            ("B".to_string(), vec!["D".to_string()]),
-            ("C".to_string(), vec!["D".to_string()]),
-            ("D".to_string(), vec![]),
+            plugin("A", &["B", "C"]),
+            plugin("B", &["D"]),
+            plugin("C", &["D"]),
+            plugin("D", &[]),
         ];
         let sorted = PluginManager::topological_sort(&plugins_complex).unwrap();
-        // Multiple valid sorts possible, but D must be before B and C, and B, C must be before A.
-        assert_eq!(sorted[0], "D");
-        assert!(sorted[1] == "B" || sorted[1] == "C");
-        assert!(sorted[2] == "B" || sorted[2] == "C");
-        assert_eq!(sorted[3], "A");
+        // D must be before B and C, and B, C before A. Ties are broken by name, so the sort is
+        // the same on every start: B (whose dependency D is visited first) then C.
+        assert_eq!(sorted, vec!["D", "B", "C", "A"]);
 
-        let plugins_circular = vec![
-            ("A".to_string(), vec!["B".to_string()]),
-            ("B".to_string(), vec!["A".to_string()]),
-        ];
+        let plugins_circular = vec![plugin("A", &["B"]), plugin("B", &["A"])];
         assert!(PluginManager::topological_sort(&plugins_circular).is_err());
 
-        let plugins_missing = vec![("A".to_string(), vec!["B".to_string()])];
+        let plugins_missing = vec![plugin("A", &["B"])];
         assert!(PluginManager::topological_sort(&plugins_missing).is_err());
+    }
+
+    /// The directory order `read_dir` returns must not reach the load order: the ids the host
+    /// gives registry entries are `vanilla count + registration index`, so an unstable order
+    /// would number the same world differently after a restart.
+    #[test]
+    fn topological_sort_is_independent_of_the_input_order() {
+        let plugins = vec![
+            plugin("create", &[]),
+            plugin("offroad", &[]),
+            plugin("sable", &["create"]),
+            plugin("aeronautics", &["create", "sable"]),
+            plugin("simulated", &["create"]),
+        ];
+        let expected = PluginManager::topological_sort(&plugins).unwrap();
+        assert_eq!(
+            expected,
+            vec!["create", "sable", "aeronautics", "offroad", "simulated"]
+        );
+
+        let mut reversed = plugins.clone();
+        reversed.reverse();
+        assert_eq!(PluginManager::topological_sort(&reversed).unwrap(), expected);
+
+        let mut rotated = plugins.clone();
+        rotated.rotate_left(3);
+        assert_eq!(PluginManager::topological_sort(&rotated).unwrap(), expected);
+
+        // The declared order of a plugin's dependencies is not part of the result either.
+        let mut reordered_deps = plugins.clone();
+        reordered_deps[3].1.reverse();
+        assert_eq!(
+            PluginManager::topological_sort(&reordered_deps).unwrap(),
+            expected
+        );
+    }
+
+    /// Two loads of the same plugin set must give every registry entry the same id.
+    #[test]
+    fn registry_ids_are_identical_for_two_loads_of_the_same_plugins() {
+        const VANILLA_ITEMS: u32 = 1_500;
+        let plugins = vec![
+            plugin("offroad", &[]),
+            plugin("create", &[]),
+            plugin("sable", &[]),
+        ];
+        let items = |name: &str| match name {
+            "create" => 3,
+            "offroad" => 2,
+            _ => 1,
+        };
+        // The host numbers entries `vanilla count + registration index`, in load order.
+        let ids = |order: &[String]| {
+            let mut next = VANILLA_ITEMS;
+            let mut out = Vec::new();
+            for name in order {
+                for _ in 0..items(name) {
+                    out.push((name.clone(), next));
+                    next += 1;
+                }
+            }
+            out
+        };
+
+        let first_order = PluginManager::topological_sort(&plugins).unwrap();
+        let mut shuffled = plugins.clone();
+        shuffled.reverse();
+        let second_order = PluginManager::topological_sort(&shuffled).unwrap();
+
+        assert_eq!(first_order, second_order);
+        assert_eq!(ids(&first_order), ids(&second_order));
+        // Pinned: the first plugin by name takes the first ids, whatever the directory says.
+        assert_eq!(
+            ids(&first_order),
+            vec![
+                ("create".to_string(), VANILLA_ITEMS),
+                ("create".to_string(), VANILLA_ITEMS + 1),
+                ("create".to_string(), VANILLA_ITEMS + 2),
+                ("offroad".to_string(), VANILLA_ITEMS + 3),
+                ("offroad".to_string(), VANILLA_ITEMS + 4),
+                ("sable".to_string(), VANILLA_ITEMS + 5),
+            ]
+        );
+    }
+
+    /// Two plugin files with the same name would make both the load order and the ids depend on
+    /// the directory order, so they are rejected instead.
+    #[test]
+    fn duplicate_plugin_names_are_rejected() {
+        let plugins = vec![plugin("create", &[]), plugin("create", &[])];
+        let error = PluginManager::topological_sort(&plugins).unwrap_err();
+        assert!(error.contains("Duplicate plugin name: create"), "{error}");
     }
 }

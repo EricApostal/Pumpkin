@@ -33,9 +33,9 @@ fn check_permission(state: &PluginHostState, what: &str) -> Result<(), String> {
     {
         Ok(())
     } else {
-        Err(format!(
-            "registering {what} needs the '{}' permission",
-            permissions::REGISTRY_EXTRA
+        Err(state.missing_permission(
+            &format!("registering {what}"),
+            permissions::REGISTRY_EXTRA,
         ))
     }
 }

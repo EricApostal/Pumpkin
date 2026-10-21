@@ -37,9 +37,9 @@ fn check_recipe_registry_permission(state: &PluginHostState) -> Result<(), Strin
     {
         Ok(())
     } else {
-        Err(format!(
-            "registering recipe types and recipes needs the '{}' permission",
-            permissions::REGISTRY_RECIPES
+        Err(state.missing_permission(
+            "registering recipe types and recipes",
+            permissions::REGISTRY_RECIPES,
         ))
     }
 }

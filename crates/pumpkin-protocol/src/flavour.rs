@@ -11,10 +11,11 @@
 //! [`ClientPacket::write_packet_data`](crate::ClientPacket::write_packet_data) is synchronous and
 //! has hundreds of implementations, of which only a handful depend on the flavour. Adding a
 //! parameter would touch all of them and every call site. Instead the code that serializes a
-//! packet for one connection wraps the call in [`ConnectionFlavour::scope`], and the few packets
-//! that differ read the active flavour. Nothing can interleave inside the scope (it holds no
-//! `.await`), the previous value is restored on exit (also when a writer panics), and code that
-//! does not set a scope gets [`ConnectionFlavour::Vanilla`], which is the unchanged behaviour.
+//! packet for one connection wraps the call in [`PacketEncoding::scope`], and the few packets
+//! that differ read the active flavour (and a mod's extensions, see [`crate::mods`]). Nothing can
+//! interleave inside the scope (it holds no `.await`), the previous value is restored on exit
+//! (also when a writer panics), and code that does not set a scope gets
+//! [`ConnectionFlavour::Vanilla`] with no mods, which is the unchanged behaviour.
 
 /// How the packets of a connection are encoded beyond the vanilla protocol.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -59,6 +60,37 @@ impl ConnectionFlavour {
     pub fn scope<R>(self, write: impl FnOnce() -> R) -> R {
         let _restore = Restore(ACTIVE.replace(self));
         write()
+    }
+}
+
+/// Everything about a connection that changes the bytes of a clientbound packet: how the client
+/// encodes in general ([`ConnectionFlavour`]) and which mod extensions it negotiated
+/// ([`ModSet`](crate::ModSet), see [`crate::mods`]).
+///
+/// Both are per connection, so the code that serializes a packet for one connection has to know
+/// the whole encoding: it is the key a broadcast groups its recipients by, and it is what
+/// [`Self::scope`] makes active while a packet is written.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct PacketEncoding {
+    pub flavour: ConnectionFlavour,
+    pub mods: crate::ModSet,
+}
+
+impl PacketEncoding {
+    /// The vanilla encoding: no mod extensions.
+    pub const VANILLA: Self = Self {
+        flavour: ConnectionFlavour::Vanilla,
+        mods: crate::ModSet::NONE,
+    };
+
+    #[must_use]
+    pub const fn new(flavour: ConnectionFlavour, mods: crate::ModSet) -> Self {
+        Self { flavour, mods }
+    }
+
+    /// Runs `packets` with `self` as the active encoding.
+    pub fn scope<R>(self, packets: impl FnOnce() -> R) -> R {
+        self.flavour.scope(|| self.mods.scope(packets))
     }
 }
 

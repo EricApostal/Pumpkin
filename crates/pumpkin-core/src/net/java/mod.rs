@@ -27,7 +27,8 @@ use pumpkin_protocol::java::server::play::{
 };
 use pumpkin_protocol::packet::MultiVersionJavaPacket;
 use pumpkin_protocol::{
-    ClientPacket, ConnectionFlavour, ConnectionState, PacketDecodeError, RawPacket, ServerPacket,
+    ClientPacket, ConnectionFlavour, ConnectionState, ModSet, PacketDecodeError, PacketEncoding,
+    RawPacket, ServerPacket,
     codec::var_int::VarInt,
     java::{
         client::{config::CConfigDisconnect, login::CLoginDisconnect},
@@ -101,6 +102,11 @@ pub struct JavaClient {
     /// configuration phase. Packets serialized through [`Self::serialize_packet`] and the world
     /// broadcasts are written in this flavour.
     pub flavour: AtomicCell<ConnectionFlavour>,
+    /// The mods this client negotiated, whose packet extensions apply to it: everything it
+    /// announced in its `minecraft:register` lists and answered in its `neoforge:register` answer
+    /// that the table of `pumpkin_protocol::mods` knows. [`Self::encoding`] combines them with
+    /// [`Self::flavour`].
+    pub mods: AtomicCell<ModSet>,
     /// Associated player reference. Lock-free `ArcSwap`.
     pub player: ArcSwap<Option<Arc<Player>>>,
     /// A collection of tasks associated with this client. The tasks await completion when removing the client.
@@ -171,6 +177,7 @@ impl JavaClient {
             network_reader: std::sync::Mutex::new(pending.network_reader),
             brand: ArcSwap::from_pointee(pending.brand),
             flavour: AtomicCell::new(pending.flavour),
+            mods: AtomicCell::new(pending.mods),
             player: ArcSwap::from_pointee(None),
             wait_for_keep_alive: AtomicBool::new(false),
             received_movement_this_tick: AtomicBool::new(false),
@@ -209,6 +216,7 @@ impl JavaClient {
             network_reader: std::sync::Mutex::new(None),
             brand: ArcSwap::from_pointee(None),
             flavour: AtomicCell::new(ConnectionFlavour::Vanilla),
+            mods: AtomicCell::new(ModSet::NONE),
             player: ArcSwap::from_pointee(None),
             wait_for_keep_alive: AtomicBool::new(false),
             received_movement_this_tick: AtomicBool::new(false),
@@ -730,18 +738,25 @@ impl JavaClient {
         pumpkin_protocol::java::packet_encoder::serialize_packet(packet, &version)
     }
 
-    /// Like [`Self::serialize_packet_for_version`], written in the given flavour.
-    pub fn serialize_packet_for_flavour<P: ClientPacket>(
-        packet: &P,
-        version: JavaMinecraftVersion,
-        flavour: ConnectionFlavour,
-    ) -> Result<Bytes, WritingError> {
-        flavour.scope(|| Self::serialize_packet_for_version(packet, version))
+    /// Everything about this connection that changes the bytes of a packet it is sent.
+    #[must_use]
+    pub fn encoding(&self) -> PacketEncoding {
+        PacketEncoding::new(self.flavour.load(), self.mods.load())
     }
 
-    /// The packet as this client reads it: 26.3 encoding in the flavour of the connection.
+    /// Like [`Self::serialize_packet_for_version`], written in the given encoding.
+    pub fn serialize_packet_for_encoding<P: ClientPacket>(
+        packet: &P,
+        version: JavaMinecraftVersion,
+        encoding: PacketEncoding,
+    ) -> Result<Bytes, WritingError> {
+        encoding.scope(|| Self::serialize_packet_for_version(packet, version))
+    }
+
+    /// The packet as this client reads it: 26.3 encoding, with the flavour and the mod extensions
+    /// of the connection.
     pub fn serialize_packet<P: ClientPacket>(&self, packet: &P) -> Result<Bytes, WritingError> {
-        Self::serialize_packet_for_flavour(packet, CURRENT_MC_VERSION, self.flavour.load())
+        Self::serialize_packet_for_encoding(packet, CURRENT_MC_VERSION, self.encoding())
     }
 
     pub fn try_send_packet<P: ClientPacket>(&self, packet: &P) {
@@ -767,8 +782,7 @@ impl JavaClient {
         packet: &P,
         write: impl Write,
     ) -> Result<(), WritingError> {
-        self.flavour
-            .load()
+        self.encoding()
             .scope(|| Self::write_packet_for_version(packet, CURRENT_MC_VERSION, write))
     }
 
@@ -1170,7 +1184,14 @@ impl JavaClient {
                 );
                 server.plugin_manager.fire_blocking(server, &mut event);
 
-                if channel_str == "minecraft:register" {
+                // The channel list also decides the packet extensions of this connection, in the
+                // play phase as in the configuration (some mods register when they start playing).
+                let _ = self.mods.fetch_update(|mut mods| {
+                    mods.apply_channel_list(&channel_str, payload.data);
+                    Some(mods)
+                });
+
+                if channel_str == crate::net::neoforge::channels::MINECRAFT_REGISTER {
                     if let Ok(channels_data) = std::str::from_utf8(payload.data) {
                         for ch in channels_data.split('\0') {
                             if !ch.is_empty() {
@@ -1188,7 +1209,7 @@ impl JavaClient {
                             }
                         }
                     }
-                } else if channel_str == "minecraft:unregister"
+                } else if channel_str == crate::net::neoforge::channels::MINECRAFT_UNREGISTER
                     && let Ok(channels_data) = std::str::from_utf8(payload.data)
                 {
                     for ch in channels_data.split('\0') {

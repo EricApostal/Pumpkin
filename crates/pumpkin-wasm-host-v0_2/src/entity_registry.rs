@@ -59,9 +59,9 @@ impl Host for PluginHostState {
             .iter()
             .any(|p| p == permissions::REGISTRY_ENTITIES)
         {
-            return Ok(Err(format!(
-                "registering entity types needs the '{}' permission",
-                permissions::REGISTRY_ENTITIES
+            return Ok(Err(self.missing_permission(
+                "registering entity types",
+                permissions::REGISTRY_ENTITIES,
             )));
         }
         let key = definition.key.clone();
@@ -90,9 +90,9 @@ impl Host for PluginHostState {
             .iter()
             .any(|p| p == permissions::REGISTRY_ENTITIES)
         {
-            return Ok(Err(format!(
-                "registering entity data serializers needs the '{}' permission",
-                permissions::REGISTRY_ENTITIES
+            return Ok(Err(self.missing_permission(
+                "registering entity data serializers",
+                permissions::REGISTRY_ENTITIES,
             )));
         }
         Ok(
@@ -114,9 +114,9 @@ impl Host for PluginHostState {
             .iter()
             .any(|p| p == permissions::REGISTRY_ENTITIES)
         {
-            return Ok(Err(format!(
-                "registering entity type tags needs the '{}' permission",
-                permissions::REGISTRY_ENTITIES
+            return Ok(Err(self.missing_permission(
+                "registering entity type tags",
+                permissions::REGISTRY_ENTITIES,
             )));
         }
         if entity_registry::is_plugin_entity_registry_frozen() {
