@@ -150,9 +150,16 @@ impl Vouched {
 /// not be synchronised at all.
 ///
 /// The ids of a snapshot are the positions of its entries, and the host numbers the plugin entries
-/// of a registry in registration order, so the entries sent have to be a *prefix* of them: leaving
-/// out an entry that comes before one that is sent would give every later entry a different id on
-/// the client than the one the host puts in chunk data.
+/// of a registry in registration order (`vanilla count + index`, see `Item::register_dynamic`), so
+/// the entries sent have to be a *prefix* of them: leaving out an entry that comes before one that
+/// is sent would give every later entry a different id on the client than the one the host puts in
+/// chunk data.
+///
+/// A prefix is only sound when the host stops numbering at the same place, and it does not: an
+/// entry past the prefix keeps its id and is still written on the wire, so the client resolves it
+/// against whatever *it* has at that position — a different item, a different block, silently.
+/// For a registry the host numbers, a partial voucher is therefore all-or-nothing: the registry is
+/// left out (`None`) rather than sent as a prefix that covers only its head.
 pub(super) fn syncable(
     registry: &str,
     mut plugin: Vec<String>,
@@ -166,11 +173,26 @@ pub(super) fn syncable(
         .take_while(|entry| vouched.covers(registry, entry))
         .count();
     if sent == 0 {
-        tracing::debug!(
-            "not synchronising {registry}: no declaration vouches for its {} plugin entries \
-             (the plugin has to name the registry in its declaration)",
-            plugin.len()
-        );
+        // A registry the host numbers is the case that matters: the host keeps handing out ids
+        // (`vanilla count + index`) for entries it will never send, and a client that has those
+        // mods resolves every one of them against its *own* registration order — a different
+        // entry, silently. That is the "adding an item gives a different item" divergence, and it
+        // used to be logged at `debug`, which is why it took a live client to see.
+        if Vouched::is_host_numbered(registry) {
+            tracing::warn!(
+                "not synchronising {registry}: no declaration vouches for its {} plugin entries, \
+                 so a client that has those mods numbers them its own way and every id past the \
+                 vanilla entries resolves to a different entry (the mod has to name the registry \
+                 in its declaration)",
+                plugin.len()
+            );
+        } else {
+            tracing::debug!(
+                "not synchronising {registry}: no declaration vouches for its {} plugin entries \
+                 (the plugin has to name the registry in its declaration)",
+                plugin.len()
+            );
+        }
         return None;
     }
     if plugin[sent..]
@@ -184,6 +206,20 @@ pub(super) fn syncable(
         return None;
     }
     if sent < plugin.len() {
+        if Vouched::is_host_numbered(registry) {
+            // The tail keeps its host id, and the host writes that id for the item or block
+            // wherever it appears, so a snapshot that stops at `sent` would leave every entry
+            // after it resolving to a different one on the client. Send nothing instead: the
+            // client keeps its own registry, which is what a client without the mod has.
+            tracing::warn!(
+                "not synchronising {registry}: {} of its {} plugin entries come from a mod that \
+                 did not vouch for it; sending only the first {sent} would leave the rest with a \
+                 client-side id that is not the host's",
+                plugin.len() - sent,
+                plugin.len()
+            );
+            return None;
+        }
         tracing::debug!(
             "not synchronising {} of the {} plugin entries of {registry}: their mod did not \
              vouch for the registry",
@@ -244,9 +280,64 @@ fn prefixed(names: impl Iterator<Item = String>) -> Vec<String> {
     names.collect()
 }
 
+/// The vanilla entries of `registry`, in the order the client numbers them, or `None` for a
+/// registry whose vanilla entries the host does not own (`neoforge:entity_data_serializers`, a
+/// plugin owned registry) or does not know.
+///
+/// These lists are positional on both sides: a snapshot's entry is its index, and the client
+/// adopts that index as the entry's id, so the vanilla head has to be the client's own list, entry
+/// for entry — the regression test below pins it against the client.
+#[must_use]
+pub fn vanilla_entries(key: &str) -> Option<Vec<String>> {
+    match key {
+        BLOCK => Some(
+            (0..BlockId::COUNT)
+                .filter_map(BlockId::new)
+                .map(|id| Block::from_id(id).resource_location().into_owned())
+                .collect(),
+        ),
+        ITEM => Some(
+            prefixed(
+                (0..Item::vanilla_count())
+                    .filter_map(Item::from_vanilla_id)
+                    .map(|item| format!("minecraft:{}", item.registry_key)),
+            ),
+        ),
+        FLUID => Some(
+            prefixed(
+                (0..Fluid::VANILLA_COUNT)
+                    .filter_map(Fluid::from_id)
+                    .map(|fluid| format!("minecraft:{}", fluid.name)),
+            ),
+        ),
+        ENTITY_TYPE => Some(
+            prefixed(
+                (0..vanilla_entity_type_count())
+                    .filter_map(|id| u16::try_from(id).ok().and_then(EntityType::from_raw))
+                    .map(|entity| format!("minecraft:{}", entity.resource_name)),
+            ),
+        ),
+        BLOCK_ENTITY_TYPE => Some(
+            BLOCK_ENTITY_TYPES
+                .iter()
+                .map(|name| format!("minecraft:{name}"))
+                .collect(),
+        ),
+        MENU => Some(VANILLA_MENUS.iter().map(|name| format!("minecraft:{name}")).collect()),
+        DATA_COMPONENT_TYPE => Some(
+            prefixed(
+                (0..DataComponent::VANILLA_COUNT)
+                    .filter_map(DataComponent::try_from_id)
+                    .map(|component| component.to_name().to_string()),
+            ),
+        ),
+        _ => super::extra_registries::vanilla_entries(key)
+            .or_else(|| super::recipe_sync::vanilla_entries(key)),
+    }
+}
+
 fn with_plugin_entries(
     key: &str,
-    vanilla: Vec<String>,
     plugin: Vec<String>,
     vouched: &Vouched,
     out: &mut Vec<SyncedRegistry>,
@@ -254,7 +345,9 @@ fn with_plugin_entries(
     let Some(plugin) = syncable(key, plugin, vouched) else {
         return;
     };
-    let mut entries = vanilla;
+    let Some(mut entries) = vanilla_entries(key) else {
+        return;
+    };
     entries.extend(plugin);
     out.push(SyncedRegistry {
         key: key.to_string(),
@@ -275,12 +368,8 @@ pub fn host_registries(vouched: &Vouched) -> Vec<SyncedRegistry> {
 
     let blocks = Block::dynamic_blocks();
     if !blocks.is_empty() {
-        let vanilla = (0..BlockId::COUNT)
-            .filter_map(BlockId::new)
-            .map(|id| Block::from_id(id).resource_location().into_owned());
         with_plugin_entries(
             BLOCK,
-            prefixed(vanilla),
             blocks
                 .iter()
                 .map(|block| block.resource_location().into_owned())
@@ -292,12 +381,8 @@ pub fn host_registries(vouched: &Vouched) -> Vec<SyncedRegistry> {
 
     let items = Item::dynamic_items();
     if !items.is_empty() {
-        let vanilla = (0..Item::vanilla_count())
-            .filter_map(Item::from_vanilla_id)
-            .map(|item| format!("minecraft:{}", item.registry_key));
         with_plugin_entries(
             ITEM,
-            prefixed(vanilla),
             items
                 .iter()
                 .map(|item| item.resource_location().into_owned())
@@ -309,12 +394,8 @@ pub fn host_registries(vouched: &Vouched) -> Vec<SyncedRegistry> {
 
     let fluids = Fluid::dynamic_fluids();
     if !fluids.is_empty() {
-        let vanilla = (0..Fluid::VANILLA_COUNT)
-            .filter_map(Fluid::from_id)
-            .map(|fluid| format!("minecraft:{}", fluid.name));
         with_plugin_entries(
             FLUID,
-            prefixed(vanilla),
             fluids
                 .iter()
                 .map(|fluid| fluid.resource_location().into_owned())
@@ -326,12 +407,8 @@ pub fn host_registries(vouched: &Vouched) -> Vec<SyncedRegistry> {
 
     let entity_types = plugin_entity_types();
     if !entity_types.is_empty() {
-        let vanilla = (0..vanilla_entity_type_count())
-            .filter_map(|id| u16::try_from(id).ok().and_then(EntityType::from_raw))
-            .map(|entity| format!("minecraft:{}", entity.resource_name));
         with_plugin_entries(
             ENTITY_TYPE,
-            prefixed(vanilla),
             entity_types
                 .iter()
                 .map(|entity| entity.key.to_string())
@@ -347,12 +424,8 @@ pub fn host_registries(vouched: &Vouched) -> Vec<SyncedRegistry> {
             BLOCK_ENTITY_TYPES.len(),
             vanilla_block_entity_type_count() as usize
         );
-        let vanilla = BLOCK_ENTITY_TYPES
-            .iter()
-            .map(|name| format!("minecraft:{name}"));
         with_plugin_entries(
             BLOCK_ENTITY_TYPE,
-            prefixed(vanilla),
             block_entities
                 .iter()
                 .map(|entity| entity.key.to_string())
@@ -365,10 +438,8 @@ pub fn host_registries(vouched: &Vouched) -> Vec<SyncedRegistry> {
     let menus = plugin_menu_types();
     if !menus.is_empty() {
         debug_assert_eq!(VANILLA_MENUS.len(), vanilla_menu_type_count() as usize);
-        let vanilla = VANILLA_MENUS.iter().map(|name| format!("minecraft:{name}"));
         with_plugin_entries(
             MENU,
-            prefixed(vanilla),
             menus.iter().map(|menu| menu.key.to_string()).collect(),
             vouched,
             &mut out,
@@ -377,12 +448,8 @@ pub fn host_registries(vouched: &Vouched) -> Vec<SyncedRegistry> {
 
     let components = plugin_component_types();
     if !components.is_empty() {
-        let vanilla = (0..DataComponent::VANILLA_COUNT)
-            .filter_map(DataComponent::try_from_id)
-            .map(|component| component.to_name().to_string());
         with_plugin_entries(
             DATA_COMPONENT_TYPE,
-            prefixed(vanilla),
             components
                 .iter()
                 .map(|component| component.key.to_string())
@@ -416,8 +483,8 @@ pub fn host_registries(vouched: &Vouched) -> Vec<SyncedRegistry> {
     out.extend(super::extra_registries::registries(vouched));
 
     // The recipe types and serializers the plugins sync recipes for.
-    for (key, vanilla, plugin) in super::recipe_sync::registry_extras() {
-        with_plugin_entries(key, vanilla, plugin, vouched, &mut out);
+    for (key, plugin) in super::recipe_sync::registry_extras() {
+        with_plugin_entries(key, plugin, vouched, &mut out);
     }
 
     out
@@ -426,9 +493,164 @@ pub fn host_registries(vouched: &Vouched) -> Vec<SyncedRegistry> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::{Mutex, MutexGuard, PoisonError};
+
+    /// The dynamic registries are process-wide, so these tests have to run one at a time: one
+    /// test registering an entry another test did not vouch for is exactly the state
+    /// [`syncable`] now refuses to send, and without this lock that shows up as a flaky
+    /// `host_registries` rather than as the registration it is.
+    static REGISTRY: Mutex<()> = Mutex::new(());
+
+    fn serial() -> MutexGuard<'static, ()> {
+        REGISTRY.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    /// The client's own registry contents, generated from the 26.3 client jar (see the file's
+    /// header). This is the oracle of every test below: it is what a real client has, in the
+    /// order it numbers it, and nothing in the host is allowed to disagree with it.
+    const CLIENT_REGISTRIES: &str = include_str!("client_registries.txt");
+
+    /// The entries the host adds to a synchronised registry that the client's own registry does
+    /// not have.
+    ///
+    /// `minecraft:chat_type` gets a `raw` entry the host uses for plugin chat. The client
+    /// registers the entries it is given in order, so an extra entry is adopted as the next id
+    /// rather than renumbering anything — unlike a *missing* one, which is what the tests below
+    /// are about.
+    const ENTRIES_THE_HOST_ADDS: [(&str, &str); 1] = [("minecraft:chat_type", "minecraft:raw")];
+
+    #[derive(Default)]
+    struct ClientRegistries {
+        datapack: BTreeMap<String, Vec<String>>,
+        builtin: BTreeMap<String, Vec<String>>,
+    }
+
+    impl ClientRegistries {
+        /// Parses the fixture: `#` comments, `datapack`/`builtin` markers, `<key>\t<entry>` lines.
+        fn load() -> Self {
+            let mut parsed = Self::default();
+            let mut section = &mut parsed.datapack;
+            for line in CLIENT_REGISTRIES.lines() {
+                if line.starts_with('#') || line.is_empty() {
+                    continue;
+                }
+                match line {
+                    "datapack" => continue,
+                    "builtin" => {
+                        section = &mut parsed.builtin;
+                        continue;
+                    }
+                    _ => {}
+                }
+                let (key, entry) = line
+                    .split_once('\t')
+                    .unwrap_or_else(|| panic!("the fixture line {line:?} is not <key>\\t<entry>"));
+                section.entry(key.to_string()).or_default().push(entry.to_string());
+            }
+            assert!(!parsed.datapack.is_empty() && !parsed.builtin.is_empty());
+            parsed
+        }
+    }
+
+    /// Every registry the client synchronises is sent, with every entry the client's own data
+    /// pack has for it — the `datapack_entries` half of a join.
+    ///
+    /// A registry the host leaves out of `Registry::get_synced` (or one that loses its entries) is
+    /// not an error anywhere: the client builds its registry from what arrives, so a missing
+    /// registry or entry only shows up as a decode failure much later, on whatever packet first
+    /// needs it. This is the check that catches it.
+    #[test]
+    fn the_synced_datapack_registries_are_the_clients() {
+        let _serial = serial();
+        let client = ClientRegistries::load();
+        let synced = pumpkin_data::registry::Registry::get_synced(
+            pumpkin_util::version::JavaMinecraftVersion::V_26_3,
+        );
+        let sent: BTreeMap<String, BTreeSet<String>> = synced
+            .iter()
+            .map(|registry| {
+                (
+                    registry.registry_id.clone(),
+                    registry
+                        .registry_entries
+                        .iter()
+                        .map(|entry| entry.entry_id.to_string())
+                        .collect(),
+                )
+            })
+            .collect();
+
+        for (key, expected) in &client.datapack {
+            let Some(actual) = sent.get(key) else {
+                panic!("{key} is not synchronised at all: a client expects its entries there");
+            };
+            let expected: BTreeSet<&String> = expected.iter().collect();
+            let missing: Vec<_> = expected
+                .iter()
+                .filter(|entry| !actual.contains(entry.as_str()))
+                .collect();
+            assert!(
+                missing.is_empty(),
+                "{key} is missing {} of the client's entries, e.g. {:#?}",
+                missing.len(),
+                missing.iter().take(8).collect::<Vec<_>>()
+            );
+            for entry in actual {
+                assert!(
+                    expected.contains(&entry)
+                        || ENTRIES_THE_HOST_ADDS
+                            .iter()
+                            .any(|(host_key, host_entry)| host_key == key && host_entry == entry),
+                    "{key} carries {entry}, which the client's own registry does not have"
+                );
+            }
+        }
+        let extra: Vec<_> = sent
+            .keys()
+            .filter(|key| !client.datapack.contains_key(*key))
+            .collect();
+        assert!(
+            extra.is_empty(),
+            "these registries are synchronised but the client has no data pack entries for them: \
+             {extra:?}"
+        );
+    }
+
+    /// Every vanilla entry of every synchronised built-in registry is sent, in the order the
+    /// client has it in — the `frozen_registry` half of a join.
+    ///
+    /// The ids of these registries are positions, and the host writes an id for every entry it
+    /// registers (`vanilla count + index`), so an entry missing from the head or in the wrong
+    /// place renumbers everything after it: the client then resolves the host's ids to *different*
+    /// entries, with no error anywhere. `trial_spawner` was the visible half of this class (a
+    /// registry the client never received at all); this is the general check.
+    #[test]
+    fn the_vanilla_entries_of_the_builtin_registries_are_the_clients() {
+        let _serial = serial();
+        let client = ClientRegistries::load();
+        for (key, expected) in &client.builtin {
+            let actual = vanilla_entries(key)
+                .unwrap_or_else(|| panic!("{key} has no vanilla list at all"));
+            assert_eq!(
+                actual.len(),
+                expected.len(),
+                "{key}: the host has {} vanilla entries, the client has {}",
+                actual.len(),
+                expected.len()
+            );
+            for (index, (host, client)) in actual.iter().zip(expected).enumerate() {
+                assert_eq!(
+                    host, client,
+                    "{key}: id {index} is {host} on the host and {client} on the client, so every \
+                     id from {index} on resolves to a different entry there"
+                );
+            }
+        }
+    }
 
     #[test]
     fn vanilla_lists_have_the_vanilla_counts() {
+        let _serial = serial();
         assert_eq!(VANILLA_MENUS.len(), vanilla_menu_type_count() as usize);
         assert_eq!(
             BLOCK_ENTITY_TYPES.len(),
@@ -478,6 +700,21 @@ mod tests {
             .collect()
     }
 
+    fn item_keys() -> Vec<String> {
+        Item::dynamic_items()
+            .iter()
+            .map(|item| item.resource_location().into_owned())
+            .collect()
+    }
+
+    fn plain_item(key: &str) -> pumpkin_data::item_registry::ItemRegistration {
+        pumpkin_data::item_registry::ItemRegistration {
+            key: key.to_string(),
+            components: Vec::new(),
+            max_stack_size: None,
+        }
+    }
+
     fn plain_block(key: &str) -> pumpkin_data::block_registry::BlockRegistration {
         pumpkin_data::block_registry::BlockRegistration {
             key: key.to_string(),
@@ -503,6 +740,7 @@ mod tests {
 
     #[test]
     fn entity_data_serializers_sync_only_modded_entries() {
+        let _serial = serial();
         // `neoforge:entity_data_serializers` is a modded registry: the vanilla serializers are
         // not in it, and a client refuses the sync when it is sent keys it does not have.
         let key = "test_sync_serializers:thing";
@@ -533,6 +771,7 @@ mod tests {
 
     #[test]
     fn nothing_is_synced_without_a_voucher() {
+        let _serial = serial();
         // The failure this guards against: a plugin registers content whose names the client does
         // not have (`aeronautics:hot_air_burner`, which Java registers as
         // `aeronautics:adjustable_burner`), the snapshot carries it, and the client disconnects
@@ -575,6 +814,7 @@ mod tests {
 
     #[test]
     fn declaring_a_mod_does_not_sync_the_content_it_registers() {
+        let _serial = serial();
         // Declaring a mod is how a port announces its payload channels, so a client that has the
         // mod can negotiate them. It must not advertise the content the plugin registered: a port
         // that is not finished has names the client's release does not have yet.
@@ -599,6 +839,7 @@ mod tests {
 
     #[test]
     fn naming_a_registry_is_what_syncs_it() {
+        let _serial = serial();
         // The other half: naming `minecraft:block` in the declaration is the claim that the mod's
         // registered blocks are the client's — and only that registry, not every one the host
         // numbers.
@@ -620,6 +861,7 @@ mod tests {
 
     #[test]
     fn a_voucher_syncs_the_entries_of_its_namespace() {
+        let _serial = serial();
         Block::register_dynamic(plain_block("test_vouched:block")).unwrap();
         let vouched = vouch_all(BLOCK, &block_keys());
         let registry = host_registries(&vouched)
@@ -637,6 +879,7 @@ mod tests {
 
     #[test]
     fn entries_after_an_unvouched_one_are_not_sent() {
+        let _serial = serial();
         // Ids are positional, so a registry whose vouched entries come after unvouched ones
         // cannot be sent: the client would number the vouched entries differently.
         Block::register_dynamic(plain_block("test_prefix_first:block")).unwrap();
@@ -651,6 +894,114 @@ mod tests {
         );
     }
 
+    /// A registry the host numbers is all-or-nothing, not "send the head".
+    ///
+    /// This is the shape of the reported divergence: a plugin that names the registry and one
+    /// that does not, the vouched one registered *first*. The host numbers both (`vanilla count +
+    /// index`) and writes those ids on the wire, so a snapshot that stops after the vouched head
+    /// leaves every later entry resolving against the client's own order — a different item or
+    /// block, with no error anywhere. Before this test existed, `syncable` truncated and returned
+    /// the prefix, so `host_registries` contained a `minecraft:block` whose length was
+    /// `vanilla + 1` while the host numbered `vanilla + 2` entries.
+    #[test]
+    fn a_host_numbered_registry_is_never_sent_as_a_prefix() {
+        let _serial = serial();
+        let vouched_key = "test_prefix_vouched:block";
+        let unvouched_key = "test_prefix_unvouched:block";
+        Block::register_dynamic(plain_block(vouched_key)).unwrap();
+        Block::register_dynamic(plain_block(unvouched_key)).unwrap();
+        let mut vouched = Vouched::default();
+        vouched.vouch(BLOCK, "test_prefix_vouched");
+
+        let registry = host_registries(&vouched)
+            .into_iter()
+            .find(|registry| registry.key == BLOCK);
+        assert!(
+            registry.is_none(),
+            "a host-numbered registry with an unvouched entry must not be sent at all: {:?}",
+            registry.map(|registry| registry.entries.len())
+        );
+        // And the same through `syncable` directly, so the rule is pinned where it is decided.
+        assert_eq!(
+            syncable(BLOCK, block_keys(), &vouched),
+            None,
+            "the head of the registry is not a snapshot of it"
+        );
+    }
+
+    /// Every id the host writes for a block or an item is the index of that entry in the
+    /// snapshot, for the whole id space — vanilla and plugin entries alike.
+    ///
+    /// The host writes `stack.item.id` (`data_component.rs`) and the block-state ids derived from
+    /// `block.id`; a client resolves both against the snapshot, position by position
+    /// (`RegistryManager.applySnapshot` -> `registerIdMapping`). So the two lists have to agree
+    /// entry by entry, and that is the invariant a live `/give` measures.
+    #[test]
+    fn the_snapshot_is_the_host_id_space() {
+        let _serial = serial();
+        let block = "test_id_space:block";
+        let item = "test_id_space:item";
+        Block::register_dynamic(plain_block(block)).unwrap();
+        Item::register_dynamic(plain_item(item)).unwrap();
+
+        let vouched = {
+            let mut vouched = vouch_all(BLOCK, &block_keys());
+            for namespace in [ITEM, FLUID, MENU, BLOCK_ENTITY_TYPE, DATA_COMPONENT_TYPE] {
+                vouched.vouch(namespace, "test_id_space");
+            }
+            vouched
+        };
+        let registries = host_registries(&vouched);
+
+        let blocks = registries
+            .iter()
+            .find(|registry| registry.key == BLOCK)
+            .expect("the block registry is synced");
+        let dynamic_blocks = Block::dynamic_blocks();
+        assert_eq!(
+            blocks.entries.len(),
+            usize::from(BlockId::COUNT) + dynamic_blocks.len(),
+            "the snapshot has every block the host numbers"
+        );
+        for (index, block) in dynamic_blocks.iter().enumerate() {
+            let id = usize::from(BlockId::COUNT) + index;
+            assert_eq!(
+                blocks.entries[id],
+                block.resource_location(),
+                "the id the host writes for {} is {id}",
+                block.resource_location()
+            );
+        }
+
+        let items = registries
+            .iter()
+            .find(|registry| registry.key == ITEM)
+            .expect("the item registry is synced");
+        let dynamic_items = Item::dynamic_items();
+        assert_eq!(
+            items.entries.len(),
+            usize::from(Item::vanilla_count()) + dynamic_items.len(),
+            "the snapshot has every item the host numbers"
+        );
+        for (index, item) in dynamic_items.iter().enumerate() {
+            let id = usize::from(Item::vanilla_count()) + index;
+            assert_eq!(usize::from(item.id), id, "the host numbers items by position");
+            assert_eq!(
+                items.entries[id],
+                item.resource_location(),
+                "the id the host writes for {} is {id}",
+                item.resource_location()
+            );
+        }
+        // The vanilla head is the vanilla id space, not just the same length.
+        assert_eq!(items.entries[0], "minecraft:air");
+        let last_vanilla = Item::from_vanilla_id(Item::vanilla_count() - 1).unwrap();
+        assert_eq!(
+            items.entries[usize::from(Item::vanilla_count()) - 1],
+            format!("minecraft:{}", last_vanilla.registry_key)
+        );
+    }
+
     /// The id of an entry in a snapshot is its index, and the plugin entries keep the order the
     /// host registered them in — across plugins. Two plugins that each register blocks get
     /// contiguous ids in that order, which is what the client adopts
@@ -658,6 +1009,7 @@ mod tests {
     /// loading second; the ids only have to be the same on every start.
     #[test]
     fn plugin_entries_keep_their_registration_order_and_index_as_id() {
+        let _serial = serial();
         let first = "test_order_a:block";
         let second = "test_order_b:block";
         Block::register_dynamic(plain_block(first)).unwrap();

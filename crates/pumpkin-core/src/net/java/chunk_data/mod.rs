@@ -192,6 +192,70 @@ mod tests {
         );
     }
 
+    /// **A trial spawner's chunk data is its update tag, not its save data.**
+    ///
+    /// `TrialSpawnerStateData.getUpdateTag` sends `next_mob_spawns_at` and `spawn_data` only: the
+    /// configuration (`normal_config`/`ominous_config`) is a `Holder<TrialSpawnerConfig>` of the
+    /// `minecraft:trial_spawner` data pack registry, which a client never receives, so a chunk
+    /// that carries it makes a real client fail every trial spawner in it with
+    /// `Registry does not exist: minecraft:trial_spawner` — 26 decode failures in one join, and
+    /// the saved form still has to keep the configuration for the world.
+    #[test]
+    fn a_trial_spawner_rides_a_chunk_without_its_registry_typed_config() {
+        use pumpkin_nbt::compound::NbtCompound;
+        use pumpkin_util::math::position::BlockPos;
+        use pumpkin_util::math::vector3::Vector3;
+
+        fn holds(buf: &[u8], needle: &[u8]) -> bool {
+            buf.windows(needle.len()).any(|window| window == needle)
+        }
+
+        let pos = BlockPos(Vector3::new(0, 64, 0));
+        let chunk = ChunkData::empty(0, 0);
+        let mut saved = NbtCompound::new();
+        saved.put_string("id", "minecraft:trial_spawner".to_string());
+        saved.put_int("x", pos.0.x);
+        saved.put_int("y", pos.0.y);
+        saved.put_int("z", pos.0.z);
+        saved.put_long("next_mob_spawns_at", 4242);
+        let mut normal = NbtCompound::new();
+        normal.put_int("spawn_range", 4);
+        saved.put_compound("normal_config", normal);
+        let mut ominous = NbtCompound::new();
+        ominous.put_int("spawn_range", 4);
+        saved.put_compound("ominous_config", ominous);
+        saved.put_int("target_cooldown_length", 36000);
+        saved.put_int("required_player_range", 14);
+        chunk
+            .pending_block_entities
+            .lock()
+            .unwrap()
+            .insert(pos, saved.clone());
+
+        let mut buf = Vec::new();
+        CChunkData(&chunk)
+            .write_packet_data(&mut buf, &JavaMinecraftVersion::V_26_3)
+            .expect("the chunk serializes");
+        assert!(
+            holds(&buf, b"next_mob_spawns_at"),
+            "the update tag has to carry the state a client decodes"
+        );
+        for field in [
+            "normal_config",
+            "ominous_config",
+            "target_cooldown_length",
+            "required_player_range",
+        ] {
+            assert!(
+                !holds(&buf, field.as_bytes()),
+                "{field} is only decodable with the minecraft:trial_spawner registry and must not \
+                 ride a chunk"
+            );
+        }
+        // The same save data on the server side still has it, for the world's own bookkeeping.
+        assert!(saved.get_compound("normal_config").is_some());
+    }
+
     /// **What the client is told about a section that is uniformly lit.**
     ///
     /// The empty mask means "all zeros" (`ClientPacketListener.readSectionList` stores a

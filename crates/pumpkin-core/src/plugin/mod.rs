@@ -968,6 +968,12 @@ impl PluginManager {
             }
         }
 
+        // Plugin initialization (registry registration, data-pack generation) allocates its own
+        // transient working set on top of the compile's. Release it once, before the server
+        // starts serving, so a cold start does not carry it for the rest of the process's life;
+        // see `release_allocator_pages`.
+        crate::release_allocator_pages();
+
         Ok(total_wait_time)
     }
 

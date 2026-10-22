@@ -6,7 +6,7 @@ use pumpkin_wasm_host_common::state::PluginHostState;
 use pumpkin_world::generation::feature::additive::{
     self, AdditiveRule, FeatureKind, HeightShape, HeightSpec, OreSpec, OreTargetSpec, Source,
 };
-use tracing::info;
+use tracing::debug;
 
 use crate::pumpkin::plugin::worldgen::{
     FeatureKind as WitFeatureKind, GenerationStep, HeightShape as WitHeightShape, Host,
@@ -77,7 +77,8 @@ impl Host for PluginHostState {
         };
         let result = additive::register_feature(&key, kind, Source::Plugin);
         if result.is_ok() {
-            info!("Plugin {} registered feature {key}", plugin_label(self));
+            debug!("Plugin {} registered feature {key}", plugin_label(self));
+            self.registrations.feature(&key);
         }
         Ok(result)
     }
@@ -108,7 +109,8 @@ impl Host for PluginHostState {
         };
         let result = additive::register_feature(&key, FeatureKind::Ore(spec), Source::Plugin);
         if result.is_ok() {
-            info!("Plugin {} registered ore feature {key}", plugin_label(self));
+            debug!("Plugin {} registered ore feature {key}", plugin_label(self));
+            self.registrations.ore_feature(&key);
         }
         Ok(result)
     }
@@ -152,10 +154,11 @@ impl Host for PluginHostState {
             Source::Plugin,
         );
         if result.is_ok() {
-            info!(
+            debug!(
                 "Plugin {} added feature {feature_key} to biomes",
                 plugin_label(self)
             );
+            self.registrations.biome_feature_rule();
         }
         Ok(result)
     }

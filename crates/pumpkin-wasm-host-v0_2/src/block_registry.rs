@@ -14,7 +14,7 @@ use pumpkin_data::block_state::PistonBehavior;
 use pumpkin_data::item::Item;
 use pumpkin_data::{Block, BlockDirection, BlockId, Property};
 use pumpkin_wasm_host_common::state::PluginHostState;
-use tracing::info;
+use tracing::debug;
 
 const fn from_wit_direction(direction: WitConnectDirection) -> BlockDirection {
     match direction {
@@ -188,7 +188,7 @@ impl Host for PluginHostState {
         Ok(
             match Block::register_dynamic(from_wit_definition(definition)) {
                 Ok(block) => {
-                    info!(
+                    debug!(
                         "Plugin {} registered block {} with id {} and {} states from state id {}",
                         plugin_name(self),
                         block.name,
@@ -196,6 +196,7 @@ impl Host for PluginHostState {
                         block.states.len(),
                         block.states.first().map_or(0, |state| state.id.as_u32()),
                     );
+                    self.registrations.block(&block.name, block.states.len());
                     Ok(u32::from(block.id.as_u16()))
                 }
                 Err(error) => Err(error.to_string()),
@@ -238,12 +239,13 @@ impl Host for PluginHostState {
         }
         Ok(match Block::link_dynamic_item(&block_key, item.id) {
             Ok(block) => {
-                info!(
+                debug!(
                     "Plugin {} linked item {} to block {}",
                     plugin_name(self),
                     item_key,
                     block.name
                 );
+                self.registrations.item_block_link(&item_key, &block.name);
                 Ok(())
             }
             Err(error) => Err(error.to_string()),

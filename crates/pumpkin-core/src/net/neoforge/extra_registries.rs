@@ -45,17 +45,54 @@ pub fn entry_count() -> usize {
         + owned
 }
 
+/// The vanilla entries of one of this module's registries, in the order the client numbers them.
+///
+/// `None` for a key that is not one of them, which is every registry a plugin owns: its key only
+/// exists on the client because the plugin registers it there.
+#[must_use]
+pub fn vanilla_entries(key: &str) -> Option<Vec<String>> {
+    match key {
+        SOUND_EVENT => Some(
+            Sound::NAMES
+                .iter()
+                .map(|name| format!("minecraft:{name}"))
+                .collect(),
+        ),
+        PARTICLE_TYPE => Some(
+            (0..=u16::MAX)
+                .map_while(Particle::from_id)
+                .map(|particle| format!("minecraft:{}", particle.to_name()))
+                .collect(),
+        ),
+        MOB_EFFECT => Some(vanilla_mob_effect_keys()),
+        MAP_DECORATION_TYPE => Some(
+            MapDecorationType::ALL
+                .iter()
+                .map(|decoration| format!("minecraft:{}", decoration.name))
+                .collect(),
+        ),
+        ENCHANTMENT_EFFECT_COMPONENT_TYPE => Some(
+            pumpkin_data::enchantment_registry::VANILLA_ENCHANTMENT_EFFECT_TYPES
+                .iter()
+                .map(|key| (*key).to_string())
+                .collect(),
+        ),
+        _ => None,
+    }
+}
+
 fn push(
     out: &mut Vec<SyncedRegistry>,
     key: &str,
-    vanilla: impl FnOnce() -> Vec<String>,
     plugin: Vec<String>,
     vouched: &Vouched,
 ) {
     let Some(plugin) = syncable(key, plugin, vouched) else {
         return;
     };
-    let mut entries = vanilla();
+    let Some(mut entries) = vanilla_entries(key) else {
+        return;
+    };
     entries.extend(plugin);
     out.push(SyncedRegistry {
         key: key.to_string(),
@@ -70,24 +107,12 @@ pub fn registries(vouched: &Vouched) -> Vec<SyncedRegistry> {
     push(
         &mut out,
         SOUND_EVENT,
-        || {
-            Sound::NAMES
-                .iter()
-                .map(|name| format!("minecraft:{name}"))
-                .collect()
-        },
         plugin_sounds().iter().map(|s| s.key.to_string()).collect(),
         vouched,
     );
     push(
         &mut out,
         PARTICLE_TYPE,
-        || {
-            (0..=u16::MAX)
-                .map_while(Particle::from_id)
-                .map(|particle| format!("minecraft:{}", particle.to_name()))
-                .collect()
-        },
         plugin_particles()
             .iter()
             .map(|p| p.key.to_string())
@@ -97,7 +122,6 @@ pub fn registries(vouched: &Vouched) -> Vec<SyncedRegistry> {
     push(
         &mut out,
         MOB_EFFECT,
-        vanilla_mob_effect_keys,
         plugin_mob_effects()
             .iter()
             .map(|e| e.key.to_string())
@@ -107,12 +131,6 @@ pub fn registries(vouched: &Vouched) -> Vec<SyncedRegistry> {
     push(
         &mut out,
         MAP_DECORATION_TYPE,
-        || {
-            MapDecorationType::ALL
-                .iter()
-                .map(|decoration| format!("minecraft:{}", decoration.name))
-                .collect()
-        },
         plugin_map_decorations()
             .iter()
             .map(|d| d.key.to_string())
@@ -122,12 +140,6 @@ pub fn registries(vouched: &Vouched) -> Vec<SyncedRegistry> {
     push(
         &mut out,
         ENCHANTMENT_EFFECT_COMPONENT_TYPE,
-        || {
-            pumpkin_data::enchantment_registry::VANILLA_ENCHANTMENT_EFFECT_TYPES
-                .iter()
-                .map(|key| (*key).to_string())
-                .collect()
-        },
         pumpkin_data::enchantment_registry::plugin_enchantment_effect_types()
             .iter()
             .map(|t| t.key.to_string())

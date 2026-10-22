@@ -9,7 +9,7 @@ use pumpkin_data::data_component_registry::{
 };
 use pumpkin_protocol::codec::data_component::plugin_component_from_bytes;
 use pumpkin_wasm_host_common::state::PluginHostState;
-use tracing::info;
+use tracing::debug;
 use wasmtime::component::Resource;
 
 /// Reads one node of a codec in prefix notation, see `custom-components.wit`.
@@ -104,12 +104,13 @@ impl Host for PluginHostState {
         Ok(
             match register_plugin_component_type(&key, persistent, codec) {
                 Ok(component_type) => {
-                    info!(
+                    debug!(
                         "Plugin {} registered data component type {} with id {}",
                         self.name.as_deref().unwrap_or("<unknown>"),
                         component_type.key,
                         component_type.id()
                     );
+                    self.registrations.data_component_type(component_type.key);
                     Ok(u32::from(component_type.id()))
                 }
                 Err(error) => Err(format!("data component type '{key}': {error}")),

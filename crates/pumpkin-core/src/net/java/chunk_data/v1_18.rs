@@ -2,6 +2,7 @@ use super::light;
 use super::util::write_compound_nbt;
 use crate::block::entities::plugin::CLIENT_DATA_KEY;
 use pumpkin_data::block_entity_registry::plugin_block_entity_type_by_key;
+use pumpkin_data::block_properties::BLOCK_ENTITY_TYPES;
 use pumpkin_nbt::compound::NbtCompound;
 use pumpkin_protocol::codec::var_int::VarInt;
 use pumpkin_protocol::ser::NetworkWriteExt;
@@ -12,6 +13,10 @@ use pumpkin_util::version::JavaMinecraftVersion;
 use pumpkin_world::chunk::ChunkData;
 use pumpkin_world::chunk::palette::NetworkPalette;
 use std::io::Write;
+
+/// The block entity type name of the trial spawner. Its update tag is smaller than its save data
+/// (see the chunk block entity loop below), so it is the one name the chunk serializer has to know.
+const TRIAL_SPAWNER: &str = "trial_spawner";
 
 /// Serializes chunk data for Minecraft 1.18+ through 26.2+.
 #[expect(clippy::too_many_lines)]
@@ -201,13 +206,13 @@ pub fn write_chunk_data(
             continue;
         }
 
-        let id = nbt.get_string("id").map_or(0, |id_str| {
-            let name = id_str.split(':').next_back().unwrap_or(id_str);
-            pumpkin_data::block_properties::BLOCK_ENTITY_TYPES
-                .iter()
-                .position(|&n| n == name)
-                .unwrap_or(0)
-        });
+        let name = nbt
+            .get_string("id")
+            .map_or("", |id_str| id_str.split(':').next_back().unwrap_or(id_str));
+        let id = BLOCK_ENTITY_TYPES
+            .iter()
+            .position(|&n| n == name)
+            .unwrap_or(0);
 
         let mut client_nbt = nbt.clone();
         client_nbt.child_tags.remove("id");
@@ -218,6 +223,25 @@ pub fn write_chunk_data(
         client_nbt.child_tags.remove("LootTableSeed");
         client_nbt.child_tags.remove("PumpkinCustomData");
         client_nbt.child_tags.remove("BukkitValues");
+        // A chunk carries an entity's *update tag* (`BlockEntity.getUpdateTag`), and for most
+        // entities that is the whole save data minus the metadata removed above — but not for the
+        // trial spawner: `TrialSpawnerStateData.getUpdateTag` sends only `next_mob_spawns_at` and
+        // `spawn_data`, because its configuration is a `Holder<TrialSpawnerConfig>` of the
+        // `minecraft:trial_spawner` data pack registry. A client never receives that registry
+        // (`Registries.TRIAL_SPAWNER_CONFIG` is not one of `RegistryDataLoader
+        // .SYNCHRONIZED_REGISTRIES`), so sending the saved form makes every trial spawner in view
+        // fail with `Failed to decode from map: Registry does not exist: minecraft:trial_spawner`.
+        if name == TRIAL_SPAWNER {
+            for field in [
+                "config",
+                "normal_config",
+                "ominous_config",
+                "target_cooldown_length",
+                "required_player_range",
+            ] {
+                client_nbt.child_tags.remove(field);
+            }
+        }
         entries.push((*pos, id as i32, client_nbt));
     }
     write.write_var_int(&VarInt(entries.len() as i32))?;

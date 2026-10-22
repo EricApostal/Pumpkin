@@ -19,7 +19,7 @@ use pumpkin_protocol::VarInt;
 use pumpkin_protocol::java::client::play::CParticle;
 use pumpkin_util::math::vector3::Vector3;
 use pumpkin_wasm_host_common::state::PluginHostState;
-use tracing::info;
+use tracing::debug;
 
 fn strip(key: &str) -> &str {
     key.strip_prefix("minecraft:").unwrap_or(key)
@@ -102,11 +102,12 @@ impl Host for PluginHostState {
         Ok(
             match extra_registry::register_plugin_sound(&definition.key, definition.fixed_range) {
                 Ok(sound) => {
-                    info!(
+                    debug!(
                         "Plugin {} registered sound {}",
                         plugin_name(self),
                         sound.key
                     );
+                    self.registrations.sound(sound.key);
                     Ok((vanilla_sound_count() + sound.index) as u32)
                 }
                 Err(error) => Err(format!("sound '{}': {error}", definition.key)),
@@ -135,11 +136,12 @@ impl Host for PluginHostState {
                 &definition.options_format,
             ) {
                 Ok(particle) => {
-                    info!(
+                    debug!(
                         "Plugin {} registered particle {}",
                         plugin_name(self),
                         particle.key
                     );
+                    self.registrations.particle(particle.key);
                     Ok((vanilla_particle_count() + particle.index) as u32)
                 }
                 Err(error) => Err(format!("particle '{}': {error}", definition.key)),
@@ -182,12 +184,13 @@ impl Host for PluginHostState {
         Ok(
             match register_plugin_mob_effect(&definition.key, registration) {
                 Ok(effect) => {
-                    info!(
+                    debug!(
                         "Plugin {} registered mob effect {} with id {}",
                         plugin_name(self),
                         effect.key,
                         effect.effect.id
                     );
+                    self.registrations.mob_effect(effect.key);
                     Ok(u32::from(effect.effect.id))
                 }
                 Err(error) => Err(format!("mob effect '{}': {error}", definition.key)),

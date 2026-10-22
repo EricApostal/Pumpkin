@@ -17,7 +17,7 @@ use pumpkin_data::menu_registry::{
 };
 use pumpkin_wasm_host_common::state::PluginHostState;
 use tokio::sync::Mutex;
-use tracing::info;
+use tracing::debug;
 use wasmtime::component::{Access, HasSelf, Resource};
 
 impl Host for PluginHostState {
@@ -34,12 +34,13 @@ impl Host for PluginHostState {
         }
         Ok(match register_plugin_menu_type(&key) {
             Ok(menu_type) => {
-                info!(
+                debug!(
                     "Plugin {} registered menu type {} with id {}",
                     self.name.as_deref().unwrap_or("<unknown>"),
                     menu_type.key,
                     menu_type.id
                 );
+                self.registrations.menu_type(menu_type.key);
                 Ok(menu_type.id)
             }
             Err(error) => Err(format!("menu type '{key}': {error}")),

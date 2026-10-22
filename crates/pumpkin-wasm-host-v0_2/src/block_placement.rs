@@ -6,7 +6,7 @@ use pumpkin_core::plugin::permissions;
 use pumpkin_data::Block;
 use pumpkin_data::block_registry::{PlacementRule, PlacementSource, ShaftKind, ShaftNeighbour};
 use pumpkin_wasm_host_common::state::PluginHostState;
-use tracing::info;
+use tracing::debug;
 
 fn from_wit_shaft(shaft: WitShaftNeighbour) -> ShaftNeighbour {
     ShaftNeighbour {
@@ -70,12 +70,13 @@ impl Host for PluginHostState {
         Ok(
             match Block::set_dynamic_placement_rules(&block_key, rules) {
                 Ok(()) => {
-                    info!(
+                    debug!(
                         "Plugin {} set {} placement rules for block {}",
                         self.name.as_deref().unwrap_or("<unknown>"),
                         count,
                         block_key
                     );
+                    self.registrations.block_placement_rules(&block_key, count);
                     Ok(())
                 }
                 Err(error) => Err(error.to_string()),

@@ -101,6 +101,12 @@ impl PluginLoader for WasmPluginLoader {
                 .init_plugin(&path, self.verify_signatures)
                 .await
                 .map_err(|error| LoaderError::WasmInitializationError(Box::new(error)))?;
+            // Instantiation allocates its own transient set on top of the compile's, and the
+            // `PluginRuntime` (its linkers included) is dropped here. Trim again so a fleet of
+            // plugins does not stack what each one leaves behind: see
+            // `pumpkin_core::release_allocator_pages`.
+            drop(runtime);
+            pumpkin_core::release_allocator_pages();
 
             Ok((
                 Arc::new(WasmPluginHandle(plugin)) as Arc<dyn Plugin>,

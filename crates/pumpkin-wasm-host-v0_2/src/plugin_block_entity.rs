@@ -16,7 +16,7 @@ use pumpkin_nbt::compound::NbtCompound;
 use pumpkin_nbt::tag::NbtTag;
 use pumpkin_util::math::position::BlockPos;
 use pumpkin_wasm_host_common::state::PluginHostState;
-use tracing::info;
+use tracing::debug;
 use wasmtime::component::{Accessor, HasSelf, Resource};
 
 const fn from_wit_position(position: &WitBlockPos) -> BlockPos {
@@ -50,12 +50,13 @@ impl Host for PluginHostState {
         Ok(
             match register_plugin_block_entity_type(&key, valid_block_keys) {
                 Ok(entity_type) => {
-                    info!(
+                    debug!(
                         "Plugin {} registered block entity type {} with id {}",
                         self.name.as_deref().unwrap_or("<unknown>"),
                         entity_type.key,
                         entity_type.id
                     );
+                    self.registrations.block_entity_type(entity_type.key);
                     Ok(entity_type.id)
                 }
                 Err(error) => Err(format!("block entity type '{key}': {error}")),

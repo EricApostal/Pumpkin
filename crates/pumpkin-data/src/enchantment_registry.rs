@@ -20,7 +20,12 @@ const MAX_PLUGIN_EFFECT_TYPES: usize = 256;
 
 /// The vanilla `minecraft:enchantment_effect_component_type` entries in registry order
 /// (`EnchantmentEffectComponents` of 26.3).
-pub const VANILLA_ENCHANTMENT_EFFECT_TYPES: [&str; 30] = [
+///
+/// The list is the client's id space, so it has to end where the client's does: the last entry,
+/// `trident_spin_attack_strength`, was missing here, which left every probe of the registry one
+/// short of the client (a plugin's effect type was numbered `30 + index` by the host and `31 +
+/// index` by the client).
+pub const VANILLA_ENCHANTMENT_EFFECT_TYPES: [&str; 31] = [
     "minecraft:damage_protection",
     "minecraft:damage_immunity",
     "minecraft:damage",
@@ -51,6 +56,7 @@ pub const VANILLA_ENCHANTMENT_EFFECT_TYPES: [&str; 30] = [
     "minecraft:trident_sound",
     "minecraft:prevent_equipment_drop",
     "minecraft:prevent_armor_change",
+    "minecraft:trident_spin_attack_strength",
 ];
 
 /// What the server needs to know about a plugin enchantment.

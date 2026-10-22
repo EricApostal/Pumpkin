@@ -7,7 +7,7 @@ use pumpkin_data::fluid::Fluid;
 use pumpkin_data::fluid_registry::{FluidPlacement, FluidRegistration};
 use pumpkin_data::item::Item;
 use pumpkin_wasm_host_common::state::PluginHostState;
-use tracing::info;
+use tracing::debug;
 
 /// Millibuckets in a full bucket.
 const BUCKET_AMOUNT: u32 = 1000;
@@ -58,12 +58,13 @@ impl Host for PluginHostState {
         });
         Ok(match result {
             Ok(fluid) => {
-                info!(
+                debug!(
                     "Plugin {} registered fluid {} with id {}",
                     self.name.as_deref().unwrap_or("<unknown>"),
                     fluid.name,
                     fluid.id
                 );
+                self.registrations.fluid(fluid.name);
                 Ok(u32::from(fluid.id))
             }
             Err(error) => Err(error.to_string()),

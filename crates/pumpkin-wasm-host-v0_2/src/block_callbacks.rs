@@ -3,7 +3,7 @@ use pumpkin_core::plugin::permissions;
 use pumpkin_data::Block;
 use pumpkin_data::block_registry::BlockCallbacks;
 use pumpkin_wasm_host_common::state::PluginHostState;
-use tracing::info;
+use tracing::debug;
 
 #[expect(clippy::too_many_lines)]
 fn from_wit_flags(flags: BlockCallbackFlags) -> BlockCallbacks {
@@ -138,12 +138,13 @@ impl Host for PluginHostState {
         let callbacks = from_wit_flags(callbacks);
         Ok(match Block::set_dynamic_callbacks(&block_key, callbacks) {
             Ok(()) => {
-                info!(
+                debug!(
                     "Plugin {} set callbacks {:#x} for block {}",
                     self.name.as_deref().unwrap_or("<unknown>"),
                     callbacks.bits(),
                     block_key
                 );
+                self.registrations.block_callbacks(&block_key);
                 Ok(())
             }
             Err(error) => Err(error.to_string()),

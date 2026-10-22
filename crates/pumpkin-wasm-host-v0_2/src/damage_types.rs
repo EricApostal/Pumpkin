@@ -9,7 +9,7 @@ use pumpkin_data::damage_type_registry::{
     register_plugin_damage_type,
 };
 use pumpkin_wasm_host_common::state::PluginHostState;
-use tracing::info;
+use tracing::debug;
 
 impl Host for PluginHostState {
     fn register_damage_type(
@@ -53,12 +53,13 @@ impl Host for PluginHostState {
         };
         Ok(match register_plugin_damage_type(&key, registration) {
             Ok(damage_type) => {
-                info!(
+                debug!(
                     "Plugin {} registered damage type {} with id {}",
                     self.name.as_deref().unwrap_or("<unknown>"),
                     damage_type.key,
                     damage_type.damage_type.id
                 );
+                self.registrations.damage_type(damage_type.key);
                 Ok(u32::from(damage_type.damage_type.id))
             }
             Err(error) => Err(format!("damage type '{key}': {error}")),

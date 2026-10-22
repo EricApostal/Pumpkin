@@ -25,45 +25,49 @@ pub const RECIPE_TYPE_REGISTRY: &str = "minecraft:recipe_type";
 pub const RECIPE_SERIALIZER_REGISTRY: &str = "minecraft:recipe_serializer";
 
 /// The vanilla `minecraft:recipe_type` entries in registry order.
+///
+/// The order is the client's, not the alphabetical one these lists used to be written in: an
+/// entry's id is its position, and a registry the host does not synchronise (no plugin added a
+/// recipe type) keeps the *client's* ids, so a host that numbers them its own way writes a
+/// different recipe type than the client reads (`blasting` where the client has `crafting`).
 pub const VANILLA_RECIPE_TYPES: [&str; 8] = [
-    "blasting",
-    "brewing",
-    "campfire_cooking",
     "crafting",
     "smelting",
-    "smithing",
+    "blasting",
     "smoking",
+    "campfire_cooking",
     "stonecutting",
+    "smithing",
+    "brewing",
 ];
 
-/// The vanilla `minecraft:recipe_serializer` entries in registry order.
+/// The vanilla `minecraft:recipe_serializer` entries in registry order, as above.
 ///
-/// The order is the id order of the registry, and the frozen registry sync replaces the client's
-/// registry with exactly this list. `crafting_special_armordye` and `crafting_special_tippedarrow`
-/// are gone since 1.21.2 (`crafting_dye`/`crafting_imbue` replaced them), and `brewing` was added.
+/// `crafting_special_armordye` and `crafting_special_tippedarrow` are gone since 1.21.2
+/// (`crafting_dye`/`crafting_imbue` replaced them), and `brewing` was added.
 pub const VANILLA_RECIPE_SERIALIZERS: [&str; 22] = [
-    "blasting",
-    "brewing",
-    "campfire_cooking",
-    "crafting_decorated_pot",
-    "crafting_dye",
-    "crafting_imbue",
     "crafting_shaped",
     "crafting_shapeless",
-    "crafting_special_bannerduplicate",
+    "crafting_dye",
+    "crafting_imbue",
+    "crafting_transmute",
+    "crafting_decorated_pot",
     "crafting_special_bookcloning",
+    "crafting_special_mapextending",
     "crafting_special_firework_rocket",
     "crafting_special_firework_star",
     "crafting_special_firework_star_fade",
-    "crafting_special_mapextending",
-    "crafting_special_repairitem",
+    "crafting_special_bannerduplicate",
     "crafting_special_shielddecoration",
-    "crafting_transmute",
+    "crafting_special_repairitem",
     "smelting",
-    "smithing_transform",
-    "smithing_trim",
+    "blasting",
     "smoking",
+    "campfire_cooking",
     "stonecutting",
+    "smithing_transform",
+    "brewing",
+    "smithing_trim",
 ];
 
 const MAX_SYNCED_TYPES: usize = 1024;
@@ -158,29 +162,31 @@ pub fn extra_types() -> Vec<String> {
 /// type of a mod the client does not have would be an unknown key, and the client disconnects on
 /// those.
 #[must_use]
-pub fn registry_extras() -> Vec<(&'static str, Vec<String>, Vec<String>)> {
+pub fn registry_extras() -> Vec<(&'static str, Vec<String>)> {
     let extras = extra_types();
     if extras.is_empty() {
         return Vec::new();
     }
-    let vanilla = |vanilla: &[&str]| -> Vec<String> {
+    vec![
+        (RECIPE_TYPE_REGISTRY, extras.clone()),
+        (RECIPE_SERIALIZER_REGISTRY, extras),
+    ]
+}
+
+/// The vanilla entries of the two recipe registries, in the order the client numbers them.
+#[must_use]
+pub fn vanilla_entries(key: &str) -> Option<Vec<String>> {
+    let vanilla = match key {
+        RECIPE_TYPE_REGISTRY => &VANILLA_RECIPE_TYPES[..],
+        RECIPE_SERIALIZER_REGISTRY => &VANILLA_RECIPE_SERIALIZERS[..],
+        _ => return None,
+    };
+    Some(
         vanilla
             .iter()
             .map(|name| format!("minecraft:{name}"))
-            .collect()
-    };
-    vec![
-        (
-            RECIPE_TYPE_REGISTRY,
-            vanilla(&VANILLA_RECIPE_TYPES),
-            extras.clone(),
-        ),
-        (
-            RECIPE_SERIALIZER_REGISTRY,
-            vanilla(&VANILLA_RECIPE_SERIALIZERS),
-            extras,
-        ),
-    ]
+            .collect(),
+    )
 }
 
 /// The registry id of a recipe type.
@@ -548,10 +554,13 @@ mod tests {
         );
         assert!(canonical_type("Bad Type").is_err());
         assert_eq!(VANILLA_RECIPE_SERIALIZERS.len(), 22);
-        // The ids the frozen registry sync gives the client.
-        assert_eq!(vanilla_serializer_id("smelting"), 17);
-        assert_eq!(type_id("minecraft:smelting", &[]), Some(4));
-        assert_eq!(type_id("minecraft:stonecutting", &[]), Some(7));
+        // The ids the client numbers these entries with (`minecraft:recipe_type`:
+        // crafting=0, smelting=1, stonecutting=5; `minecraft:recipe_serializer`: smelting=14).
+        // The host has to write the same ones: a registry with no plugin entries is not
+        // synchronised, so the client keeps its own ids for it.
+        assert_eq!(vanilla_serializer_id("smelting"), 14);
+        assert_eq!(type_id("minecraft:smelting", &[]), Some(1));
+        assert_eq!(type_id("minecraft:stonecutting", &[]), Some(5));
     }
 
     #[test]
@@ -568,12 +577,12 @@ mod tests {
         let mut r = Reader::new(&bytes);
         assert_eq!(r.var_int().unwrap(), 2);
         // The recipe type ids of `minecraft:smelting` and `minecraft:blasting`.
-        assert_eq!(r.var_int().unwrap(), 4);
-        assert_eq!(r.var_int().unwrap(), 0);
+        assert_eq!(r.var_int().unwrap(), 1);
+        assert_eq!(r.var_int().unwrap(), 2);
         assert_eq!(r.var_int().unwrap(), 1);
         assert_eq!(r.string().unwrap(), "test:iron");
         // The `minecraft:smelting` serializer id.
-        assert_eq!(r.var_int().unwrap(), 17);
+        assert_eq!(r.var_int().unwrap(), 14);
         assert_eq!(r.string().unwrap(), "");
         assert_eq!(r.var_int().unwrap(), 1);
         // A tag reference.
@@ -603,7 +612,7 @@ mod tests {
         let bytes = encode_recipe_content(&["minecraft:smelting".to_string()], &[recipe], &plugin);
         let mut r = Reader::new(&bytes);
         assert_eq!(r.var_int().unwrap(), 1);
-        assert_eq!(r.var_int().unwrap(), 4);
+        assert_eq!(r.var_int().unwrap(), 1);
         assert_eq!(r.var_int().unwrap(), 0);
         r.finish().unwrap();
     }
@@ -616,7 +625,7 @@ mod tests {
             &[smelting()],
             &plugin,
         );
-        assert_eq!(bytes, vec![1, 7, 0]);
+        assert_eq!(bytes, vec![1, 5, 0]);
         assert_eq!(encode_recipe_content(&[], &[], &plugin), vec![0, 0]);
     }
 }

@@ -11,7 +11,7 @@ use pumpkin_data::entity_registry::{
 use pumpkin_util::math::vector3::Vector3;
 use pumpkin_wasm_host_common::state::PluginHostState;
 use std::sync::Arc;
-use tracing::info;
+use tracing::debug;
 
 const fn to_category(category: WitEntityCategory) -> PluginEntityCategory {
     match category {
@@ -68,12 +68,13 @@ impl Host for PluginHostState {
         Ok(
             match entity_registry::register_plugin_entity_type(&key, to_definition(definition)) {
                 Ok(entity_type) => {
-                    info!(
+                    debug!(
                         "Plugin {} registered entity type {} with id {}",
                         self.name.as_deref().unwrap_or("<unknown>"),
                         entity_type.key,
                         entity_type.id
                     );
+                    self.registrations.entity_type(entity_type.key);
                     Ok(entity_type.id)
                 }
                 Err(error) => Err(error.to_string()),

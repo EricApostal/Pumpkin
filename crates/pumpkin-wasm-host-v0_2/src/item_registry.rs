@@ -9,7 +9,7 @@ use pumpkin_data::item_registry::ItemRegistration;
 use pumpkin_data::tag::RegistryKey;
 use pumpkin_protocol::codec::data_component::deserialize;
 use pumpkin_wasm_host_common::state::PluginHostState;
-use tracing::{info, warn};
+use tracing::{debug, warn};
 
 fn to_wit_entry(item: &Item) -> WitItemEntry {
     WitItemEntry {
@@ -68,12 +68,14 @@ impl Host for PluginHostState {
         });
         Ok(match result {
             Ok(item) => {
-                info!(
+                debug!(
                     "Plugin {} registered item {} with id {}",
                     self.name.as_deref().unwrap_or("<unknown>"),
                     crate::item_stack::namespaced_key(item.registry_key),
                     item.id
                 );
+                self.registrations
+                    .item(&crate::item_stack::namespaced_key(item.registry_key));
                 Ok(u32::from(item.id))
             }
             Err(error) => Err(error.to_string()),

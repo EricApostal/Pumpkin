@@ -1411,10 +1411,24 @@ impl BlockEntity for TrialSpawnerBlockEntity {
         }
     }
 
+    /// The update tag, which is *not* the saved form: `TrialSpawner.store` writes
+    /// `normal_config`/`ominous_config`, and the client decodes those as
+    /// `Holder<TrialSpawnerConfig>` through `RegistryFileCodec`, i.e. it looks
+    /// `minecraft:trial_spawner` up in its registry access. That registry is a datapack registry
+    /// the server never synchronises (`Registries.TRIAL_SPAWNER_CONFIG` is not one of
+    /// `RegistryDataLoader.SYNCHRONIZED_REGISTRIES`), so a real client fails every such block
+    /// entity with `Failed to decode from map: Registry does not exist: minecraft:trial_spawner`.
+    /// Vanilla's `TrialSpawnerStateData.getUpdateTag` sends only the two fields below for exactly
+    /// that reason, and the client fills the rest from `FullConfig.DEFAULT`.
     fn chunk_data_nbt(&self) -> Option<NbtCompound> {
         self.trial_spawner.try_lock().ok().map(|spawner| {
             let mut nbt = NbtCompound::new();
-            spawner.store(&mut nbt);
+            nbt.put_long("next_mob_spawns_at", spawner.data.next_mob_spawns_at);
+            if let Some(spawn_data) = &spawner.data.next_spawn_data {
+                let mut spawn_cmp = NbtCompound::new();
+                spawn_data.write_nbt(&mut spawn_cmp);
+                nbt.put_compound("spawn_data", spawn_cmp);
+            }
             nbt
         })
     }
@@ -1511,5 +1525,42 @@ mod tests {
         assert_eq!(loaded.config.target_cooldown_length, 36000);
         assert_eq!(loaded.config.required_player_range, 14);
         assert!(loaded.data.registered_players.contains(&test_uuid));
+    }
+
+    /// The chunk/update tag must not carry the configuration, which is only decodable with the
+    /// `minecraft:trial_spawner` datapack registry — a registry a client never receives.
+    ///
+    /// Vanilla's `TrialSpawnerStateData.getUpdateTag` sends `next_mob_spawns_at` and `spawn_data`
+    /// only; sending `TrialSpawner.store`'s output instead made every trial spawner in view fail
+    /// to decode with `Registry does not exist: minecraft:trial_spawner`.
+    #[test]
+    fn the_update_tag_carries_no_registry_typed_config() {
+        let mut spawner = TrialSpawner::default();
+        spawner.data.next_mob_spawns_at = 4242;
+        spawner.data.next_spawn_data = Some(SpawnData::default());
+        let entity = TrialSpawnerBlockEntity {
+            position: BlockPos::new(0, 0, 0),
+            trial_spawner: Mutex::new(spawner),
+        };
+
+        let tag = entity.chunk_data_nbt().expect("the update tag is sent");
+        assert_eq!(tag.get_long("next_mob_spawns_at"), Some(4242));
+        assert!(tag.get_compound("spawn_data").is_some());
+        for field in [
+            "config",
+            "normal_config",
+            "ominous_config",
+            "target_cooldown_length",
+            "required_player_range",
+        ] {
+            assert!(
+                tag.get(field).is_none(),
+                "{field} is a registry-typed or server-only field and must not be sent: {tag:?}"
+            );
+        }
+        // The saved form still has them, so the world keeps its configuration.
+        let mut saved = NbtCompound::new();
+        entity.write_nbt(&mut saved);
+        assert!(saved.get_compound("normal_config").is_some());
     }
 }

@@ -175,6 +175,11 @@ impl PluginRuntime {
         let wasm_bytes = signature::strip_pumpkin_sections(&wasm_bytes).unwrap_or(wasm_bytes);
 
         let component = load_component(&self.engine, &wasm_bytes)?;
+        // The compile is done and its transient Cranelift/allocator memory is free: hand those
+        // pages back now, before instantiation or the next component allocates more. Without
+        // this each component's high-water mark stays resident and they stack (see
+        // `pumpkin_core::release_allocator_pages`).
+        pumpkin_core::release_allocator_pages();
 
         let api_version = plugin_api_version(&self.engine, &component)?;
 
@@ -475,34 +480,56 @@ pub async fn on_load(
                     store.data_mut().wasi_ctx = wasi_ctx;
                     store.data_mut().wasi_http_hooks.allow_outbound = allow_http_outbound;
                     store.data_mut().server = Some(server);
-                    store.data_mut().name = Some(name);
+                    store.data_mut().name = Some(name.clone());
                 });
 
-                match api_version {
-                    PluginApiVersion::V0_1 => {
-                        let plugin =
-                            guest_exports::<pumpkin_wasm_host_v0_1::Plugin>(&plugin_instance)?;
-                        let context_res = guest.with(|mut store| store.data_mut().add(context))?;
+                // Wrapped in its own future so a `?` on a failed export lookup or context
+                // handle still reaches the summary below: a plugin that traps halfway through
+                // `on_load` is exactly when the counts of what it did register matter.
+                let result = async {
+                    match api_version {
+                        PluginApiVersion::V0_1 => {
+                            let plugin =
+                                guest_exports::<pumpkin_wasm_host_v0_1::Plugin>(&plugin_instance)?;
+                            let context_res =
+                                guest.with(|mut store| store.data_mut().add(context))?;
 
-                        guest
-                            .call(plugin.func_on_load(), (context_res,))
-                            .await
-                            .map(|(result,)| result)
-                    }
-                    #[cfg(feature = "v0_2")]
-                    PluginApiVersion::V0_2 => {
-                        let plugin =
-                            guest_exports::<pumpkin_wasm_host_v0_2::Plugin>(&plugin_instance)?;
-                        let context_res = guest.with(|mut store| store.data_mut().add(context))?;
+                            guest
+                                .call(plugin.func_on_load(), (context_res,))
+                                .await
+                                .map(|(result,)| result)
+                        }
+                        #[cfg(feature = "v0_2")]
+                        PluginApiVersion::V0_2 => {
+                            let plugin =
+                                guest_exports::<pumpkin_wasm_host_v0_2::Plugin>(&plugin_instance)?;
+                            let context_res =
+                                guest.with(|mut store| store.data_mut().add(context))?;
 
-                        guest
-                            .call(plugin.func_on_load(), (context_res,))
-                            .await
-                            .map(|(result,)| result)
+                            guest
+                                .call(plugin.func_on_load(), (context_res,))
+                                .await
+                                .map(|(result,)| result)
+                        }
+                        #[cfg(not(feature = "v0_2"))]
+                        PluginApiVersion::V0_2 => Err(v0_2_disabled()),
                     }
-                    #[cfg(not(feature = "v0_2"))]
-                    PluginApiVersion::V0_2 => Err(v0_2_disabled()),
                 }
+                .await;
+
+                // The one line that replaces the per-entry registration log: every host call
+                // that used to log its success at `info!` now logs at `debug!` and bumps a
+                // counter in `PluginHostState::registrations`, so a large plugin loads quietly
+                // and still reports what it registered. Emitted here, after `on_load` returned
+                // (whichever way it returned), because that is when the plugin's registration
+                // work is done, and this store is the only one that knows its own counts.
+                let summary =
+                    guest.with(|mut store| store.data_mut().registrations.take_summary(&name));
+                if let Some(summary) = summary {
+                    tracing::info!("{summary}");
+                }
+
+                result
             })
         })
         .await

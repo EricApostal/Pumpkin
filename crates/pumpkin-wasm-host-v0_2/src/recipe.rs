@@ -23,7 +23,7 @@ use pumpkin_protocol::codec::recipe::{
 };
 use pumpkin_wasm_host_common::state::PluginHostState;
 use std::sync::Arc;
-use tracing::info;
+use tracing::debug;
 use wasmtime::component::{Accessor, HasSelf, Resource};
 
 impl RecipeHost for PluginHostState {}
@@ -60,10 +60,11 @@ impl HostRecipeManager for PluginHostState {
         let manager = Arc::clone(self.get(&res)?);
         Ok(match manager.plugin_recipes().register_type(&key) {
             Ok(()) => {
-                info!(
+                debug!(
                     "Plugin {} registered recipe type {key}",
                     self.name.as_deref().unwrap_or("<unknown>")
                 );
+                self.registrations.recipe_type(&key);
                 Ok(())
             }
             Err(error) => Err(format!("recipe type '{key}': {error}")),
@@ -115,10 +116,19 @@ impl HostRecipeManager for PluginHostState {
                 .collect(),
             extra: recipe.extra,
         };
-        Ok(manager
-            .plugin_recipes()
-            .add_recipe(recipe)
-            .map_err(|error| format!("recipe '{id}': {error}")))
+        Ok(
+            match manager
+                .plugin_recipes()
+                .add_recipe(recipe)
+                .map_err(|error| format!("recipe '{id}': {error}"))
+            {
+                Ok(()) => {
+                    self.registrations.recipe(&id);
+                    Ok(())
+                }
+                Err(error) => Err(error),
+            },
+        )
     }
 
     fn register_custom_recipe_with_network_data(
@@ -233,6 +243,7 @@ impl HostRecipeManagerWithStore<PluginHostState> for HasSelf<PluginHostState> {
             .category
             .map_or(RecipeCategoryTypes::Misc, to_data_category);
 
+        let recipe_id = id.clone();
         let owned_recipe = OwnedCraftingRecipe::Shaped {
             recipe_id: Some(id),
             category,
@@ -254,6 +265,7 @@ impl HostRecipeManagerWithStore<PluginHostState> for HasSelf<PluginHostState> {
         server
             .recipe_manager
             .add_plugin_recipe(DynamicRecipe::Crafting(owned_recipe));
+        accessor.with(|mut host| host.data_mut().registrations.recipe(&recipe_id));
         Ok(())
     }
 
@@ -270,6 +282,7 @@ impl HostRecipeManagerWithStore<PluginHostState> for HasSelf<PluginHostState> {
             .category
             .map_or(RecipeCategoryTypes::Misc, to_data_category);
 
+        let recipe_id = id.clone();
         let owned_recipe = OwnedCraftingRecipe::Shapeless {
             recipe_id: Some(id),
             category,
@@ -289,6 +302,7 @@ impl HostRecipeManagerWithStore<PluginHostState> for HasSelf<PluginHostState> {
         server
             .recipe_manager
             .add_plugin_recipe(DynamicRecipe::Crafting(owned_recipe));
+        accessor.with(|mut host| host.data_mut().registrations.recipe(&recipe_id));
         Ok(())
     }
 
@@ -306,6 +320,7 @@ impl HostRecipeManagerWithStore<PluginHostState> for HasSelf<PluginHostState> {
             .category
             .map_or(RecipeCategoryTypes::Misc, to_data_category);
 
+        let recipe_id = id.clone();
         let owned_cooking = OwnedCookingRecipe {
             recipe_id: id,
             category,
@@ -336,6 +351,7 @@ impl HostRecipeManagerWithStore<PluginHostState> for HasSelf<PluginHostState> {
 
         let server = accessor.server()?;
         server.recipe_manager.add_plugin_recipe(dynamic_recipe);
+        accessor.with(|mut host| host.data_mut().registrations.recipe(&recipe_id));
         Ok(())
     }
 }

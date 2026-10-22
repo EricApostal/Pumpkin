@@ -228,6 +228,40 @@ pub fn stop_or_exit_server() {
     stop_server();
 }
 
+/// Returns memory the allocator has freed but not handed back to the OS.
+///
+/// glibc keeps freed chunks on its per-arena free lists and only returns the pages above the
+/// trim threshold of the *top* of a heap, so a workload that allocates in bursts keeps the
+/// high-water mark resident forever. Compiling a wasm component is exactly that workload:
+/// Cranelift allocates and frees heavily per function, on every thread of the rayon pool that
+/// `Config::parallel_compilation` hands it, and each of those threads gets its own arena.
+///
+/// Measured on the frozen six-plugin modset (~35 MB of components, 32-core host):
+/// - cold start, before this call: 15.2 GB peak, 14.9 GB still resident once every component
+///   was compiled and cached (`malloc_trim(0)` on that idle process then dropped it to 1.09 GB,
+///   which is what identifies the retention as free pages and not live data);
+/// - warm start (all six deserialized from the wasmtime cache): 0.43-0.96 GB.
+///
+/// Bounding the arena count instead (`MALLOC_ARENA_MAX=1`) also caps it (5.3 GB peak) but makes
+/// every allocating thread share one arena; the same compile then took 38.8 s against 25.7 s.
+/// Trimming is the cheaper trade: it costs a walk over the arenas' free chunks.
+///
+/// Not a substitute for dropping what is actually alive — call it once the transient work is
+/// over (after a component compile, after plugin loading), never in a hot loop.
+#[cfg(all(target_os = "linux", target_env = "gnu"))]
+pub fn release_allocator_pages() {
+    // SAFETY: `malloc_trim` only returns the allocator's free pages to the kernel. It cannot
+    // invalidate a live allocation, and it takes the allocator lock internally, so it is safe
+    // to call from any thread while others allocate.
+    unsafe {
+        libc::malloc_trim(0);
+    }
+}
+
+/// See the glibc variant: other allocators either return pages eagerly or have no equivalent.
+#[cfg(not(all(target_os = "linux", target_env = "gnu")))]
+pub const fn release_allocator_pages() {}
+
 fn resolve_some<T: Future, D, F: FnOnce(D) -> T>(
     opt: Option<D>,
     func: F,
